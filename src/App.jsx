@@ -1,0 +1,364 @@
+/**
+ * App.jsx — Main Application Component
+ * Orchestrates state, engines, and page routing
+ */
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import * as db from './services/db.js';
+import { computeSpoilage } from './engines/spoilage.js';
+import { checkDishAvailability, checkIntermediateAvailability } from './engines/availability.js';
+import { aggregateRequirements } from './engines/quantity.js';
+
+// UI Components
+import Toast from './components/ui/Toast';
+import Modal from './components/ui/Modal';
+import { PkgIcon, LayerIcon, DishIcon, CartIcon, DataIcon } from './components/ui/Icons';
+
+// Pages
+import IngredientsPage from './components/pages/IngredientsPage';
+import PrepsPage from './components/pages/PrepsPage';
+import DishesPage from './components/pages/DishesPage';
+import ShopPage from './components/pages/ShopPage';
+import DataPage from './components/pages/DataPage';
+
+// Forms
+import IngredientForm from './components/forms/IngredientForm';
+import BuyDialog from './components/forms/BuyDialog';
+import IntermediateForm from './components/forms/IntermediateForm';
+import PrepareDialog from './components/forms/PrepareDialog';
+import DishForm from './components/forms/DishForm';
+
+export default function App() {
+  // ─── State ───────────────────────────────────────────
+  const [page, setPage] = useState('ing');
+  const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState(null);
+  const [modal, setModal] = useState({});
+
+  // Raw data from Supabase
+  const [ingredients, setIngredients] = useState([]);
+  const [intermediates, setIntermediates] = useState([]);
+  const [dishes, setDishes] = useState([]);
+  const [dishIngs, setDishIngs] = useState([]);
+  const [dishInts, setDishInts] = useState([]);
+  const [intIngs, setIntIngs] = useState([]);
+
+  const notify = useCallback((msg, type = 'error') => setToast({ msg, type, key: Date.now() }), []);
+
+  // ─── Data Loading ────────────────────────────────────
+  const loadAll = useCallback(async () => {
+    try {
+      const [ings, ints, dsh, di, dint, ii] = await Promise.all([
+        db.fetchIngredients(),
+        db.fetchIntermediates(),
+        db.fetchDishes(),
+        db.fetchDishIngredients(),
+        db.fetchDishIntermediates(),
+        db.fetchIntermediateIngredients(),
+      ]);
+      setIngredients(ings);
+      setIntermediates(ints);
+      setDishes(dsh);
+      setDishIngs(di);
+      setDishInts(dint);
+      setIntIngs(ii);
+    } catch (err) {
+      notify('Failed to load data: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [notify]);
+
+  useEffect(() => { loadAll(); }, [loadAll]);
+
+  // ─── Enriched Data (engines) ─────────────────────────
+  const enrichedIngredients = useMemo(() =>
+    ingredients.map(i => ({ ...i, _spoilage: computeSpoilage(i) })),
+    [ingredients]
+  );
+
+  const enrichedIntermediates = useMemo(() =>
+    intermediates.map(t => ({
+      ...t,
+      _availability: checkIntermediateAvailability(t, intIngs, ingredients),
+    })),
+    [intermediates, intIngs, ingredients]
+  );
+
+  const enrichedDishes = useMemo(() =>
+    dishes.map(d => ({
+      ...d,
+      _availability: checkDishAvailability(d, dishIngs, dishInts, ingredients, intermediates),
+    })),
+    [dishes, dishIngs, dishInts, ingredients, intermediates]
+  );
+
+  const shoppingList = useMemo(() =>
+    aggregateRequirements(dishes, dishIngs, dishInts, intIngs, ingredients, intermediates),
+    [dishes, dishIngs, dishInts, intIngs, ingredients, intermediates]
+  );
+
+  // ─── Actions: Ingredients ────────────────────────────
+  const handleAddIngredient = async (data) => {
+    try {
+      const created = await db.addIngredient(data);
+      setIngredients(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+      setModal({});
+      notify(`Added ${data.name}`, 'success');
+    } catch (err) { notify('Failed: ' + err.message); }
+  };
+
+  const handleEditIngredient = async (data) => {
+    try {
+      const updated = await db.updateIngredient(modal.data.id, data);
+      setIngredients(prev => prev.map(i => i.id === modal.data.id ? updated : i));
+      setModal({});
+      notify(`Updated ${data.name}`, 'success');
+    } catch (err) { notify('Failed: ' + err.message); }
+  };
+
+  const handleBuyIngredient = async (qty) => {
+    try {
+      const updated = await db.buyIngredient(modal.data.id, qty);
+      setIngredients(prev => prev.map(i => i.id === modal.data.id ? updated : i));
+      setModal({});
+      notify(`Bought ${qty} ${modal.data.unit} of ${modal.data.name}`, 'success');
+    } catch (err) { notify('Failed: ' + err.message); }
+  };
+
+  const handleDeleteIngredient = async (ing) => {
+    if (!confirm(`Delete ${ing.name}?`)) return;
+    try {
+      await db.deleteIngredient(ing.id);
+      setIngredients(prev => prev.filter(i => i.id !== ing.id));
+      notify(`Deleted ${ing.name}`, 'warn');
+    } catch (err) { notify('Failed: ' + err.message); }
+  };
+
+  // ─── Actions: Intermediates ──────────────────────────
+  const handleAddIntermediate = async (data) => {
+    try {
+      const created = await db.addIntermediate(data);
+      await loadAll(); // Reload to get junction updates
+      setModal({});
+      notify(`Added ${data.name}`, 'success');
+    } catch (err) { notify('Failed: ' + err.message); }
+  };
+
+  const handleEditIntermediate = async (data) => {
+    try {
+      await db.updateIntermediate(modal.data.id, data);
+      await loadAll();
+      setModal({});
+      notify(`Updated ${data.name}`, 'success');
+    } catch (err) { notify('Failed: ' + err.message); }
+  };
+
+  const handlePrepareIntermediate = async (units) => {
+    const inter = modal.data;
+    const inputs = intIngs.filter(ii => ii.intermediate_id === inter.id);
+    try {
+      await db.prepareIntermediate(inter.id, units, inputs, ingredients);
+      await loadAll();
+      setModal({});
+      notify(`Prepared ${units} ${inter.unit} of ${inter.name}`, 'success');
+    } catch (err) { notify('Prepare failed: ' + err.message); }
+  };
+
+  const handleDeleteIntermediate = async (inter) => {
+    if (!confirm(`Delete ${inter.name}?`)) return;
+    try {
+      await db.deleteIntermediate(inter.id);
+      await loadAll();
+      notify(`Deleted ${inter.name}`, 'warn');
+    } catch (err) { notify('Failed: ' + err.message); }
+  };
+
+  // ─── Actions: Dishes ─────────────────────────────────
+  const handleAddDish = async (data) => {
+    try {
+      await db.addDish(data);
+      await loadAll();
+      setModal({});
+      notify(`Added ${data.name}`, 'success');
+    } catch (err) { notify('Failed: ' + err.message); }
+  };
+
+  const handleEditDish = async (data) => {
+    try {
+      await db.updateDish(modal.data.id, data);
+      await loadAll();
+      setModal({});
+      notify(`Updated ${data.name}`, 'success');
+    } catch (err) { notify('Failed: ' + err.message); }
+  };
+
+  const handleCookDish = async (dish) => {
+    if (dish.status === 'Cooked') return notify('Dish is already cooked');
+    const myIngs = dishIngs.filter(di => di.dish_id === dish.id);
+    const myInts = dishInts.filter(di => di.dish_id === dish.id);
+    try {
+      await db.cookDish(dish.id, myIngs, myInts, ingredients, intermediates);
+      await loadAll();
+      setModal({});
+      notify(`${dish.name} cooked!`, 'success');
+    } catch (err) { notify('Cook failed: ' + err.message); }
+  };
+
+  const handleDeleteDish = async (dish) => {
+    if (!confirm(`Delete ${dish.name}?`)) return;
+    try {
+      await db.deleteDish(dish.id);
+      await loadAll();
+      notify(`Deleted ${dish.name}`, 'warn');
+    } catch (err) { notify('Failed: ' + err.message); }
+  };
+
+  // ─── Data Management ─────────────────────────────────
+  const handleExport = async () => {
+    try {
+      const data = await db.exportAllData();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `cooking-app-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      notify('Data exported', 'success');
+    } catch (err) { notify('Export failed: ' + err.message); }
+  };
+
+  // ─── Helpers for forms (map Supabase → form format) ──
+  const getIntermediateFormData = (inter) => {
+    if (!inter) return null;
+    const inputs = intIngs.filter(ii => ii.intermediate_id === inter.id);
+    return {
+      ...inter,
+      inputIngredients: inputs.map(ii => ({
+        ingredientId: ii.ingredient_id,
+        qtyPerUnit: ii.qty_per_unit,
+      })),
+    };
+  };
+
+  const getDishFormData = (dish) => {
+    if (!dish) return null;
+    const myIngs = dishIngs.filter(di => di.dish_id === dish.id);
+    const myInts = dishInts.filter(di => di.dish_id === dish.id);
+    return {
+      ...dish,
+      recipeIngredients: myIngs.map(di => ({ ingredientId: di.ingredient_id, qty: di.qty })),
+      recipeIntermediates: myInts.map(di => ({ intermediateId: di.intermediate_id, qty: di.qty })),
+    };
+  };
+
+  // ─── Loading State ───────────────────────────────────
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-cream flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-8 h-8 border-2 border-terracotta border-t-transparent rounded-full animate-spin mx-auto" />
+          <p className="text-sm text-warm-gray mt-3">Connecting to database...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Render ──────────────────────────────────────────
+  return (
+    <div>
+      {toast && <Toast key={toast.key} message={toast.msg} type={toast.type} onDone={() => setToast(null)} />}
+
+      {/* Pages */}
+      {page === 'ing' && (
+        <IngredientsPage
+          ingredients={enrichedIngredients}
+          onAdd={() => setModal({ type: 'addIng' })}
+          onEdit={(i) => setModal({ type: 'editIng', data: i })}
+          onBuy={(i) => setModal({ type: 'buyIng', data: i })}
+          onDelete={handleDeleteIngredient}
+        />
+      )}
+      {page === 'int' && (
+        <PrepsPage
+          intermediates={enrichedIntermediates}
+          ingredients={ingredients}
+          intIngredients={intIngs}
+          onAdd={() => setModal({ type: 'addInt' })}
+          onEdit={(t) => setModal({ type: 'editInt', data: t })}
+          onPrepare={(t) => setModal({ type: 'prepInt', data: t })}
+          onDelete={handleDeleteIntermediate}
+        />
+      )}
+      {page === 'dish' && (
+        <DishesPage
+          dishes={enrichedDishes}
+          onAdd={() => setModal({ type: 'addDish' })}
+          onEdit={(d) => setModal({ type: 'editDish', data: d })}
+          onCook={(d) => handleCookDish(d)}
+          onDelete={handleDeleteDish}
+        />
+      )}
+      {page === 'shop' && (
+        <ShopPage
+          shoppingList={shoppingList}
+          ingredients={enrichedIngredients}
+          onBuy={(ig, sugQty) => setModal({ type: 'buyIng', data: ig, suggestedQty: sugQty })}
+        />
+      )}
+      {page === 'data' && (
+        <DataPage
+          counts={{ ingredients: ingredients.length, intermediates: intermediates.length, dishes: dishes.length }}
+          onExport={handleExport}
+          onImport={async () => { await loadAll(); notify('Data reloaded', 'success'); }}
+          onClearAll={async () => { setLoading(true); await loadAll(); }}
+        />
+      )}
+
+      {/* Bottom Navigation */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t z-20">
+        <div className="max-w-4xl mx-auto flex justify-around">
+          {[
+            { key: 'ing', icon: PkgIcon, label: 'Ingredients', color: 'terracotta' },
+            { key: 'int', icon: LayerIcon, label: 'Preps', color: 'purple' },
+            { key: 'dish', icon: DishIcon, label: 'Dishes', color: 'terracotta' },
+            { key: 'shop', icon: CartIcon, label: 'Shop', color: 'terracotta', badge: shoppingList.toBuy },
+            { key: 'data', icon: DataIcon, label: 'Data', color: 'charcoal' },
+          ].map(tab => (
+            <button key={tab.key} onClick={() => setPage(tab.key)} className={`flex flex-col items-center gap-0.5 py-2 px-2 relative ${page === tab.key ? `text-${tab.color}` : 'text-warm-gray'}`}>
+              <tab.icon />
+              <span className="text-xs">{tab.label}</span>
+              {tab.badge > 0 && <span className="absolute top-1 right-0 w-4 h-4 bg-tomato text-white text-xs rounded-full flex items-center justify-center">{tab.badge}</span>}
+            </button>
+          ))}
+        </div>
+      </nav>
+
+      {/* Modals */}
+      <Modal open={modal.type === 'addIng'} onClose={() => setModal({})} title="Add Ingredient">
+        <IngredientForm onSave={handleAddIngredient} onCancel={() => setModal({})} />
+      </Modal>
+      <Modal open={modal.type === 'editIng'} onClose={() => setModal({})} title="Edit Ingredient">
+        {modal.data && <IngredientForm initial={modal.data} onSave={handleEditIngredient} onCancel={() => setModal({})} />}
+      </Modal>
+      <Modal open={modal.type === 'buyIng'} onClose={() => setModal({})} title="Buy">
+        {modal.data && <BuyDialog ingredient={modal.data} suggestedQty={modal.suggestedQty} onBuy={handleBuyIngredient} onCancel={() => setModal({})} />}
+      </Modal>
+      <Modal open={modal.type === 'addInt'} onClose={() => setModal({})} title="Add Preparation">
+        <IntermediateForm ingredients={enrichedIngredients} onSave={handleAddIntermediate} onCancel={() => setModal({})} />
+      </Modal>
+      <Modal open={modal.type === 'editInt'} onClose={() => setModal({})} title="Edit Preparation">
+        {modal.data && <IntermediateForm initial={getIntermediateFormData(modal.data)} ingredients={enrichedIngredients} onSave={handleEditIntermediate} onCancel={() => setModal({})} />}
+      </Modal>
+      <Modal open={modal.type === 'prepInt'} onClose={() => setModal({})} title="Prepare">
+        {modal.data && <PrepareDialog intermediate={modal.data} intIngredients={intIngs.filter(ii => ii.intermediate_id === modal.data.id)} ingredients={ingredients} onPrepare={handlePrepareIntermediate} onCancel={() => setModal({})} />}
+      </Modal>
+      <Modal open={modal.type === 'addDish'} onClose={() => setModal({})} title="Add Dish">
+        <DishForm ingredients={enrichedIngredients} intermediates={enrichedIntermediates} onSave={handleAddDish} onCancel={() => setModal({})} />
+      </Modal>
+      <Modal open={modal.type === 'editDish'} onClose={() => setModal({})} title="Edit Dish">
+        {modal.data && <DishForm initial={getDishFormData(modal.data)} ingredients={enrichedIngredients} intermediates={enrichedIntermediates} onSave={handleEditDish} onCancel={() => setModal({})} />}
+      </Modal>
+    </div>
+  );
+}
