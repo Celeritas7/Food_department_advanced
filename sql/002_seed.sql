@@ -1337,27 +1337,27 @@ ON CONFLICT (dish_id, ingredient_id) DO NOTHING;
 
 -- DISH ↔ INTERMEDIATE LINKS
 INSERT INTO food_department_dish_intermediates (dish_id, intermediate_id, qty)
-SELECT d.id, t.id, 1 FROM food_department_dishes d, intermediates t
+SELECT d.id, t.id, 1 FROM food_department_dishes d, food_department_intermediates t
 WHERE d.name = 'Chicken curry' AND t.name = 'Frozen japanese Rice'
 ON CONFLICT (dish_id, intermediate_id) DO NOTHING;
 INSERT INTO food_department_dish_intermediates (dish_id, intermediate_id, qty)
-SELECT d.id, t.id, 1 FROM food_department_dishes d, intermediates t
+SELECT d.id, t.id, 1 FROM food_department_dishes d, food_department_intermediates t
 WHERE d.name = 'Mapo Tofu (Veg)' AND t.name = 'Chili Oil'
 ON CONFLICT (dish_id, intermediate_id) DO NOTHING;
 INSERT INTO food_department_dish_intermediates (dish_id, intermediate_id, qty)
-SELECT d.id, t.id, 1 FROM food_department_dishes d, intermediates t
+SELECT d.id, t.id, 1 FROM food_department_dishes d, food_department_intermediates t
 WHERE d.name = '🌭🍗 Fried Rice' AND t.name = 'Garlic Oil'
 ON CONFLICT (dish_id, intermediate_id) DO NOTHING;
 INSERT INTO food_department_dish_intermediates (dish_id, intermediate_id, qty)
-SELECT d.id, t.id, 1 FROM food_department_dishes d, intermediates t
+SELECT d.id, t.id, 1 FROM food_department_dishes d, food_department_intermediates t
 WHERE d.name = '🌭🍗 Fried Rice' AND t.name = 'Refrigerated Basmati rice'
 ON CONFLICT (dish_id, intermediate_id) DO NOTHING;
 INSERT INTO food_department_dish_intermediates (dish_id, intermediate_id, qty)
-SELECT d.id, t.id, 1 FROM food_department_dishes d, intermediates t
+SELECT d.id, t.id, 1 FROM food_department_dishes d, food_department_intermediates t
 WHERE d.name = 'Myanmar salad' AND t.name = 'Chopped 小ねぎ🪴'
 ON CONFLICT (dish_id, intermediate_id) DO NOTHING;
 INSERT INTO food_department_dish_intermediates (dish_id, intermediate_id, qty)
-SELECT d.id, t.id, 1 FROM food_department_dishes d, intermediates t
+SELECT d.id, t.id, 1 FROM food_department_dishes d, food_department_intermediates t
 WHERE d.name = 'Myanmar salad' AND t.name = 'Fried chicken'
 ON CONFLICT (dish_id, intermediate_id) DO NOTHING;
 
