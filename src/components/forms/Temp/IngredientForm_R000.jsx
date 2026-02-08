@@ -1,8 +1,4 @@
-/**
- * IngredientForm.jsx — Ingredient add/edit with category dropdown
- */
 import { useState } from 'react';
-import { ALL_CATEGORIES, getCatEmoji } from '../../config/emoji.js';
 
 export default function IngredientForm({ initial, onSave, onCancel }) {
   const [name, setName] = useState(initial?.name || '');
@@ -14,7 +10,13 @@ export default function IngredientForm({ initial, onSave, onCancel }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!name.trim()) return;
-    onSave({ name: name.trim(), unit, stockQty: stock, shelfLifeDays: shelfLife, category });
+    onSave({
+      name: name.trim(),
+      unit,
+      stockQty: stock,
+      shelfLifeDays: shelfLife,
+      category,
+    });
   };
 
   return (
@@ -23,28 +25,23 @@ export default function IngredientForm({ initial, onSave, onCancel }) {
         <label className="block text-sm font-medium mb-1">Name</label>
         <input value={name} onChange={e => setName(e.target.value)} className="w-full px-4 py-2 rounded-lg border" />
       </div>
-      <div className="grid grid-cols-2 gap-3">
-        <div>
-          <label className="block text-sm font-medium mb-1">Unit</label>
-          <select value={unit} onChange={e => setUnit(e.target.value)} className="w-full px-4 py-2 rounded-lg border">
-            {['g', 'kg', 'ml', 'L', 'pieces', 'cups'].map(u => <option key={u}>{u}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium mb-1">Shelf Life (days)</label>
-          <input type="number" value={shelfLife} onChange={e => setShelfLife(+e.target.value || 1)} onFocus={e => e.target.select()} className="w-full px-4 py-2 rounded-lg border" />
-        </div>
+      <div>
+        <label className="block text-sm font-medium mb-1">Unit</label>
+        <select value={unit} onChange={e => setUnit(e.target.value)} className="w-full px-4 py-2 rounded-lg border">
+          {['g', 'kg', 'ml', 'L', 'pieces', 'cups'].map(u => <option key={u}>{u}</option>)}
+        </select>
       </div>
       <div>
         <label className="block text-sm font-medium mb-1">Stock</label>
         <input type="number" value={stock} onChange={e => setStock(+e.target.value || 0)} onFocus={e => e.target.select()} className="w-full px-4 py-2 rounded-lg border" />
       </div>
       <div>
+        <label className="block text-sm font-medium mb-1">Shelf Life (days)</label>
+        <input type="number" value={shelfLife} onChange={e => setShelfLife(+e.target.value || 1)} onFocus={e => e.target.select()} className="w-full px-4 py-2 rounded-lg border" />
+      </div>
+      <div>
         <label className="block text-sm font-medium mb-1">Category</label>
-        <select value={category} onChange={e => setCategory(e.target.value)} className="w-full px-4 py-2 rounded-lg border">
-          <option value="">— Select —</option>
-          {ALL_CATEGORIES.map(c => <option key={c} value={c}>{getCatEmoji(c)} {c}</option>)}
-        </select>
+        <input value={category} onChange={e => setCategory(e.target.value)} placeholder="e.g., Spices, Vegetables" className="w-full px-4 py-2 rounded-lg border" />
       </div>
       <div className="flex gap-3 pt-4 border-t">
         <button type="button" onClick={onCancel} className="flex-1 py-2 rounded-lg border">Cancel</button>

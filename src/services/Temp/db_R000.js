@@ -222,7 +222,6 @@ export async function updateDish(id, updates) {
   if (updates.country !== undefined) mapped.country = updates.country;
   if (updates.notes !== undefined) mapped.notes = updates.notes;
   if (updates.url !== undefined) mapped.url = updates.url;
-  if (updates.type !== undefined) mapped.dish_type = updates.type;
 
   const { data, error } = await supabase
     .from('food_department_dishes')
