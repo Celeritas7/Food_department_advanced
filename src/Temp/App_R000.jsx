@@ -19,7 +19,6 @@ import PrepsPage from './components/pages/PrepsPage';
 import DishesPage from './components/pages/DishesPage';
 import ShopPage from './components/pages/ShopPage';
 import DataPage from './components/pages/DataPage';
-import CategoryManagerPage from './components/pages/CategoryManagerPage';
 
 // Forms
 import IngredientForm from './components/forms/IngredientForm';
@@ -214,21 +213,6 @@ export default function App() {
     } catch (err) { notify('Failed: ' + err.message); }
   };
 
-  // ─── Actions: Categories ───────────────────────────────
-  const handleBulkRename = async (oldCat, newCat) => {
-    try {
-      await db.bulkRenameCategory(oldCat, newCat);
-      await loadAll();
-    } catch (err) { notify('Rename failed: ' + err.message); }
-  };
-
-  const handleMoveItems = async (ids, newCat) => {
-    try {
-      await db.updateIngredientCategoriesByIds(ids, newCat);
-      await loadAll();
-    } catch (err) { notify('Move failed: ' + err.message); }
-  };
-
   // ─── Data Management ─────────────────────────────────
   const handleExport = async () => {
     try {
@@ -328,16 +312,6 @@ export default function App() {
           onExport={handleExport}
           onImport={async () => { await loadAll(); notify('Data reloaded', 'success'); }}
           onClearAll={async () => { setLoading(true); await loadAll(); }}
-          onCategoryManager={() => setPage('cat')}
-        />
-      )}
-      {page === 'cat' && (
-        <CategoryManagerPage
-          ingredients={enrichedIngredients}
-          onBulkRename={handleBulkRename}
-          onMoveItems={handleMoveItems}
-          onBack={() => setPage('data')}
-          notify={notify}
         />
       )}
 
@@ -351,7 +325,7 @@ export default function App() {
             { key: 'shop', icon: CartIcon, label: 'Shop', color: 'terracotta', badge: shoppingList.toBuy },
             { key: 'data', icon: DataIcon, label: 'Data', color: 'charcoal' },
           ].map(tab => (
-            <button key={tab.key} onClick={() => setPage(tab.key)} className={`flex flex-col items-center gap-0.5 py-2 px-2 relative ${(page === tab.key || (tab.key === 'data' && page === 'cat')) ? `text-${tab.color}` : 'text-warm-gray'}`}>
+            <button key={tab.key} onClick={() => setPage(tab.key)} className={`flex flex-col items-center gap-0.5 py-2 px-2 relative ${page === tab.key ? `text-${tab.color}` : 'text-warm-gray'}`}>
               <tab.icon />
               <span className="text-xs">{tab.label}</span>
               {tab.badge > 0 && <span className="absolute top-1 right-0 w-4 h-4 bg-tomato text-white text-xs rounded-full flex items-center justify-center">{tab.badge}</span>}

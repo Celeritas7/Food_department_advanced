@@ -383,26 +383,6 @@ export async function prepareIntermediate(intermediateId, units, inputIngredient
 
 // ─── EXPORT / IMPORT ─────────────────────────────────────
 
-// ─── CATEGORY MANAGEMENT ─────────────────────────────────
-
-export async function bulkRenameCategory(oldCategory, newCategory) {
-  const { error } = await supabase
-    .from('food_department_ingredients')
-    .update({ category: newCategory, last_updated: new Date().toISOString() })
-    .eq('category', oldCategory);
-  if (error) throw error;
-}
-
-export async function updateIngredientCategoriesByIds(ids, newCategory) {
-  const { error } = await supabase
-    .from('food_department_ingredients')
-    .update({ category: newCategory, last_updated: new Date().toISOString() })
-    .in('id', ids);
-  if (error) throw error;
-}
-
-// ─── EXPORT / IMPORT (continued) ─────────────────────────
-
 export async function exportAllData() {
   const [ings, ints, dishes, di, dint, ii, ishops, shops] = await Promise.all([
     fetchIngredients(),

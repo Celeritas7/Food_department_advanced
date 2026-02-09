@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { DataIcon, DownloadIcon, UploadIcon } from '../ui/Icons';
 
-export default function DataPage({ counts, onExport, onImport, onClearAll, onCategoryManager }) {
+export default function DataPage({ counts, onExport, onImport, onClearAll }) {
   const [importState, setImportState] = useState(null);
   const fileRef = useRef(null);
 
@@ -52,15 +52,6 @@ export default function DataPage({ counts, onExport, onImport, onClearAll, onCat
               </div>
             ))}
           </div>
-        </div>
-
-        {/* Category Manager */}
-        <div className="bg-white rounded-xl border p-5">
-          <h3 className="font-semibold text-lg mb-1">🏷️ Category Manager</h3>
-          <p className="text-sm text-warm-gray mb-4">Rename, merge, or reorganize ingredient categories</p>
-          <button onClick={onCategoryManager} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-terracotta text-white font-medium hover:bg-terracotta/90">
-            🏷️ Manage Categories
-          </button>
         </div>
 
         {/* Export */}
