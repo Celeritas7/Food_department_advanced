@@ -1,41 +1,28 @@
 /**
- * IngredientsPage.jsx — Ingredients list with emoji + multi-filter
+ * IngredientsPage.jsx — Ingredients list with compact filter tabs
+ * Only one filter group expands at a time to save screen space
  */
 import { useState, useMemo } from 'react';
 import { PkgIcon, PlusIcon, EditIcon, DelIcon } from '../ui/Icons';
 import { SpoilageBadge } from '../ui/Badges';
-import FilterBar from '../ui/FilterBar';
 import { getCatEmoji } from '../../config/emoji.js';
 
 export default function IngredientsPage({ ingredients, onAdd, onEdit, onBuy, onDelete }) {
+  const [activeFilterType, setActiveFilterType] = useState(null);
   const [catFilter, setCatFilter] = useState([]);
   const [stockFilter, setStockFilter] = useState([]);
   const [spoilFilter, setSpoilFilter] = useState([]);
   const [search, setSearch] = useState('');
 
-  // Build dynamic filter options from data
   const catOptions = useMemo(() => {
-    const cats = [...new Set(ingredients.map(i => i.category).filter(Boolean))].sort();
-    return cats.map(c => ({
-      value: c, label: c, emoji: getCatEmoji(c),
-      count: ingredients.filter(i => i.category === c).length,
-    }));
+    return [...new Set(ingredients.map(i => i.category).filter(Boolean))].sort();
   }, [ingredients]);
 
-  const stockOptions = [
-    { value: 'in', label: 'In Stock', emoji: '✅' },
-    { value: 'out', label: 'Out of Stock', emoji: '❌' },
-  ];
-
-  const spoilOptions = [
-    { value: 'Fresh', label: 'Fresh', emoji: '🟢' },
-    { value: 'NearExpiry', label: 'Expiring', emoji: '🟡' },
-    { value: 'Expired', label: 'Expired', emoji: '🔴' },
-  ];
-
-  const toggleFilter = (arr, setArr) => (val) => {
+  const toggle = (arr, setArr, val) => {
     setArr(prev => prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val]);
   };
+
+  const anyActive = catFilter.length + stockFilter.length + spoilFilter.length;
 
   const filtered = useMemo(() => {
     let list = ingredients;
@@ -55,7 +42,6 @@ export default function IngredientsPage({ ingredients, onAdd, onEdit, onBuy, onD
     return list;
   }, [ingredients, search, catFilter, stockFilter, spoilFilter]);
 
-  // Group by category
   const grouped = useMemo(() => {
     const map = {};
     filtered.forEach(i => {
@@ -65,6 +51,12 @@ export default function IngredientsPage({ ingredients, onAdd, onEdit, onBuy, onD
     });
     return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
   }, [filtered]);
+
+  const filterTypes = [
+    { key: 'cat', label: 'Category', count: catFilter.length },
+    { key: 'stock', label: 'Stock', count: stockFilter.length },
+    { key: 'fresh', label: 'Freshness', count: spoilFilter.length },
+  ];
 
   return (
     <div className="min-h-screen bg-cream pb-24">
@@ -83,19 +75,82 @@ export default function IngredientsPage({ ingredients, onAdd, onEdit, onBuy, onD
 
       <main className="max-w-4xl mx-auto px-4 py-4">
         {/* Search */}
-        <div className="flex items-center gap-2 bg-white rounded-xl px-3 py-2.5 border mb-4">
+        <div className="flex items-center gap-2 bg-white rounded-xl px-3 py-2.5 border mb-3">
           <span className="text-sm">🔍</span>
           <input placeholder="Search ingredients..." value={search} onChange={e => setSearch(e.target.value)} className="flex-1 text-sm bg-transparent outline-none" />
           {search && <button onClick={() => setSearch('')} className="text-warm-gray text-sm">✕</button>}
         </div>
 
-        {/* Filters */}
-        <FilterBar label="Category" filters={catOptions} active={catFilter} onToggle={toggleFilter(catFilter, setCatFilter)} />
-        <FilterBar label="Stock" filters={stockOptions} active={stockFilter} onToggle={toggleFilter(stockFilter, setStockFilter)} />
-        <FilterBar label="Freshness" filters={spoilOptions} active={spoilFilter} onToggle={toggleFilter(spoilFilter, setSpoilFilter)} />
+        {/* Filter Tabs — compact, one expands at a time */}
+        <div className="flex items-center gap-2 mb-2">
+          {filterTypes.map(f => (
+            <button
+              key={f.key}
+              onClick={() => setActiveFilterType(activeFilterType === f.key ? null : f.key)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-all ${
+                activeFilterType === f.key
+                  ? 'bg-terracotta text-white border-terracotta'
+                  : f.count > 0
+                    ? 'bg-terracotta/10 text-terracotta border-terracotta/30'
+                    : 'bg-white text-charcoal border-light-gray'
+              }`}
+            >
+              {f.label}
+              {f.count > 0 && (
+                <span className={`text-[10px] px-1.5 rounded-full ${
+                  activeFilterType === f.key ? 'bg-white/30 text-white' : 'bg-terracotta text-white'
+                }`}>{f.count}</span>
+              )}
+              <span className={`text-[8px] opacity-60 transition-transform ${activeFilterType === f.key ? 'rotate-180' : ''}`}>▼</span>
+            </button>
+          ))}
+          {anyActive > 0 && (
+            <button
+              onClick={() => { setCatFilter([]); setStockFilter([]); setSpoilFilter([]); setActiveFilterType(null); }}
+              className="text-xs text-terracotta font-semibold hover:underline ml-1"
+            >✕ Clear</button>
+          )}
+        </div>
 
-        {(catFilter.length > 0 || stockFilter.length > 0 || spoilFilter.length > 0) && (
-          <button onClick={() => { setCatFilter([]); setStockFilter([]); setSpoilFilter([]); }} className="text-xs text-terracotta font-medium mb-4 hover:underline">✕ Clear all filters</button>
+        {/* Expanded filter chips — only one group at a time */}
+        {activeFilterType === 'cat' && (
+          <div className="flex gap-1.5 flex-wrap pb-3">
+            {catOptions.map(c => (
+              <button key={c} onClick={() => toggle(catFilter, setCatFilter, c)}
+                className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-all ${
+                  catFilter.includes(c)
+                    ? 'bg-terracotta/10 text-terracotta border-terracotta/40'
+                    : 'bg-white text-charcoal border-light-gray'
+                }`}
+              >{getCatEmoji(c)} {c}</button>
+            ))}
+          </div>
+        )}
+        {activeFilterType === 'stock' && (
+          <div className="flex gap-1.5 pb-3">
+            {[{ v: 'in', l: '✅ In Stock' }, { v: 'out', l: '❌ Out of Stock' }].map(o => (
+              <button key={o.v} onClick={() => toggle(stockFilter, setStockFilter, o.v)}
+                className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-all ${
+                  stockFilter.includes(o.v)
+                    ? 'bg-terracotta/10 text-terracotta border-terracotta/40'
+                    : 'bg-white text-charcoal border-light-gray'
+                }`}
+              >{o.l}</button>
+            ))}
+          </div>
+        )}
+        {activeFilterType === 'fresh' && (
+          <div className="flex gap-1.5 pb-3">
+            {[{ v: 'Fresh', l: '🟢 Fresh' }, { v: 'NearExpiry', l: '🟡 Expiring' }, { v: 'Expired', l: '🔴 Expired' }].map(o => (
+              <button key={o.v} onClick={() => toggle(spoilFilter, setSpoilFilter, o.v)}
+                className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-all ${
+                  spoilFilter.includes(o.v)
+                    ? 'bg-terracotta/10 text-terracotta border-terracotta/40'
+                    : 'bg-white text-charcoal border-light-gray'
+                }`}
+              >{o.l}</button>
+            ))}
+          </div>
         )}
 
         {/* Grouped list */}
