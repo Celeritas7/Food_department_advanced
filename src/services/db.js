@@ -403,6 +403,37 @@ export async function updateIngredientCategoriesByIds(ids, newCategory) {
 
 // ─── EXPORT / IMPORT (continued) ─────────────────────────
 
+export async function bulkInsertIngredients(rows) {
+  // rows: array of { name, unit, stock_qty, shelf_life_days, category, country }
+  const now = new Date().toISOString();
+  const mapped = rows.map(r => ({
+    name: r.name?.trim(),
+    unit: r.unit?.trim() || 'g',
+    stock_qty: parseFloat(r.stock_qty) || 0,
+    shelf_life_days: parseInt(r.shelf_life_days) || 7,
+    category: r.category?.trim() || '',
+    country: r.country?.trim() || '',
+    purchased_at: r.purchased_at || null,
+    last_updated: now,
+  }));
+
+  // Validate
+  const invalid = mapped.filter(m => !m.name);
+  if (invalid.length) throw new Error(`${invalid.length} rows missing name`);
+
+  // Insert in batches of 50
+  let inserted = 0;
+  for (let i = 0; i < mapped.length; i += 50) {
+    const batch = mapped.slice(i, i + 50);
+    const { error } = await supabase
+      .from('food_department_ingredients')
+      .insert(batch);
+    if (error) throw error;
+    inserted += batch.length;
+  }
+  return inserted;
+}
+
 export async function exportAllData() {
   const [ings, ints, dishes, di, dint, ii, ishops, shops] = await Promise.all([
     fetchIngredients(),

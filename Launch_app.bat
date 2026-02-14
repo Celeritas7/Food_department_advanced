@@ -1,2 +1,4 @@
 @echo off
-start cmd /k powershell -NoExit -Command "Set-Location '%~dp0'"
+echo Starting Cooking App...
+npm run dev
+pause

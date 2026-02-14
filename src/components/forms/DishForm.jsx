@@ -1,10 +1,38 @@
 /**
- * DishForm.jsx — Dish creation/edit with category-tabbed ingredient picker
+ * DishForm.jsx — Dish creation/edit with category-tabbed picker + CSV import
  */
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { DelIcon } from '../ui/Icons';
 import { getCatEmoji } from '../../config/emoji.js';
 import IngredientPicker from '../ui/IngredientPicker';
+
+function parseIngredientCSV(text) {
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) throw new Error('CSV needs a header row + at least 1 data row');
+
+  const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/\s+/g, '_'));
+  const nameIdx = headers.findIndex(h => h === 'name' || h === 'ingredient' || h === 'ingredient_name');
+  const qtyIdx = headers.findIndex(h => h === 'qty' || h === 'quantity' || h === 'amount');
+  if (nameIdx === -1) throw new Error('CSV must have a "name" or "ingredient" column');
+
+  const rows = [];
+  for (let i = 1; i < lines.length; i++) {
+    const vals = [];
+    let current = '';
+    let inQuotes = false;
+    for (const ch of lines[i]) {
+      if (ch === '"') { inQuotes = !inQuotes; continue; }
+      if (ch === ',' && !inQuotes) { vals.push(current.trim()); current = ''; continue; }
+      current += ch;
+    }
+    vals.push(current.trim());
+    const name = vals[nameIdx];
+    if (!name) continue;
+    const qty = qtyIdx >= 0 ? (parseFloat(vals[qtyIdx]) || 0) : 0;
+    rows.push({ name, qty });
+  }
+  return rows;
+}
 
 export default function DishForm({ initial, ingredients, intermediates, onSave, onCancel }) {
   const [name, setName] = useState(initial?.name || '');
@@ -14,6 +42,10 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
   const [recipeIngs, setRecipeIngs] = useState(initial?.recipeIngredients || []);
   const [recipeInts, setRecipeInts] = useState(initial?.recipeIntermediates || []);
   const [showIngPicker, setShowIngPicker] = useState(false);
+  const [csvMode, setCsvMode] = useState(null); // null | 'input' | 'preview'
+  const [csvText, setCsvText] = useState('');
+  const [csvResult, setCsvResult] = useState(null);
+  const csvFileRef = useRef(null);
 
   const addInt = () => {
     const unused = intermediates.filter(i => !recipeInts.some(x => x.intermediateId === i.id));
@@ -25,13 +57,73 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
     setShowIngPicker(false);
   };
 
+  // CSV matching logic
+  const matchCsvToIngredients = (csvRows) => {
+    const results = csvRows.map(row => {
+      const csvName = row.name.toLowerCase().trim();
+      // Try exact match first, then partial
+      let match = ingredients.find(i => i.name.toLowerCase() === csvName);
+      if (!match) match = ingredients.find(i => i.name.toLowerCase().includes(csvName) || csvName.includes(i.name.toLowerCase()));
+      return {
+        csvName: row.name,
+        qty: row.qty,
+        matched: match || null,
+        status: match ? 'matched' : 'unmatched',
+      };
+    });
+    return results;
+  };
+
+  const handleCsvParse = () => {
+    try {
+      const rows = parseIngredientCSV(csvText);
+      const results = matchCsvToIngredients(rows);
+      setCsvResult({ rows: results, error: null });
+      setCsvMode('preview');
+    } catch (err) {
+      setCsvResult({ rows: [], error: err.message });
+    }
+  };
+
+  const handleCsvFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setCsvText(ev.target.result);
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const handleCsvConfirm = () => {
+    if (!csvResult) return;
+    const matched = csvResult.rows.filter(r => r.matched);
+    // Merge with existing recipeIngs
+    const existing = new Map(recipeIngs.map(ri => [ri.ingredientId, ri]));
+    matched.forEach(r => {
+      existing.set(r.matched.id, { ingredientId: r.matched.id, qty: r.qty || existing.get(r.matched.id)?.qty || 0 });
+    });
+    setRecipeIngs(Array.from(existing.values()));
+    setCsvMode(null);
+    setCsvText('');
+    setCsvResult(null);
+  };
+
+  // Manual fix: let user pick a match for unmatched row
+  const handleManualMatch = (rowIdx, ingredientId) => {
+    setCsvResult(prev => {
+      const updated = [...prev.rows];
+      const ing = ingredients.find(i => i.id === ingredientId);
+      updated[rowIdx] = { ...updated[rowIdx], matched: ing, status: 'matched' };
+      return { ...prev, rows: updated };
+    });
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!name.trim()) return;
     onSave({ name: name.trim(), priority, country, type, recipeIngredients: recipeIngs, recipeIntermediates: recipeInts });
   };
 
-  // Build initial selected for picker from current recipeIngs
   const pickerInitial = recipeIngs.map(ri => ({ id: ri.ingredientId, qty: ri.qty }));
 
   return (
@@ -58,20 +150,107 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
           <input value={type} onChange={e => setType(e.target.value)} placeholder="e.g., Curry, Salad, Soup" className="w-full px-4 py-2 rounded-lg border" />
         </div>
 
-        {/* Ingredients via picker */}
+        {/* Ingredients via picker or CSV */}
         <div className="border-t pt-4">
           <div className="flex justify-between items-center mb-2">
             <span className="text-sm font-medium">🥕 Ingredients ({recipeIngs.length})</span>
-            <button type="button" onClick={() => setShowIngPicker(true)} className="text-sm font-medium text-white bg-terracotta px-3 py-1.5 rounded-lg">
-              {recipeIngs.length > 0 ? '✏️ Edit' : '🥘 Pick'}
-            </button>
+            <div className="flex gap-2">
+              <button type="button" onClick={() => { setCsvMode('input'); setCsvResult(null); }}
+                className="text-sm font-medium text-terracotta border border-terracotta px-3 py-1.5 rounded-lg hover:bg-terracotta/5">
+                📄 CSV
+              </button>
+              <button type="button" onClick={() => setShowIngPicker(true)}
+                className="text-sm font-medium text-white bg-terracotta px-3 py-1.5 rounded-lg">
+                {recipeIngs.length > 0 ? '✏️ Edit' : '🥘 Pick'}
+              </button>
+            </div>
           </div>
-          {!recipeIngs.length ? (
+
+          {/* CSV Input Mode */}
+          {csvMode === 'input' && (
+            <div className="mb-3 p-3 rounded-xl border-2 border-terracotta/30 bg-terracotta/5">
+              <p className="text-xs font-semibold text-charcoal mb-2">Paste or upload CSV with ingredient names + quantities</p>
+              <div className="bg-cream rounded-lg p-2 mb-2">
+                <p className="text-[10px] font-mono text-warm-gray">name,qty</p>
+                <p className="text-[10px] font-mono text-warm-gray">Chicken (もも肉),200</p>
+                <p className="text-[10px] font-mono text-warm-gray">Onion,2</p>
+                <p className="text-[10px] font-mono text-warm-gray">Garlic,3</p>
+              </div>
+              <textarea
+                value={csvText}
+                onChange={e => setCsvText(e.target.value)}
+                placeholder={'name,qty\nChicken,200\nOnion,2'}
+                className="w-full px-3 py-2 rounded-lg border text-sm font-mono min-h-[80px] mb-2"
+              />
+              <div className="flex gap-2">
+                <input ref={csvFileRef} type="file" accept=".csv,.txt" onChange={handleCsvFile} className="hidden" />
+                <button type="button" onClick={() => csvFileRef.current?.click()}
+                  className="text-xs font-medium text-terracotta border border-terracotta/40 px-3 py-1.5 rounded-lg">
+                  📂 File
+                </button>
+                <div className="flex-1" />
+                <button type="button" onClick={() => { setCsvMode(null); setCsvText(''); setCsvResult(null); }}
+                  className="text-xs font-medium text-warm-gray px-3 py-1.5">Cancel</button>
+                <button type="button" onClick={handleCsvParse} disabled={!csvText.trim()}
+                  className={`text-xs font-medium px-4 py-1.5 rounded-lg text-white ${csvText.trim() ? 'bg-terracotta' : 'bg-light-gray'}`}>
+                  Match
+                </button>
+              </div>
+              {csvResult?.error && <p className="text-xs text-tomato mt-2">{csvResult.error}</p>}
+            </div>
+          )}
+
+          {/* CSV Preview / Match Results */}
+          {csvMode === 'preview' && csvResult && (
+            <div className="mb-3 p-3 rounded-xl border-2 border-terracotta/30 bg-white">
+              <p className="text-xs font-semibold text-charcoal mb-2">
+                Match Results — {csvResult.rows.filter(r => r.matched).length}/{csvResult.rows.length} matched
+              </p>
+              <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                {csvResult.rows.map((row, i) => (
+                  <div key={i} className={`flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs ${
+                    row.matched ? 'bg-sage/10' : 'bg-tomato/5'
+                  }`}>
+                    <span>{row.matched ? '✅' : '❌'}</span>
+                    <span className="font-medium flex-1 truncate">{row.csvName}</span>
+                    {row.matched ? (
+                      <span className="text-warm-gray truncate">{getCatEmoji(row.matched.category)} {row.matched.name} · {row.qty || 0} {row.matched.unit}</span>
+                    ) : (
+                      <select
+                        onChange={e => { if (e.target.value) handleManualMatch(i, e.target.value); }}
+                        className="text-xs px-1.5 py-1 rounded border border-tomato/30 bg-white max-w-[140px]"
+                        defaultValue=""
+                      >
+                        <option value="">— pick —</option>
+                        {ingredients.map(ig => <option key={ig.id} value={ig.id}>{ig.name}</option>)}
+                      </select>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2 mt-3">
+                <button type="button" onClick={() => { setCsvMode('input'); }}
+                  className="text-xs font-medium text-warm-gray px-3 py-1.5">← Back</button>
+                <div className="flex-1" />
+                <button type="button" onClick={() => { setCsvMode(null); setCsvText(''); setCsvResult(null); }}
+                  className="text-xs font-medium text-warm-gray px-3 py-1.5">Cancel</button>
+                <button type="button" onClick={handleCsvConfirm}
+                  disabled={!csvResult.rows.some(r => r.matched)}
+                  className={`text-xs font-medium px-4 py-1.5 rounded-lg text-white ${
+                    csvResult.rows.some(r => r.matched) ? 'bg-sage' : 'bg-light-gray'
+                  }`}>
+                  Add {csvResult.rows.filter(r => r.matched).length} Ingredients
+                </button>
+              </div>
+            </div>
+          )}
+
+          {!recipeIngs.length && csvMode === null ? (
             <div className="text-center py-6 border-2 border-dashed rounded-xl text-warm-gray">
               <p className="text-2xl mb-1">🥘</p>
-              <p className="text-sm">Tap "Pick" to browse by category</p>
+              <p className="text-sm">Tap "Pick" to browse or "CSV" to paste</p>
             </div>
-          ) : (
+          ) : csvMode === null && (
             <div className="space-y-1.5">
               {recipeIngs.map((x, i) => {
                 const ig = ingredients.find(g => g.id === x.ingredientId);
@@ -123,7 +302,6 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
         </div>
       </form>
 
-      {/* Picker modal */}
       {showIngPicker && (
         <IngredientPicker
           ingredients={ingredients}
