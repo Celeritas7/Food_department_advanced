@@ -1,5 +1,5 @@
 /**
- * DishForm.jsx — Dish creation/edit with inline editing, picker + CSV import
+ * DishForm.jsx — Dish creation/edit with inline editing, picker, CSV + free-text import
  */
 import { useState, useRef } from 'react';
 import { DelIcon } from '../ui/Icons';
@@ -8,14 +8,93 @@ import IngredientPicker from '../ui/IngredientPicker';
 
 const UNIT_OPTIONS = ['g', 'ml', 'pcs', 'tbsp', 'tsp', 'cup', 'bunch', 'pack', 'pinch', 'slice', 'clove', 'stalk', 'can', 'sheet'];
 
-function parseIngredientCSV(text) {
+// ─── Parsers ────────────────────────────────────────────
+
+const KNOWN_UNITS = ['g', 'gm', 'gms', 'gram', 'grams', 'kg', 'ml', 'liter', 'litre', 'l',
+  'tsp', 'tbsp', 'cup', 'cups', 'pcs', 'piece', 'pieces', 'bunch', 'pack', 'packs',
+  'pinch', 'slice', 'slices', 'clove', 'cloves', 'stalk', 'stalks', 'can', 'cans',
+  'sheet', 'sheets', 'inch', 'cm', 'bulb', 'bulbs', 'head', 'heads', 'sprig', 'sprigs',
+  'handful', 'drop', 'drops', 'stick', 'sticks', 'pod', 'pods', 'leaf', 'leaves'];
+
+const UNIT_NORMALIZE = {
+  gm: 'g', gms: 'g', gram: 'g', grams: 'g',
+  liter: 'l', litre: 'l',
+  cups: 'cup', pieces: 'pcs', piece: 'pcs',
+  packs: 'pack', slices: 'slice', cloves: 'clove',
+  stalks: 'stalk', cans: 'can', sheets: 'sheet',
+  bulbs: 'bulb', heads: 'head', sprigs: 'sprig',
+  drops: 'drop', sticks: 'stick', pods: 'pod', leaves: 'leaf',
+};
+
+function parseFraction(s) {
+  s = s.replace('½', '.5').replace('⅓', '.333').replace('⅔', '.667')
+       .replace('¼', '.25').replace('¾', '.75').replace('⅛', '.125');
+  // Handle "1½" → "1.5"
+  const compound = s.match(/^(\d+)\.(\d+)$/);
+  if (compound) return parseFloat(s);
+  const frac = s.match(/^(\d+)\/(\d+)$/);
+  if (frac) return parseInt(frac[1]) / parseInt(frac[2]);
+  return parseFloat(s) || 0;
+}
+
+function parseFreeTextLine(line) {
+  // Clean up: remove bullets, dashes, numbers with dots/parens at start
+  line = line.replace(/^[\s•\-\*·▪►→●○◦‣⁃]+/, '').trim();
+  line = line.replace(/^\d+[\.\)]\s*/, '').trim();
+  if (!line) return null;
+
+  // Pattern 0: "1-inch ginger" or "2-cm piece" (hyphenated measurement)
+  const p0 = line.match(/^([\d½⅓⅔¼¾⅛\/\.]+)-(inch|cm|mm)\s+(.+)$/i);
+  if (p0) {
+    return { name: p0[3].trim(), qty: parseFraction(p0[1]), unit: p0[2].toLowerCase() };
+  }
+
+  // Pattern 1: "150 g Unsalted butter" or "2 cups basmati rice" or "½ tsp vanilla"
+  const p1 = line.match(/^([\d½⅓⅔¼¾⅛\/\.]+)\s+([\w]+)\s+(.+)$/);
+  if (p1) {
+    const qty = parseFraction(p1[1]);
+    const maybeUnit = p1[2].toLowerCase();
+    if (KNOWN_UNITS.includes(maybeUnit)) {
+      return { name: p1[3].trim(), qty, unit: UNIT_NORMALIZE[maybeUnit] || maybeUnit };
+    }
+    // Not a unit — the whole thing after the number is the name
+    return { name: (p1[2] + ' ' + p1[3]).trim(), qty, unit: 'pcs' };
+  }
+
+  // Pattern 2: "4 cloves" or "1 onion" (number + name, no separate unit)
+  const p2 = line.match(/^([\d½⅓⅔¼¾⅛\/\.]+)\s+(.+)$/);
+  if (p2) {
+    const qty = parseFraction(p2[1]);
+    const rest = p2[2].trim();
+    // Check if first word of rest is a unit: "4 cloves garlic"
+    const words = rest.split(/\s+/);
+    if (words.length > 1 && KNOWN_UNITS.includes(words[0].toLowerCase())) {
+      return { name: words.slice(1).join(' '), qty, unit: UNIT_NORMALIZE[words[0].toLowerCase()] || words[0].toLowerCase() };
+    }
+    return { name: rest, qty, unit: 'pcs' };
+  }
+
+  // Pattern 3: just a name (no qty): "Coriander/mint stems", "Salt to taste"
+  return { name: line, qty: 0, unit: '' };
+}
+
+function parseFreeText(text) {
+  return text.split(/\r?\n/)
+    .map(l => l.trim())
+    .filter(l => l && !l.match(/^(wash|soak|note|optional|adjust|to taste)/i))
+    .map(parseFreeTextLine)
+    .filter(Boolean);
+}
+
+function parseCSV(text) {
   const lines = text.split(/\r?\n/).filter(l => l.trim());
   if (lines.length < 2) throw new Error('CSV needs a header row + at least 1 data row');
   const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/\s+/g, '_'));
-  const nameIdx = headers.findIndex(h => h === 'name' || h === 'ingredient' || h === 'ingredient_name');
-  const qtyIdx = headers.findIndex(h => h === 'qty' || h === 'quantity' || h === 'amount');
+  const nameIdx = headers.findIndex(h => ['name', 'ingredient', 'ingredient_name'].includes(h));
+  const qtyIdx = headers.findIndex(h => ['qty', 'quantity', 'amount', 'amount_quantity', 'amount_/_quantity'].includes(h));
   const unitIdx = headers.findIndex(h => h === 'unit');
-  if (nameIdx === -1) throw new Error('CSV must have a "name" or "ingredient" column');
+  const notesIdx = headers.findIndex(h => ['notes', 'notes_/_purpose'].includes(h));
+  if (nameIdx === -1) return null; // Not a CSV
 
   const rows = [];
   for (let i = 1; i < lines.length; i++) {
@@ -30,12 +109,43 @@ function parseIngredientCSV(text) {
     vals.push(current.trim());
     const name = vals[nameIdx];
     if (!name || name === '(no ingredients linked)') continue;
-    const qty = qtyIdx >= 0 ? (parseFloat(vals[qtyIdx]) || 0) : 0;
-    const unit = unitIdx >= 0 ? (vals[unitIdx] || '') : '';
+
+    // Amount field may contain "150 g" or just "150"
+    let qty = 0, unit = '';
+    if (qtyIdx >= 0 && vals[qtyIdx]) {
+      const amountStr = vals[qtyIdx].trim();
+      const amountParts = amountStr.match(/^([\d½⅓⅔¼¾⅛\/\.]+)\s*(.*)$/);
+      if (amountParts) {
+        qty = parseFraction(amountParts[1]);
+        unit = amountParts[2]?.trim() || '';
+      }
+    }
+    if (unitIdx >= 0 && vals[unitIdx]) {
+      unit = vals[unitIdx].trim();
+    }
+    if (unit) {
+      const low = unit.toLowerCase();
+      unit = UNIT_NORMALIZE[low] || low;
+    }
     rows.push({ name, qty, unit });
   }
   return rows;
 }
+
+// Auto-detect format
+function parseInput(text) {
+  // If first line looks like CSV headers, use CSV parser
+  const firstLine = text.split(/\r?\n/)[0]?.toLowerCase() || '';
+  if (firstLine.includes('name') && firstLine.includes(',')) {
+    const csvResult = parseCSV(text);
+    if (csvResult && csvResult.length > 0) return { mode: 'csv', rows: csvResult };
+  }
+  // Otherwise treat as free text
+  return { mode: 'text', rows: parseFreeText(text) };
+}
+
+
+// ─── Component ──────────────────────────────────────────
 
 export default function DishForm({ initial, ingredients, intermediates, onSave, onCancel }) {
   const [name, setName] = useState(initial?.name || '');
@@ -45,10 +155,10 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
   const [recipeIngs, setRecipeIngs] = useState(initial?.recipeIngredients || []);
   const [recipeInts, setRecipeInts] = useState(initial?.recipeIntermediates || []);
   const [showIngPicker, setShowIngPicker] = useState(false);
-  const [csvMode, setCsvMode] = useState(null);
-  const [csvText, setCsvText] = useState('');
-  const [csvResult, setCsvResult] = useState(null);
-  const csvFileRef = useRef(null);
+  const [importMode, setImportMode] = useState(null); // null | 'input' | 'preview'
+  const [importText, setImportText] = useState('');
+  const [importResult, setImportResult] = useState(null);
+  const fileRef = useRef(null);
 
   const addInt = () => {
     const unused = intermediates.filter(i => !recipeInts.some(x => x.intermediateId === i.id));
@@ -60,49 +170,55 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
     setShowIngPicker(false);
   };
 
-  // Inline edit qty
   const updateIngQty = (idx, qty) => {
     setRecipeIngs(prev => prev.map((r, i) => i === idx ? { ...r, qty: parseFloat(qty) || 0 } : r));
   };
 
-  // Inline edit unit override (stored per-recipe-link, falls back to ingredient.unit)
   const updateIngUnit = (idx, unit) => {
     setRecipeIngs(prev => prev.map((r, i) => i === idx ? { ...r, unitOverride: unit } : r));
   };
 
-  // CSV matching
-  const matchCsvToIngredients = (csvRows) => {
-    return csvRows.map(row => {
-      const csvName = row.name.toLowerCase().trim();
-      let match = ingredients.find(i => i.name.toLowerCase() === csvName);
-      if (!match) match = ingredients.find(i => i.name.toLowerCase().includes(csvName) || csvName.includes(i.name.toLowerCase()));
-      return { csvName: row.name, qty: row.qty, unit: row.unit, matched: match || null, status: match ? 'matched' : 'unmatched' };
+  // ─── Import matching ───────────────────
+  const matchToIngredients = (parsedRows) => {
+    return parsedRows.map(row => {
+      const csvName = row.name.toLowerCase().trim()
+        .replace(/\(.*?\)/g, '').trim(); // strip parenthetical notes
+      let match = ingredients.find(i => i.name.toLowerCase() === row.name.toLowerCase().trim());
+      if (!match) match = ingredients.find(i => i.name.toLowerCase() === csvName);
+      if (!match) match = ingredients.find(i =>
+        i.name.toLowerCase().includes(csvName) || csvName.includes(i.name.toLowerCase())
+      );
+      return { ...row, matched: match || null };
     });
   };
 
-  const handleCsvParse = () => {
+  const handleParse = () => {
     try {
-      const rows = parseIngredientCSV(csvText);
-      const results = matchCsvToIngredients(rows);
-      setCsvResult({ rows: results, error: null });
-      setCsvMode('preview');
+      const { mode, rows } = parseInput(importText);
+      if (!rows.length) {
+        setImportResult({ rows: [], error: 'No ingredients found. Check the format.', mode });
+        return;
+      }
+      const matched = matchToIngredients(rows);
+      setImportResult({ rows: matched, error: null, mode });
+      setImportMode('preview');
     } catch (err) {
-      setCsvResult({ rows: [], error: err.message });
+      setImportResult({ rows: [], error: err.message, mode: null });
     }
   };
 
-  const handleCsvFile = (e) => {
+  const handleFile = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => setCsvText(ev.target.result);
+    reader.onload = (ev) => setImportText(ev.target.result);
     reader.readAsText(file);
     e.target.value = '';
   };
 
-  const handleCsvConfirm = () => {
-    if (!csvResult) return;
-    const matched = csvResult.rows.filter(r => r.matched);
+  const handleImportConfirm = () => {
+    if (!importResult) return;
+    const matched = importResult.rows.filter(r => r.matched);
     const existing = new Map(recipeIngs.map(ri => [ri.ingredientId, ri]));
     matched.forEach(r => {
       existing.set(r.matched.id, {
@@ -112,16 +228,16 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
       });
     });
     setRecipeIngs(Array.from(existing.values()));
-    setCsvMode(null);
-    setCsvText('');
-    setCsvResult(null);
+    setImportMode(null);
+    setImportText('');
+    setImportResult(null);
   };
 
   const handleManualMatch = (rowIdx, ingredientId) => {
-    setCsvResult(prev => {
+    setImportResult(prev => {
       const updated = [...prev.rows];
       const ing = ingredients.find(i => i.id === ingredientId);
-      updated[rowIdx] = { ...updated[rowIdx], matched: ing, status: 'matched' };
+      updated[rowIdx] = { ...updated[rowIdx], matched: ing };
       return { ...prev, rows: updated };
     });
   };
@@ -158,14 +274,14 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
           <input value={type} onChange={e => setType(e.target.value)} placeholder="e.g., Curry, Salad, Soup" className="w-full px-4 py-2 rounded-lg border" />
         </div>
 
-        {/* Ingredients — inline editable */}
+        {/* ─── Ingredients section ─── */}
         <div className="border-t pt-4">
           <div className="flex justify-between items-center mb-2">
             <span className="text-sm font-medium">🥕 Ingredients ({recipeIngs.length})</span>
             <div className="flex gap-2">
-              <button type="button" onClick={() => { setCsvMode('input'); setCsvResult(null); }}
+              <button type="button" onClick={() => { setImportMode('input'); setImportResult(null); }}
                 className="text-sm font-medium text-terracotta border border-terracotta px-3 py-1.5 rounded-lg hover:bg-terracotta/5">
-                📄 CSV
+                📋 Paste
               </button>
               <button type="button" onClick={() => setShowIngPicker(true)}
                 className="text-sm font-medium text-white bg-terracotta px-3 py-1.5 rounded-lg">
@@ -174,92 +290,114 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
             </div>
           </div>
 
-          {/* CSV Input Mode */}
-          {csvMode === 'input' && (
+          {/* ─── Import Input ─── */}
+          {importMode === 'input' && (
             <div className="mb-3 p-3 rounded-xl border-2 border-terracotta/30 bg-terracotta/5">
-              <p className="text-xs font-semibold text-charcoal mb-2">Paste or upload CSV with ingredient names + quantities</p>
-              <div className="bg-cream rounded-lg p-2 mb-2">
-                <p className="text-[10px] font-mono text-warm-gray">name,qty,unit</p>
-                <p className="text-[10px] font-mono text-warm-gray">Chicken (もも肉),200,g</p>
-                <p className="text-[10px] font-mono text-warm-gray">Onion,2,pcs</p>
-                <p className="text-[10px] font-mono text-warm-gray">Garlic,3,clove</p>
+              <p className="text-xs font-semibold text-charcoal mb-1">Paste ingredient list or CSV</p>
+              <p className="text-[10px] text-warm-gray mb-2">Auto-detects format: bullet lists, plain text, or CSV</p>
+              <div className="grid grid-cols-2 gap-2 mb-2">
+                <div className="bg-cream rounded-lg p-2">
+                  <p className="text-[10px] font-semibold text-charcoal mb-1">Free text:</p>
+                  <p className="text-[10px] font-mono text-warm-gray">2 cups basmati rice</p>
+                  <p className="text-[10px] font-mono text-warm-gray">• 150 g butter</p>
+                  <p className="text-[10px] font-mono text-warm-gray">½ tsp vanilla</p>
+                  <p className="text-[10px] font-mono text-warm-gray">4 cloves</p>
+                </div>
+                <div className="bg-cream rounded-lg p-2">
+                  <p className="text-[10px] font-semibold text-charcoal mb-1">CSV:</p>
+                  <p className="text-[10px] font-mono text-warm-gray">name,qty,unit</p>
+                  <p className="text-[10px] font-mono text-warm-gray">Chicken,200,g</p>
+                  <p className="text-[10px] font-mono text-warm-gray">Onion,2,pcs</p>
+                </div>
               </div>
               <textarea
-                value={csvText}
-                onChange={e => setCsvText(e.target.value)}
-                placeholder={'name,qty,unit\nChicken,200,g\nOnion,2,pcs'}
-                className="w-full px-3 py-2 rounded-lg border text-sm font-mono min-h-[80px] mb-2"
+                value={importText}
+                onChange={e => setImportText(e.target.value)}
+                placeholder={'Paste your ingredient list here...\ne.g.:\n2 cups basmati rice\n150 g butter\n½ tsp vanilla essence\n4 cloves\nSalt to taste'}
+                className="w-full px-3 py-2 rounded-lg border text-sm font-mono min-h-[100px] mb-2"
               />
               <div className="flex gap-2">
-                <input ref={csvFileRef} type="file" accept=".csv,.txt" onChange={handleCsvFile} className="hidden" />
-                <button type="button" onClick={() => csvFileRef.current?.click()}
+                <input ref={fileRef} type="file" accept=".csv,.txt" onChange={handleFile} className="hidden" />
+                <button type="button" onClick={() => fileRef.current?.click()}
                   className="text-xs font-medium text-terracotta border border-terracotta/40 px-3 py-1.5 rounded-lg">
                   📂 File
                 </button>
                 <div className="flex-1" />
-                <button type="button" onClick={() => { setCsvMode(null); setCsvText(''); setCsvResult(null); }}
+                <button type="button" onClick={() => { setImportMode(null); setImportText(''); setImportResult(null); }}
                   className="text-xs font-medium text-warm-gray px-3 py-1.5">Cancel</button>
-                <button type="button" onClick={handleCsvParse} disabled={!csvText.trim()}
-                  className={`text-xs font-medium px-4 py-1.5 rounded-lg text-white ${csvText.trim() ? 'bg-terracotta' : 'bg-light-gray'}`}>
+                <button type="button" onClick={handleParse} disabled={!importText.trim()}
+                  className={`text-xs font-medium px-4 py-1.5 rounded-lg text-white ${importText.trim() ? 'bg-terracotta' : 'bg-light-gray'}`}>
                   Match
                 </button>
               </div>
-              {csvResult?.error && <p className="text-xs text-tomato mt-2">{csvResult.error}</p>}
+              {importResult?.error && <p className="text-xs text-tomato mt-2">{importResult.error}</p>}
             </div>
           )}
 
-          {/* CSV Match Preview */}
-          {csvMode === 'preview' && csvResult && (
+          {/* ─── Import Preview ─── */}
+          {importMode === 'preview' && importResult && (
             <div className="mb-3 p-3 rounded-xl border-2 border-terracotta/30 bg-white">
-              <p className="text-xs font-semibold text-charcoal mb-2">
-                Match Results — {csvResult.rows.filter(r => r.matched).length}/{csvResult.rows.length} matched
-              </p>
-              <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                {csvResult.rows.map((row, i) => (
-                  <div key={i} className={`flex items-center gap-2 px-2.5 py-2 rounded-lg text-xs ${
-                    row.matched ? 'bg-sage/10' : 'bg-tomato/5'
-                  }`}>
-                    <span>{row.matched ? '✅' : '❌'}</span>
-                    <span className="font-medium flex-1 truncate">{row.csvName}</span>
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs font-semibold text-charcoal">
+                  {importResult.rows.filter(r => r.matched).length}/{importResult.rows.length} matched
+                </p>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-cream text-warm-gray">
+                  {importResult.mode === 'csv' ? '📄 CSV' : '📝 Free text'}
+                </span>
+              </div>
+              <div className="space-y-1.5 max-h-56 overflow-y-auto">
+                {importResult.rows.map((row, i) => (
+                  <div key={i} className={`px-2.5 py-2 rounded-lg text-xs ${row.matched ? 'bg-sage/10' : 'bg-tomato/5'}`}>
+                    <div className="flex items-center gap-2">
+                      <span>{row.matched ? '✅' : '❌'}</span>
+                      <span className="font-medium truncate flex-1">{row.name}</span>
+                      {row.qty > 0 && (
+                        <span className="text-warm-gray font-mono whitespace-nowrap">{row.qty}{row.unit ? ` ${row.unit}` : ''}</span>
+                      )}
+                    </div>
                     {row.matched ? (
-                      <span className="text-warm-gray truncate">{getCatEmoji(row.matched.category)} {row.matched.name} · {row.qty || 0}{row.unit ? ` ${row.unit}` : ''}</span>
+                      <div className="text-[10px] text-warm-gray ml-5 mt-0.5">
+                        → {getCatEmoji(row.matched.category)} {row.matched.name}
+                      </div>
                     ) : (
-                      <select
-                        onChange={e => { if (e.target.value) handleManualMatch(i, e.target.value); }}
-                        className="text-xs px-1.5 py-1 rounded border border-tomato/30 bg-white max-w-[140px]"
-                        defaultValue=""
-                      >
-                        <option value="">— pick —</option>
-                        {ingredients.map(ig => <option key={ig.id} value={ig.id}>{ig.name}</option>)}
-                      </select>
+                      <div className="ml-5 mt-1">
+                        <select
+                          onChange={e => { if (e.target.value) handleManualMatch(i, e.target.value); }}
+                          className="text-xs px-1.5 py-1 rounded border border-tomato/30 bg-white w-full"
+                          defaultValue=""
+                        >
+                          <option value="">— pick ingredient —</option>
+                          {ingredients.map(ig => <option key={ig.id} value={ig.id}>{getCatEmoji(ig.category)} {ig.name}</option>)}
+                        </select>
+                      </div>
                     )}
                   </div>
                 ))}
               </div>
               <div className="flex gap-2 mt-3">
-                <button type="button" onClick={() => setCsvMode('input')}
+                <button type="button" onClick={() => setImportMode('input')}
                   className="text-xs font-medium text-warm-gray px-3 py-1.5">← Back</button>
                 <div className="flex-1" />
-                <button type="button" onClick={() => { setCsvMode(null); setCsvText(''); setCsvResult(null); }}
+                <button type="button" onClick={() => { setImportMode(null); setImportText(''); setImportResult(null); }}
                   className="text-xs font-medium text-warm-gray px-3 py-1.5">Cancel</button>
-                <button type="button" onClick={handleCsvConfirm}
-                  disabled={!csvResult.rows.some(r => r.matched)}
+                <button type="button" onClick={handleImportConfirm}
+                  disabled={!importResult.rows.some(r => r.matched)}
                   className={`text-xs font-medium px-4 py-1.5 rounded-lg text-white ${
-                    csvResult.rows.some(r => r.matched) ? 'bg-sage' : 'bg-light-gray'
+                    importResult.rows.some(r => r.matched) ? 'bg-sage' : 'bg-light-gray'
                   }`}>
-                  Add {csvResult.rows.filter(r => r.matched).length} Ingredients
+                  Add {importResult.rows.filter(r => r.matched).length} Ingredients
                 </button>
               </div>
             </div>
           )}
 
-          {/* Ingredient list — inline editable qty + unit */}
-          {!recipeIngs.length && csvMode === null ? (
+          {/* ─── Ingredient list — inline editable ─── */}
+          {!recipeIngs.length && importMode === null ? (
             <div className="text-center py-6 border-2 border-dashed rounded-xl text-warm-gray">
               <p className="text-2xl mb-1">🥘</p>
-              <p className="text-sm">Tap "Pick" to browse or "CSV" to paste</p>
+              <p className="text-sm">Tap "Pick" to browse or "Paste" to import</p>
             </div>
-          ) : csvMode === null && (
+          ) : importMode === null && (
             <div className="space-y-1.5">
               {recipeIngs.map((x, i) => {
                 const ig = ingredients.find(g => g.id === x.ingredientId);
@@ -294,7 +432,7 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
           )}
         </div>
 
-        {/* Intermediates */}
+        {/* ─── Intermediates ─── */}
         <div className="border-t pt-4">
           <div className="flex justify-between mb-2">
             <span className="text-sm font-medium">🧑‍🍳 Preparations ({recipeInts.length})</span>
