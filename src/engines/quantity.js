@@ -1,13 +1,17 @@
 /**
  * Quantity Aggregation Engine
- * Aggregates ingredient needs across all active (non-Cooked) dishes
+ * Aggregates ingredient needs across PLANNED dishes only (Planned / In Progress)
  * Handles direct + indirect (through intermediates) requirements
  * Tests: TEST-QA-001 through TEST-QA-008
  */
 
 export function aggregateRequirements(dishes, dishIngs, dishInts, intIngs, ingredients, intermediates) {
-  const activeDishes = dishes.filter(d => d.status !== 'Cooked');
-  const ingReq = new Map();   // ingredientId → { total, priority }
+  // Only include dishes the user actively intends to cook
+  const activeDishes = dishes.filter(d =>
+    d.status === 'Planned' || d.status === 'In Progress'
+  );
+
+  const ingReq = new Map();   // ingredientId → { total, priority, dishes[] }
   const intReq = new Map();   // intermediateId → { total, priority }
 
   // 1. Sum up direct ingredient + intermediate requirements from active dishes
@@ -16,9 +20,10 @@ export function aggregateRequirements(dishes, dishIngs, dishInts, intIngs, ingre
     const myInts = dishInts.filter(di => di.dish_id === dish.id);
 
     for (const e of myIngs) {
-      const cur = ingReq.get(e.ingredient_id) || { total: 0, priority: 99 };
+      const cur = ingReq.get(e.ingredient_id) || { total: 0, priority: 99, dishes: [] };
       cur.total += e.qty;
       cur.priority = Math.min(cur.priority, dish.priority);
+      cur.dishes.push(dish.name);
       ingReq.set(e.ingredient_id, cur);
     }
 
@@ -39,7 +44,7 @@ export function aggregateRequirements(dishes, dishIngs, dishInts, intIngs, ingre
     if (deficit > 0) {
       const inputs = intIngs.filter(ii => ii.intermediate_id === intId);
       for (const inp of inputs) {
-        const cur = ingReq.get(inp.ingredient_id) || { total: 0, priority: 99 };
+        const cur = ingReq.get(inp.ingredient_id) || { total: 0, priority: 99, dishes: [] };
         cur.total += inp.qty_per_unit * deficit;
         cur.priority = Math.min(cur.priority, req.priority);
         ingReq.set(inp.ingredient_id, cur);
@@ -58,11 +63,13 @@ export function aggregateRequirements(dishes, dishIngs, dishInts, intIngs, ingre
       id,
       name: ig.name,
       unit: ig.unit,
+      category: ig.category || '',
       stock: ig.stock_qty,
       needed: req.total,
       deficit,
       toBuy: deficit > 0,
       priority: req.priority,
+      usedIn: [...new Set(req.dishes)],
     });
   }
 
@@ -71,5 +78,6 @@ export function aggregateRequirements(dishes, dishIngs, dishInts, intIngs, ingre
   return {
     list,
     toBuy: list.filter(i => i.toBuy).length,
+    inStock: list.filter(i => !i.toBuy).length,
   };
 }

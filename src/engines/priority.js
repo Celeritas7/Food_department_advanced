@@ -5,7 +5,9 @@
  */
 
 export function propagatePriorities(dishes, dishIngs, dishInts, intIngs) {
-  const activeDishes = dishes.filter(d => d.status !== 'Cooked');
+  const activeDishes = dishes.filter(d =>
+    d.status === 'Planned' || d.status === 'In Progress'
+  );
   const ingPriorities = new Map();
   const intPriorities = new Map();
 

@@ -325,6 +325,8 @@ export default function App() {
         <ShopPage
           shoppingList={shoppingList}
           ingredients={enrichedIngredients}
+          dishes={enrichedDishes}
+          dishIngs={dishIngs}
           onBuy={(ig, sugQty) => setModal({ type: 'buyIng', data: ig, suggestedQty: sugQty })}
         />
       )}
