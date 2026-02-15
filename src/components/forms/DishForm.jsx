@@ -149,6 +149,7 @@ function parseInput(text) {
 
 export default function DishForm({ initial, ingredients, intermediates, onSave, onCancel }) {
   const [name, setName] = useState(initial?.name || '');
+  const [status, setStatus] = useState(initial?.status || 'Not planned');
   const [priority, setPriority] = useState(initial?.priority || 3);
   const [country, setCountry] = useState(initial?.country || '');
   const [type, setType] = useState(initial?.dish_type || '');
@@ -245,7 +246,7 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!name.trim()) return;
-    onSave({ name: name.trim(), priority, country, type, recipeIngredients: recipeIngs, recipeIntermediates: recipeInts });
+    onSave({ name: name.trim(), status, priority, country, type, recipeIngredients: recipeIngs, recipeIntermediates: recipeInts });
   };
 
   const pickerInitial = recipeIngs.map(ri => ({ id: ri.ingredientId, qty: ri.qty }));
@@ -259,11 +260,21 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
+            <label className="block text-sm font-medium mb-1">Cook Status</label>
+            <select value={status} onChange={e => setStatus(e.target.value)} className="w-full px-4 py-2 rounded-lg border">
+              <option value="Not planned">Not planned</option>
+              <option value="Planned">Planned</option>
+              <option value="In Progress">In Progress</option>
+            </select>
+          </div>
+          <div>
             <label className="block text-sm font-medium mb-1">Priority</label>
             <select value={priority} onChange={e => setPriority(+e.target.value)} className="w-full px-4 py-2 rounded-lg border">
               {[1, 2, 3, 4, 5].map(p => <option key={p} value={p}>{['Urgent', 'High', 'Normal', 'Low', 'Someday'][p - 1]}</option>)}
             </select>
           </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="block text-sm font-medium mb-1">Country</label>
             <input value={country} onChange={e => setCountry(e.target.value)} placeholder="e.g., Japanese" className="w-full px-4 py-2 rounded-lg border" />

@@ -211,6 +211,14 @@ export default function App() {
     } catch (err) { notify('Cook failed: ' + err.message); }
   };
 
+  const handleQuickStatus = async (dish, newStatus) => {
+    try {
+      await db.updateDish(dish.id, { status: newStatus });
+      await loadAll();
+      notify(`${dish.name} → ${newStatus}`, 'success');
+    } catch (err) { notify('Failed: ' + err.message); }
+  };
+
   const handleDeleteDish = async (dish) => {
     if (!confirm(`Delete ${dish.name}?`)) return;
     try {
@@ -318,6 +326,7 @@ export default function App() {
           onAdd={() => setModal({ type: 'addDish' })}
           onEdit={(d) => setModal({ type: 'editDish', data: d })}
           onCook={(d) => handleCookDish(d)}
+          onQuickStatus={handleQuickStatus}
           onDelete={handleDeleteDish}
         />
       )}

@@ -179,7 +179,7 @@ export async function addDish(dish) {
     .from('food_department_dishes')
     .insert([{
       name: dish.name,
-      status: 'Planned',
+      status: dish.status || 'Not planned',
       priority: dish.priority || 3,
       country: dish.country || '',
       difficulty: dish.difficulty || '',
