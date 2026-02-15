@@ -15,7 +15,7 @@ const STATUS_STYLES = {
   'Cooked': 'bg-sage/20 text-sage',
 };
 
-export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatus, onDelete }) {
+export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatus, onDelete, onManage }) {
   const [statusFilter, setStatusFilter] = useState('active');
   const [countryFilter, setCountryFilter] = useState([]);
   const [typeFilter, setTypeFilter] = useState([]);
@@ -93,7 +93,10 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
               <p className="text-sm text-warm-gray">Plan & cook · {filtered.length} shown</p>
             </div>
           </div>
-          <button onClick={onAdd} className="p-2.5 rounded-lg bg-terracotta text-white"><PlusIcon /></button>
+          <div className="flex gap-2">
+            <button onClick={onManage} className="px-3 py-2 rounded-lg border text-sm font-medium text-warm-gray hover:bg-cream">📋 Manage</button>
+            <button onClick={onAdd} className="p-2.5 rounded-lg bg-terracotta text-white"><PlusIcon /></button>
+          </div>
         </div>
       </header>
 

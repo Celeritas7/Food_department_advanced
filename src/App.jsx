@@ -17,6 +17,7 @@ import { PkgIcon, LayerIcon, DishIcon, CartIcon, DataIcon, AlertIcon } from './c
 import IngredientsPage from './components/pages/IngredientsPage';
 import PrepsPage from './components/pages/PrepsPage';
 import DishesPage from './components/pages/DishesPage';
+import DishManagerPanel from './components/pages/DishManagerPanel';
 import ShopPage from './components/pages/ShopPage';
 import DataPage from './components/pages/DataPage';
 import CategoryManagerPage from './components/pages/CategoryManagerPage';
@@ -243,6 +244,34 @@ export default function App() {
     } catch (err) { notify('Move failed: ' + err.message); }
   };
 
+  const handleBulkRenameDishCountry = async (oldVal, newVal) => {
+    try {
+      await db.bulkRenameDishCountry(oldVal, newVal);
+      await loadAll();
+    } catch (err) { notify('Rename failed: ' + err.message); }
+  };
+
+  const handleMoveDishCountries = async (ids, newVal) => {
+    try {
+      await db.updateDishCountriesByIds(ids, newVal);
+      await loadAll();
+    } catch (err) { notify('Move failed: ' + err.message); }
+  };
+
+  const handleBulkRenameDishType = async (oldVal, newVal) => {
+    try {
+      await db.bulkRenameDishType(oldVal, newVal);
+      await loadAll();
+    } catch (err) { notify('Rename failed: ' + err.message); }
+  };
+
+  const handleMoveDishTypes = async (ids, newVal) => {
+    try {
+      await db.updateDishTypesByIds(ids, newVal);
+      await loadAll();
+    } catch (err) { notify('Move failed: ' + err.message); }
+  };
+
   // ─── Data Management ─────────────────────────────────
   const handleExport = async () => {
     try {
@@ -328,6 +357,7 @@ export default function App() {
           onCook={(d) => handleCookDish(d)}
           onQuickStatus={handleQuickStatus}
           onDelete={handleDeleteDish}
+          onManage={() => setModal({ type: 'manageDishes' })}
         />
       )}
       {page === 'shop' && (
@@ -354,8 +384,13 @@ export default function App() {
       {page === 'cat' && (
         <CategoryManagerPage
           ingredients={enrichedIngredients}
+          dishes={enrichedDishes}
           onBulkRename={handleBulkRename}
           onMoveItems={handleMoveItems}
+          onBulkRenameDishCountry={handleBulkRenameDishCountry}
+          onMoveDishCountries={handleMoveDishCountries}
+          onBulkRenameDishType={handleBulkRenameDishType}
+          onMoveDishTypes={handleMoveDishTypes}
           onBack={() => setPage('data')}
           notify={notify}
         />
@@ -415,6 +450,14 @@ export default function App() {
       <Modal open={modal.type === 'editDish'} onClose={() => setModal({})} title="Edit Dish">
         {modal.data && <DishForm initial={getDishFormData(modal.data)} ingredients={enrichedIngredients} intermediates={enrichedIntermediates} onSave={handleEditDish} onCancel={() => setModal({})} />}
       </Modal>
+
+      {modal.type === 'manageDishes' && (
+        <DishManagerPanel
+          dishes={enrichedDishes}
+          onQuickStatus={handleQuickStatus}
+          onClose={() => setModal({})}
+        />
+      )}
     </div>
   );
 }

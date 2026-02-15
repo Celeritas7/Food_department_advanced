@@ -401,6 +401,40 @@ export async function updateIngredientCategoriesByIds(ids, newCategory) {
   if (error) throw error;
 }
 
+// ─── DISH CATEGORY MANAGEMENT ───────────────────────────
+
+export async function bulkRenameDishCountry(oldCountry, newCountry) {
+  const { error } = await supabase
+    .from('food_department_dishes')
+    .update({ country: newCountry })
+    .eq('country', oldCountry);
+  if (error) throw error;
+}
+
+export async function updateDishCountriesByIds(ids, newCountry) {
+  const { error } = await supabase
+    .from('food_department_dishes')
+    .update({ country: newCountry })
+    .in('id', ids);
+  if (error) throw error;
+}
+
+export async function bulkRenameDishType(oldType, newType) {
+  const { error } = await supabase
+    .from('food_department_dishes')
+    .update({ dish_type: newType })
+    .eq('dish_type', oldType);
+  if (error) throw error;
+}
+
+export async function updateDishTypesByIds(ids, newType) {
+  const { error } = await supabase
+    .from('food_department_dishes')
+    .update({ dish_type: newType })
+    .in('id', ids);
+  if (error) throw error;
+}
+
 // ─── EXPORT / IMPORT (continued) ─────────────────────────
 
 export async function bulkInsertIngredients(rows) {
