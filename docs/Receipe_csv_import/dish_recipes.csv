@@ -1,0 +1,257 @@
+Dish Name,Country,Type,Meal,Priority,Cook Status,Availability,Cooking Time,Difficulty,URL,Ingredient Name,Ingredient Category,Ingredient In Stock
+Chicken curry,Indian,Lunch,Curry,Medium,Planned,❌ Unavailable,,,,Tomato (Gaba),Vegetables,Yes
+Chicken curry,Indian,Lunch,Curry,Medium,Planned,❌ Unavailable,,,,Garam Masala,Spices,Yes
+Chicken curry,Indian,Lunch,Curry,Medium,Planned,❌ Unavailable,,,,Turmeric Powder,Spices,Yes
+Chicken curry,Indian,Lunch,Curry,Medium,Planned,❌ Unavailable,,,,Chicken (もも肉),Meat,No
+Chicken curry,Indian,Lunch,Curry,Medium,Planned,❌ Unavailable,,,,Tomato (Kagome),Vegetables,Yes
+Chicken curry,Indian,Lunch,Curry,Medium,Planned,❌ Unavailable,,,,Chilli Powder,Spices,Yes
+Mapo Tofu (Veg),Chinese,Lunch,Cooked Food,Low,Not planned,❌ Unavailable,,,,Tofu,Others,Yes
+🌭🍗 Fried Rice,Chinese,Lunch,Rice based,Medium,In Progress,❌ Unavailable,,,,(no ingredients linked),,
+Shabu shabu spinach,Japanese,Dinner,Soup,High,In Progress,❌ Unavailable,,,,Chinese black vinegar,Oils and sauces,Yes
+Shabu shabu spinach,Japanese,Dinner,Soup,High,In Progress,❌ Unavailable,,,,Chinese seafood soya sauce,Oils and sauces,Yes
+Shabu shabu spinach,Japanese,Dinner,Soup,High,In Progress,❌ Unavailable,,,,ポン酢,Oils and sauces,Yes
+Shabu shabu spinach,Japanese,Dinner,Soup,High,In Progress,❌ Unavailable,,,,ごましゃぶ,Oils and sauces,Yes
+Shabu shabu spinach,Japanese,Dinner,Soup,High,In Progress,❌ Unavailable,,,,Pork shabu shabu,Meat,No
+茸ご飯🍄‍🟫🍚,Japanese,Lunch,Rice based,Medium,Planned,❌ Unavailable,,,,えのき茸,Vegetables,Yes
+茸ご飯🍄‍🟫🍚,Japanese,Lunch,Rice based,Medium,Planned,❌ Unavailable,,,,舞茸,Vegetables,Yes
+茸ご飯🍄‍🟫🍚,Japanese,Lunch,Rice based,Medium,Planned,❌ Unavailable,,,,生椎茸,Vegetables,Yes
+茸ご飯🍄‍🟫🍚,Japanese,Lunch,Rice based,Medium,Planned,❌ Unavailable,,,,Rice,Carbs,Yes
+茸ご飯🍄‍🟫🍚,Japanese,Lunch,Rice based,Medium,Planned,❌ Unavailable,,,,Soy Sauce,Oils and sauces,Yes
+茸ご飯🍄‍🟫🍚,Japanese,Lunch,Rice based,Medium,Planned,❌ Unavailable,,,,Mirin,Oils and sauces,Yes
+茸ご飯🍄‍🟫🍚,Japanese,Lunch,Rice based,Medium,Planned,❌ Unavailable,,,,Sake,Oils and sauces,Yes
+茸ご飯🍄‍🟫🍚,Japanese,Lunch,Rice based,Medium,Planned,❌ Unavailable,,,,Salt,Others,Yes
+茸ご飯🍄‍🟫🍚,Japanese,Lunch,Rice based,Medium,Planned,❌ Unavailable,,,,ごま油,Oils and sauces,Yes
+茸ご飯🍄‍🟫🍚,Japanese,Lunch,Rice based,Medium,Planned,❌ Unavailable,,,,White mushroom,Vegetables,No
+ラーメン🍜,Japanese,Dinner,Rice based,High,Planned,❌ Unavailable,,,,Komatsuna,Vegetables,No
+🍊 Hybrid Orange Cake — Light & Aromatic,Cake Italian,Dessert,Cake,High,Not planned,❌ Unavailable,,,,Orange,Fruits,No
+🍊 Hybrid Orange Cake — Light & Aromatic,Cake Italian,Dessert,Cake,High,Not planned,❌ Unavailable,,,,Powder sugar,Cake ingredient,No
+🍊 Hybrid Orange Cake — Light & Aromatic,Cake Italian,Dessert,Cake,High,Not planned,❌ Unavailable,,,,Unsalted butter,Dairy,Yes
+🍊 Hybrid Orange Cake — Light & Aromatic,Cake Italian,Dessert,Cake,High,Not planned,❌ Unavailable,,,,Vanilla essence,Cake ingredient,Yes
+🍊 Hybrid Orange Cake — Light & Aromatic,Cake Italian,Dessert,Cake,High,Not planned,❌ Unavailable,,,,White sugar,Cake ingredient,Yes
+🍊 Hybrid Orange Cake — Light & Aromatic,Cake Italian,Dessert,Cake,High,Not planned,❌ Unavailable,,,,Potato starch,Cake ingredient,Yes
+🍊 Hybrid Orange Cake — Light & Aromatic,Cake Italian,Dessert,Cake,High,Not planned,❌ Unavailable,,,,Salad Oil,Oils and sauces,Yes
+🍊 Hybrid Orange Cake — Light & Aromatic,Cake Italian,Dessert,Cake,High,Not planned,❌ Unavailable,,,,Eggs,Meat,Yes
+🍊 Hybrid Orange Cake — Light & Aromatic,Cake Italian,Dessert,Cake,High,Not planned,❌ Unavailable,,,,Baking powder,Cake ingredient,Yes
+🍊 Hybrid Orange Cake — Light & Aromatic,Cake Italian,Dessert,Cake,High,Not planned,❌ Unavailable,,,,Vegetable oil,Oils and sauces,Yes
+焼きそば,Japanese,Lunch,Rice based,Medium,Not planned,⚠️ No ingredients linked,,,,(no ingredients linked),,
+Fudgy Brownie,Cake British,Dessert,Cake,High,✅ Cooked,✅ Available,,,,Unsalted butter,Dairy,Yes
+Fudgy Brownie,Cake British,Dessert,Cake,High,✅ Cooked,✅ Available,,,,Brown sugar,Cake ingredient,Yes
+Fudgy Brownie,Cake British,Dessert,Cake,High,✅ Cooked,✅ Available,,,,Eggs,Meat,Yes
+Fudgy Brownie,Cake British,Dessert,Cake,High,✅ Cooked,✅ Available,,,,Chocolates,Cake ingredient,Yes
+Fudgy Brownie,Cake British,Dessert,Cake,High,✅ Cooked,✅ Available,,,,Cocoa powder,Cake ingredient,Yes
+Fudgy Brownie,Cake British,Dessert,Cake,High,✅ Cooked,✅ Available,,,,Flour,Cake ingredient,Yes
+Fudgy Brownie,Cake British,Dessert,Cake,High,✅ Cooked,✅ Available,,,,Dark chocolate,Cake ingredient,Yes
+Fudgy Brownie,Cake British,Dessert,Cake,High,✅ Cooked,✅ Available,,,,Vanilla essence,Cake ingredient,Yes
+Fudgy Brownie,Cake British,Dessert,Cake,High,✅ Cooked,✅ Available,,,,Salt,Others,Yes
+Yakani pulav,Indian,Lunch,,Medium,Planned,✅ Available,,,https://youtu.be/wnTwfl6BuaI?si=jfDSwoWbrM1o4vLo,Basmati rice,Carbs,Yes
+Yakani pulav,Indian,Lunch,,Medium,Planned,✅ Available,,,https://youtu.be/wnTwfl6BuaI?si=jfDSwoWbrM1o4vLo,Garlic,Aroma to dish,Yes
+Yakani pulav,Indian,Lunch,,Medium,Planned,✅ Available,,,https://youtu.be/wnTwfl6BuaI?si=jfDSwoWbrM1o4vLo,Ginger,Aroma to dish,Yes
+Yakani pulav,Indian,Lunch,,Medium,Planned,✅ Available,,,https://youtu.be/wnTwfl6BuaI?si=jfDSwoWbrM1o4vLo,Onion,Vegetables,Yes
+Yakani pulav,Indian,Lunch,,Medium,Planned,✅ Available,,,https://youtu.be/wnTwfl6BuaI?si=jfDSwoWbrM1o4vLo,Coriender,Vegetables,Yes
+Yakani pulav,Indian,Lunch,,Medium,Planned,✅ Available,,,https://youtu.be/wnTwfl6BuaI?si=jfDSwoWbrM1o4vLo,Cumin Seeds,Spices,Yes
+Yakani pulav,Indian,Lunch,,Medium,Planned,✅ Available,,,https://youtu.be/wnTwfl6BuaI?si=jfDSwoWbrM1o4vLo,Fennel Seeds,Spices,Yes
+Yakani pulav,Indian,Lunch,,Medium,Planned,✅ Available,,,https://youtu.be/wnTwfl6BuaI?si=jfDSwoWbrM1o4vLo,Coriander Seeds,Spices,Yes
+Yakani pulav,Indian,Lunch,,Medium,Planned,✅ Available,,,https://youtu.be/wnTwfl6BuaI?si=jfDSwoWbrM1o4vLo,Cloves,Spices,Yes
+Yakani pulav,Indian,Lunch,,Medium,Planned,✅ Available,,,https://youtu.be/wnTwfl6BuaI?si=jfDSwoWbrM1o4vLo,Pepper,Spices,Yes
+Yakani pulav,Indian,Lunch,,Medium,Planned,✅ Available,,,https://youtu.be/wnTwfl6BuaI?si=jfDSwoWbrM1o4vLo,Cardamom,Spices,Yes
+Yakani pulav,Indian,Lunch,,Medium,Planned,✅ Available,,,https://youtu.be/wnTwfl6BuaI?si=jfDSwoWbrM1o4vLo,Mace,Spices,Yes
+Yakani pulav,Indian,Lunch,,Medium,Planned,✅ Available,,,https://youtu.be/wnTwfl6BuaI?si=jfDSwoWbrM1o4vLo,Cinnamon,Spices,Yes
+Yakani pulav,Indian,Lunch,,Medium,Planned,✅ Available,,,https://youtu.be/wnTwfl6BuaI?si=jfDSwoWbrM1o4vLo,Star anise,Spices,Yes
+Yakani pulav,Indian,Lunch,,Medium,Planned,✅ Available,,,https://youtu.be/wnTwfl6BuaI?si=jfDSwoWbrM1o4vLo,Green Chilies,Spices,Yes
+Yakani pulav,Indian,Lunch,,Medium,Planned,✅ Available,,,https://youtu.be/wnTwfl6BuaI?si=jfDSwoWbrM1o4vLo,Salt,Others,Yes
+Yakani pulav,Indian,Lunch,,Medium,Planned,✅ Available,,,https://youtu.be/wnTwfl6BuaI?si=jfDSwoWbrM1o4vLo,Carrot,Vegetables,Yes
+Yakani pulav,Indian,Lunch,,Medium,Planned,✅ Available,,,https://youtu.be/wnTwfl6BuaI?si=jfDSwoWbrM1o4vLo,Beans,Vegetables,Yes
+Yakani pulav,Indian,Lunch,,Medium,Planned,✅ Available,,,https://youtu.be/wnTwfl6BuaI?si=jfDSwoWbrM1o4vLo,Cauliflower,Vegetables,Yes
+Yakani pulav,Indian,Lunch,,Medium,Planned,✅ Available,,,https://youtu.be/wnTwfl6BuaI?si=jfDSwoWbrM1o4vLo,Green peas,Vegetables,Yes
+Yakani pulav,Indian,Lunch,,Medium,Planned,✅ Available,,,https://youtu.be/wnTwfl6BuaI?si=jfDSwoWbrM1o4vLo,Potato,Vegetables,Yes
+Yakani pulav,Indian,Lunch,,Medium,Planned,✅ Available,,,https://youtu.be/wnTwfl6BuaI?si=jfDSwoWbrM1o4vLo,Tomato (Kagome),Vegetables,Yes
+Yakani pulav,Indian,Lunch,,Medium,Planned,✅ Available,,,https://youtu.be/wnTwfl6BuaI?si=jfDSwoWbrM1o4vLo,Paneer,Dairy,Yes
+Yakani pulav,Indian,Lunch,,Medium,Planned,✅ Available,,,https://youtu.be/wnTwfl6BuaI?si=jfDSwoWbrM1o4vLo,Garam Masala,Spices,Yes
+Yakani pulav,Indian,Lunch,,Medium,Planned,✅ Available,,,https://youtu.be/wnTwfl6BuaI?si=jfDSwoWbrM1o4vLo,Ghee,Oils and sauces,Yes
+Yakani pulav,Indian,Lunch,,Medium,Planned,✅ Available,,,https://youtu.be/wnTwfl6BuaI?si=jfDSwoWbrM1o4vLo,Long pepper,,Yes
+ニラ卵,Chinese,Lunch,Rice based,Medium,✅ Cooked,✅ Available,,,,Nira,Vegetables,Yes
+ニラ卵,Chinese,Lunch,Rice based,Medium,✅ Cooked,✅ Available,,,,小ネギ,Vegetables,Yes
+ニラ卵,Chinese,Lunch,Rice based,Medium,✅ Cooked,✅ Available,,,,Eggs,Meat,Yes
+ニラ卵,Chinese,Lunch,Rice based,Medium,✅ Cooked,✅ Available,,,,ナンプラ,Oils and sauces,Yes
+🍍🍎🍓🍇🍒 bento,Dessert,Breakfast,,High,✅ Cooked,❌ Unavailable,,,,Pineapple,Fruits,No
+🍍🍎🍓🍇🍒 bento,Dessert,Breakfast,,High,✅ Cooked,❌ Unavailable,,,,Strawberry,Fruits,No
+🍍🍎🍓🍇🍒 bento,Dessert,Breakfast,,High,✅ Cooked,❌ Unavailable,,,,Orange,Fruits,No
+🍍🍎🍓🍇🍒 bento,Dessert,Breakfast,,High,✅ Cooked,❌ Unavailable,,,,Apple (山梨県),Fruits,Yes
+🍍🍎🍓🍇🍒 bento,Dessert,Breakfast,,High,✅ Cooked,❌ Unavailable,,,,Figs,Fruits,No
+🍍🍎🍓🍇🍒 bento,Dessert,Breakfast,,High,✅ Cooked,❌ Unavailable,,,,Grapes,Fruits,Yes
+🍍🍎🍓🍇🍒 bento,Dessert,Breakfast,,High,✅ Cooked,❌ Unavailable,,,,Kaki,Fruits,No
+🍍🍎🍓🍇🍒 bento,Dessert,Breakfast,,High,✅ Cooked,❌ Unavailable,,,,Pear,Fruits,No
+🍍🍎🍓🍇🍒 bento,Dessert,Breakfast,,High,✅ Cooked,❌ Unavailable,,,,Pomegranate,Fruits,Yes
+Myanmar salad,Myanmar,Dinner,,Medium,Planned,❌ Unavailable,,,,Cabbage,Vegetables,No
+Myanmar salad,Myanmar,Dinner,,Medium,Planned,❌ Unavailable,,,,Capsicum,Vegetables,No
+Myanmar salad,Myanmar,Dinner,,Medium,Planned,❌ Unavailable,,,,Peanuts,Nuts,Yes
+Myanmar salad,Myanmar,Dinner,,Medium,Planned,❌ Unavailable,,,,Tomato (Gaba),Vegetables,Yes
+Myanmar salad,Myanmar,Dinner,,Medium,Planned,❌ Unavailable,,,,ナンプラ,Oils and sauces,Yes
+Myanmar salad,Myanmar,Dinner,,Medium,Planned,❌ Unavailable,,,,Thai seasoning sauce,Oils and sauces,Yes
+Myanmar salad,Myanmar,Dinner,,Medium,Planned,❌ Unavailable,,,,Lemon,Aroma to dish,Yes
+Myanmar salad,Myanmar,Dinner,,Medium,Planned,❌ Unavailable,,,,Lemon zest,Aroma to dish,Yes
+Myanmar salad,Myanmar,Dinner,,Medium,Planned,❌ Unavailable,,,,Tomato (Kagome),Vegetables,Yes
+☕ Cinnamon Streusel Coffee Cake,Cake American,Dessert,Cake,Medium,Not planned,✅ Available,,,,Cinnamon (Shri lankan),Spices,Yes
+🍲 ကြက်ပေါင်းဟင်းရည်  (Kyat Paung Hin Yay) (Chicken stew),Myanmar,Dinner,Soup,High,✅ Cooked,❌ Unavailable,2 hours 10 min total,🧑‍🍳 Intermediate / Home cook,,Chicken (with bones),Meat,No
+🍲 ကြက်ပေါင်းဟင်းရည်  (Kyat Paung Hin Yay) (Chicken stew),Myanmar,Dinner,Soup,High,✅ Cooked,❌ Unavailable,2 hours 10 min total,🧑‍🍳 Intermediate / Home cook,,長ネギ,Vegetables,Yes
+🍲 ကြက်ပေါင်းဟင်းရည်  (Kyat Paung Hin Yay) (Chicken stew),Myanmar,Dinner,Soup,High,✅ Cooked,❌ Unavailable,2 hours 10 min total,🧑‍🍳 Intermediate / Home cook,,Ginger,Aroma to dish,Yes
+🍲 ကြက်ပေါင်းဟင်းရည်  (Kyat Paung Hin Yay) (Chicken stew),Myanmar,Dinner,Soup,High,✅ Cooked,❌ Unavailable,2 hours 10 min total,🧑‍🍳 Intermediate / Home cook,,Garlic,Aroma to dish,Yes
+🍲 ကြက်ပေါင်းဟင်းရည်  (Kyat Paung Hin Yay) (Chicken stew),Myanmar,Dinner,Soup,High,✅ Cooked,❌ Unavailable,2 hours 10 min total,🧑‍🍳 Intermediate / Home cook,,Salt,Others,Yes
+🍲 ကြက်ပေါင်းဟင်းရည်  (Kyat Paung Hin Yay) (Chicken stew),Myanmar,Dinner,Soup,High,✅ Cooked,❌ Unavailable,2 hours 10 min total,🧑‍🍳 Intermediate / Home cook,,ナンプラ,Oils and sauces,Yes
+🍲 ကြက်ပေါင်းဟင်းရည်  (Kyat Paung Hin Yay) (Chicken stew),Myanmar,Dinner,Soup,High,✅ Cooked,❌ Unavailable,2 hours 10 min total,🧑‍🍳 Intermediate / Home cook,,Green Chilies,Spices,Yes
+🍲 ကြက်ပေါင်းဟင်းရည်  (Kyat Paung Hin Yay) (Chicken stew),Myanmar,Dinner,Soup,High,✅ Cooked,❌ Unavailable,2 hours 10 min total,🧑‍🍳 Intermediate / Home cook,,Chinese seafood soya sauce,Oils and sauces,Yes
+🍲 ကြက်ပေါင်းဟင်းရည်  (Kyat Paung Hin Yay) (Chicken stew),Myanmar,Dinner,Soup,High,✅ Cooked,❌ Unavailable,2 hours 10 min total,🧑‍🍳 Intermediate / Home cook,,Shallot,Aroma to dish,No
+Cream Stew Pasta,Italian,Dinner,,Low,In Progress,❌ Unavailable,,,,Cream stew,Pasta,Yes
+Cream Stew Pasta,Italian,Dinner,,Low,In Progress,❌ Unavailable,,,,Milk,Cake ingredient,Yes
+Cream Stew Pasta,Italian,Dinner,,Low,In Progress,❌ Unavailable,,,,Butter,Dairy,No
+Cream Stew Pasta,Italian,Dinner,,Low,In Progress,❌ Unavailable,,,,Garlic,Aroma to dish,Yes
+Cream Stew Pasta,Italian,Dinner,,Low,In Progress,❌ Unavailable,,,,Brown mushroom,Vegetables,Yes
+Cream Stew Pasta,Italian,Dinner,,Low,In Progress,❌ Unavailable,,,,White mushroom,Vegetables,No
+Cream Stew Pasta,Italian,Dinner,,Low,In Progress,❌ Unavailable,,,,Chicken (もも肉),Meat,No
+Cream Stew Pasta,Italian,Dinner,,Low,In Progress,❌ Unavailable,,,,Black paper powder,Spices,Yes
+Cream Stew Pasta,Italian,Dinner,,Low,In Progress,❌ Unavailable,,,,Salt,Others,Yes
+Cream Stew Pasta,Italian,Dinner,,Low,In Progress,❌ Unavailable,,,,Spagetti,Carbs,Yes
+Cream Stew Pasta,Italian,Dinner,,Low,In Progress,❌ Unavailable,,,,Parmesan cheese,Pasta,Yes
+Cream Stew Pasta,Italian,Dinner,,Low,In Progress,❌ Unavailable,,,,Parsley,Pasta,Yes
+Cream Stew Pasta,Italian,Dinner,,Low,In Progress,❌ Unavailable,,,,Soy Sauce,Oils and sauces,Yes
+Cream Stew Pasta,Italian,Dinner,,Low,In Progress,❌ Unavailable,,,,Chilli flakes,Spices,Yes
+Cream Stew Pasta,Italian,Dinner,,Low,In Progress,❌ Unavailable,,,,Corn,Vegetables,Yes
+Cream Stew Pasta,Italian,Dinner,,Low,In Progress,❌ Unavailable,,,,Spinach,Vegetables,Yes
+Cream Stew Pasta,Italian,Dinner,,Low,In Progress,❌ Unavailable,,,,Broccoli,Vegetables,No
+Cream Stew Pasta,Italian,Dinner,,Low,In Progress,❌ Unavailable,,,,Lemon zest,Aroma to dish,Yes
+Cream Stew Pasta,Italian,Dinner,,Low,In Progress,❌ Unavailable,,,,Pork shabu shabu,Meat,No
+Cream Stew Pasta,Italian,Dinner,,Low,In Progress,❌ Unavailable,,,,Shichimi togarashi,Spices,Yes
+ကြက်ပေါင်းဟင်းရည် (Chicken stew) updated,Myanmar,Dinner,Soup,Low,Planned,❌ Unavailable,2 hours 10 min total,🧑‍🍳 Intermediate / Home cook,,Chicken (with bones),Meat,No
+ကြက်ပေါင်းဟင်းရည် (Chicken stew) updated,Myanmar,Dinner,Soup,Low,Planned,❌ Unavailable,2 hours 10 min total,🧑‍🍳 Intermediate / Home cook,,Onion,Vegetables,Yes
+ကြက်ပေါင်းဟင်းရည် (Chicken stew) updated,Myanmar,Dinner,Soup,Low,Planned,❌ Unavailable,2 hours 10 min total,🧑‍🍳 Intermediate / Home cook,,長ネギ,Vegetables,Yes
+ကြက်ပေါင်းဟင်းရည် (Chicken stew) updated,Myanmar,Dinner,Soup,Low,Planned,❌ Unavailable,2 hours 10 min total,🧑‍🍳 Intermediate / Home cook,,Ginger,Aroma to dish,Yes
+ကြက်ပေါင်းဟင်းရည် (Chicken stew) updated,Myanmar,Dinner,Soup,Low,Planned,❌ Unavailable,2 hours 10 min total,🧑‍🍳 Intermediate / Home cook,,Garlic,Aroma to dish,Yes
+ကြက်ပေါင်းဟင်းရည် (Chicken stew) updated,Myanmar,Dinner,Soup,Low,Planned,❌ Unavailable,2 hours 10 min total,🧑‍🍳 Intermediate / Home cook,,Salt,Others,Yes
+ကြက်ပေါင်းဟင်းရည် (Chicken stew) updated,Myanmar,Dinner,Soup,Low,Planned,❌ Unavailable,2 hours 10 min total,🧑‍🍳 Intermediate / Home cook,,ナンプラ,Oils and sauces,Yes
+ကြက်ပေါင်းဟင်းရည် (Chicken stew) updated,Myanmar,Dinner,Soup,Low,Planned,❌ Unavailable,2 hours 10 min total,🧑‍🍳 Intermediate / Home cook,,Green Chilies,Spices,Yes
+Chinese Spiced Bone Broth (清汤 / 香料骨头汤),Chinese,Lunch,,Medium,Planned,⚠️ No ingredients linked,,,,(no ingredients linked),,
+Burmese Kyat Thar Hinn,Myanmar,Lunch,,,,⚠️ No ingredients linked,,,,(no ingredients linked),,
+Burmese Lemongrass Chicken,Myanmar,Lunch,,,,⚠️ No ingredients linked,,,,(no ingredients linked),,
+Cabbage Thoke,Myanmar,,,,,⚠️ No ingredients linked,,,,(no ingredients linked),,
+Tomato Thoke,Myanmar,,,,,⚠️ No ingredients linked,,,,(no ingredients linked),,
+Ginger Thoke,Myanmar,,,,,⚠️ No ingredients linked,"Spicy , Aromatic, Traditional Myanmar salad",,,(no ingredients linked),,
+Lahpet Thoke (Tea Leaf Salad),Myanmar,,,,,⚠️ No ingredients linked,,,,(no ingredients linked),,
+Thai Lime–Garlic Cabbage Salad,Thai,,,,,⚠️ No ingredients linked,,,,(no ingredients linked),,
+Cucumber Peanut Salad,Myanmar,,,,,⚠️ No ingredients linked,,,,(no ingredients linked),,
+Spinach Thoke,Myanmar,,,,Planned,✅ Available,,,,Spinach,Vegetables,Yes
+Spinach Thoke,Myanmar,,,,Planned,✅ Available,,,,Onion,Vegetables,Yes
+Spinach Thoke,Myanmar,,,,Planned,✅ Available,,,,Green Chilies,Spices,Yes
+Spinach Thoke,Myanmar,,,,Planned,✅ Available,,,,Coriender,Vegetables,Yes
+Spinach Thoke,Myanmar,,,,Planned,✅ Available,,,,Garlic,Aroma to dish,Yes
+Spinach Thoke,Myanmar,,,,Planned,✅ Available,,,,Peanuts,Nuts,Yes
+Spinach Thoke,Myanmar,,,,Planned,✅ Available,,,,ごま,,Yes
+Spinach Thoke,Myanmar,,,,Planned,✅ Available,,,,ナンプラ,Oils and sauces,Yes
+Spinach Thoke,Myanmar,,,,Planned,✅ Available,,,,Lemon,Aroma to dish,Yes
+Spinach Thoke,Myanmar,,,,Planned,✅ Available,,,,Brown sugar,Cake ingredient,Yes
+Spinach Thoke,Myanmar,,,,Planned,✅ Available,,,,Salt,Others,Yes
+Spinach Thoke,Myanmar,,,,Planned,✅ Available,,,,Chilli flakes,Spices,Yes
+Spinach Thoke,Myanmar,,,,Planned,✅ Available,,,,Napi,Aroma to dish,Yes
+Tom Kha Gai,Thai,,,,,⚠️ No ingredients linked,,,,(no ingredients linked),,
+Thai Green Papaya Salad (Som Tum Thai),Thai,Dinner,,High,✅ Cooked,❌ Unavailable,,,,Green papaya,Fruits,Yes
+Thai Green Papaya Salad (Som Tum Thai),Thai,Dinner,,High,✅ Cooked,❌ Unavailable,,,,Beans,Vegetables,Yes
+Thai Green Papaya Salad (Som Tum Thai),Thai,Dinner,,High,✅ Cooked,❌ Unavailable,,,,Cherry tomato,Vegetables,No
+Thai Green Papaya Salad (Som Tum Thai),Thai,Dinner,,High,✅ Cooked,❌ Unavailable,,,,Peanuts,Nuts,Yes
+Thai Green Papaya Salad (Som Tum Thai),Thai,Dinner,,High,✅ Cooked,❌ Unavailable,,,,Dried shrimps,,No
+Thai Green Papaya Salad (Som Tum Thai),Thai,Dinner,,High,✅ Cooked,❌ Unavailable,,,,Garlic,Aroma to dish,Yes
+Thai Green Papaya Salad (Som Tum Thai),Thai,Dinner,,High,✅ Cooked,❌ Unavailable,,,,Green Chilies,Spices,Yes
+Thai Green Papaya Salad (Som Tum Thai),Thai,Dinner,,High,✅ Cooked,❌ Unavailable,,,,Brown sugar,Cake ingredient,Yes
+Thai Green Papaya Salad (Som Tum Thai),Thai,Dinner,,High,✅ Cooked,❌ Unavailable,,,,Lemon,Aroma to dish,Yes
+Thai Green Papaya Salad (Som Tum Thai),Thai,Dinner,,High,✅ Cooked,❌ Unavailable,,,,Tamarind,Fruits,Yes
+Thai Green Papaya Salad (Som Tum Thai),Thai,Dinner,,High,✅ Cooked,❌ Unavailable,,,,ナンプラ,Oils and sauces,Yes
+Lao Green Papaya Salad (Som Tum Pla Ra),Thai,,,,,⚠️ No ingredients linked,,,,(no ingredients linked),,
+Samposha,Shri lankan,Dessert,Laddoo,Medium,Not planned,⚠️ No ingredients linked,,,,(no ingredients linked),,
+Sweet Potato & Tuna Pilaf (さつまいもとツナのピラフ),Japanese,Lunch,,Medium,Planned,❌ Unavailable,,,,sweet potato,Vegetables,No
+Sweet Potato & Tuna Pilaf (さつまいもとツナのピラフ),Japanese,Lunch,,Medium,Planned,❌ Unavailable,,,,Tuna can,Meat,No
+Sweet Potato & Tuna Pilaf (さつまいもとツナのピラフ),Japanese,Lunch,,Medium,Planned,❌ Unavailable,,,,Onion,Vegetables,Yes
+Sweet Potato & Tuna Pilaf (さつまいもとツナのピラフ),Japanese,Lunch,,Medium,Planned,❌ Unavailable,,,,Unsalted butter,Dairy,Yes
+Sweet Potato & Tuna Pilaf (さつまいもとツナのピラフ),Japanese,Lunch,,Medium,Planned,❌ Unavailable,,,,Salt,Others,Yes
+Sweet Potato & Tuna Pilaf (さつまいもとツナのピラフ),Japanese,Lunch,,Medium,Planned,❌ Unavailable,,,,Black pepper,,Yes
+Sweet Potato & Tuna Pilaf (さつまいもとツナのピラフ),Japanese,Lunch,,Medium,Planned,❌ Unavailable,,,,Parsley,Pasta,Yes
+Sweet Potato & Tuna Pilaf (さつまいもとツナのピラフ),Japanese,Lunch,,Medium,Planned,❌ Unavailable,,,,Soy Sauce,Oils and sauces,Yes
+Mustard Greens Egg Stir-Fry,Myanmar,Side dish,,Low,Planned,❌ Unavailable,,,,Mustard green,Vegetables,No
+Mustard Greens Egg Stir-Fry,Myanmar,Side dish,,Low,Planned,❌ Unavailable,,,,Eggs,Meat,Yes
+Mustard Greens Egg Stir-Fry,Myanmar,Side dish,,Low,Planned,❌ Unavailable,,,,Garlic,Aroma to dish,Yes
+Mustard Greens Egg Stir-Fry,Myanmar,Side dish,,Low,Planned,❌ Unavailable,,,,Onion,Vegetables,Yes
+Mustard Greens Egg Stir-Fry,Myanmar,Side dish,,Low,Planned,❌ Unavailable,,,,Green Chilies,Spices,Yes
+Mustard Greens Egg Stir-Fry,Myanmar,Side dish,,Low,Planned,❌ Unavailable,,,,Soy Sauce,Oils and sauces,Yes
+Mustard Greens Egg Stir-Fry,Myanmar,Side dish,,Low,Planned,❌ Unavailable,,,,Salt,Others,Yes
+Mustard Greens Egg Stir-Fry,Myanmar,Side dish,,Low,Planned,❌ Unavailable,,,,Black pepper,,Yes
+Mustard Greens Egg Stir-Fry,Myanmar,Side dish,,Low,Planned,❌ Unavailable,,,,Canora Cooking Oil,Oils and sauces,Yes
+Chinese-Style Mustard Greens with Oyster Sauce (Ultra Simple),Myanmar,,,,,⚠️ No ingredients linked,,,,(no ingredients linked),,
+Vietnamese Iced Coffee,,Breakfast,,,,⚠️ No ingredients linked,,,,(no ingredients linked),,
+Nestlé Carnation,,Nestlé Carnation – Sweetened Condensed Milk,,,,⚠️ No ingredients linked,,,,(no ingredients linked),,
+Kabocha Squash & Basil Stir-Fry (ฟักทองผัดไข่),Thai,,,Medium,Planned,❌ Unavailable,,,,Pumpkin,Vegetables,No
+Kabocha Squash & Basil Stir-Fry (ฟักทองผัดไข่),Thai,,,Medium,Planned,❌ Unavailable,,,,Canora Cooking Oil,Oils and sauces,Yes
+Kabocha Squash & Basil Stir-Fry (ฟักทองผัดไข่),Thai,,,Medium,Planned,❌ Unavailable,,,,Garlic,Aroma to dish,Yes
+Kabocha Squash & Basil Stir-Fry (ฟักทองผัดไข่),Thai,,,Medium,Planned,❌ Unavailable,,,,Eggs,Meat,Yes
+Kabocha Squash & Basil Stir-Fry (ฟักทองผัดไข่),Thai,,,Medium,Planned,❌ Unavailable,,,,Basil,,No
+Kabocha Squash & Basil Stir-Fry (ฟักทองผัดไข่),Thai,,,Medium,Planned,❌ Unavailable,,,,Jasmin rice,Carbs,No
+Kabocha Squash & Basil Stir-Fry (ฟักทองผัดไข่),Thai,,,Medium,Planned,❌ Unavailable,,,,Oyster sauce,,Yes
+Kabocha Squash & Basil Stir-Fry (ฟักทองผัดไข่),Thai,,,Medium,Planned,❌ Unavailable,,,,Soy Sauce,Oils and sauces,Yes
+Kabocha Squash & Basil Stir-Fry (ฟักทองผัดไข่),Thai,,,Medium,Planned,❌ Unavailable,,,,ナンプラ,Oils and sauces,Yes
+Kabocha Squash & Basil Stir-Fry (ฟักทองผัดไข่),Thai,,,Medium,Planned,❌ Unavailable,,,,Brown sugar,Cake ingredient,Yes
+Kabocha Squash & Basil Stir-Fry (ฟักทองผัดไข่),Thai,,,Medium,Planned,❌ Unavailable,,,,Black pepper,,Yes
+Kabocha Squash & Basil Stir-Fry (ฟักทองผัดไข่),Thai,,,Medium,Planned,❌ Unavailable,,,,Golden Mountain sauce,,No
+Tokoyo Nabe (ほうれん草と豚バラの常夜鍋),Japanese,,,Medium,Planned,❌ Unavailable,,,,Pork shabu shabu,Meat,No
+Tokoyo Nabe (ほうれん草と豚バラの常夜鍋),Japanese,,,Medium,Planned,❌ Unavailable,,,,Spinach,Vegetables,Yes
+Tokoyo Nabe (ほうれん草と豚バラの常夜鍋),Japanese,,,Medium,Planned,❌ Unavailable,,,,昆布[乾燥] (11gm),Aroma to dish,Yes
+Tokoyo Nabe (ほうれん草と豚バラの常夜鍋),Japanese,,,Medium,Planned,❌ Unavailable,,,,Sake,Oils and sauces,Yes
+Tokoyo Nabe (ほうれん草と豚バラの常夜鍋),Japanese,,,Medium,Planned,❌ Unavailable,,,,Salt,Others,Yes
+Tokoyo Nabe (ほうれん草と豚バラの常夜鍋),Japanese,,,Medium,Planned,❌ Unavailable,,,,大根,Vegetables,Yes
+Tokoyo Nabe (ほうれん草と豚バラの常夜鍋),Japanese,,,Medium,Planned,❌ Unavailable,,,,小ネギ,Vegetables,Yes
+Tokoyo Nabe (ほうれん草と豚バラの常夜鍋),Japanese,,,Medium,Planned,❌ Unavailable,,,,ポン酢,Oils and sauces,Yes
+鶏ゴムタン,Japanese,Lunch,,High,✅ Cooked,❌ Unavailable,,,,Chicken (with bones),Meat,No
+鶏ゴムタン,Japanese,Lunch,,High,✅ Cooked,❌ Unavailable,,,,Onion,Vegetables,Yes
+鶏ゴムタン,Japanese,Lunch,,High,✅ Cooked,❌ Unavailable,,,,長ネギ,Vegetables,Yes
+鶏ゴムタン,Japanese,Lunch,,High,✅ Cooked,❌ Unavailable,,,,Garlic,Aroma to dish,Yes
+鶏ゴムタン,Japanese,Lunch,,High,✅ Cooked,❌ Unavailable,,,,Ginger,Aroma to dish,Yes
+鶏ゴムタン,Japanese,Lunch,,High,✅ Cooked,❌ Unavailable,,,,大根,Vegetables,Yes
+鶏ゴムタン,Japanese,Lunch,,High,✅ Cooked,❌ Unavailable,,,,昆布[乾燥] (11gm),Aroma to dish,Yes
+鶏ゴムタン,Japanese,Lunch,,High,✅ Cooked,❌ Unavailable,,,,Salt,Others,Yes
+鶏ゴムタン,Japanese,Lunch,,High,✅ Cooked,❌ Unavailable,,,,Black paper powder,Spices,Yes
+鶏ゴムタン,Japanese,Lunch,,High,✅ Cooked,❌ Unavailable,,,,ごま油,Oils and sauces,Yes
+鶏ゴムタン,Japanese,Lunch,,High,✅ Cooked,❌ Unavailable,,,,えのき茸,Vegetables,Yes
+鶏ゴムタン,Japanese,Lunch,,High,✅ Cooked,❌ Unavailable,,,,Coriender,Vegetables,Yes
+Fudgy Brownie (1),Cake British,Dessert,Cake,High,✅ Cooked,✅ Available,,,,Unsalted butter,Dairy,Yes
+Fudgy Brownie (1),Cake British,Dessert,Cake,High,✅ Cooked,✅ Available,,,,Brown sugar,Cake ingredient,Yes
+Fudgy Brownie (1),Cake British,Dessert,Cake,High,✅ Cooked,✅ Available,,,,Eggs,Meat,Yes
+Fudgy Brownie (1),Cake British,Dessert,Cake,High,✅ Cooked,✅ Available,,,,Chocolates,Cake ingredient,Yes
+Fudgy Brownie (1),Cake British,Dessert,Cake,High,✅ Cooked,✅ Available,,,,Cocoa powder,Cake ingredient,Yes
+Fudgy Brownie (1),Cake British,Dessert,Cake,High,✅ Cooked,✅ Available,,,,Flour,Cake ingredient,Yes
+Fudgy Brownie (1),Cake British,Dessert,Cake,High,✅ Cooked,✅ Available,,,,Dark chocolate,Cake ingredient,Yes
+Fudgy Brownie (1),Cake British,Dessert,Cake,High,✅ Cooked,✅ Available,,,,Vanilla essence,Cake ingredient,Yes
+Fudgy Brownie (1),Cake British,Dessert,Cake,High,✅ Cooked,✅ Available,,,,Salt,Others,Yes
+Canned fish curry,Myanmar,Lunch,,,✅ Cooked,⚠️ No ingredients linked,,,,(no ingredients linked),,
+Canned fish fry,Myanmar,Lunch,,,✅ Cooked,⚠️ No ingredients linked,,,,(no ingredients linked),,
+🍋 Chili Lime Peanuts with Thai Herbs,Thai,Breakfast,,Low,Planned,❌ Unavailable,,,,Peanuts,Nuts,Yes
+🍋 Chili Lime Peanuts with Thai Herbs,Thai,Breakfast,,Low,Planned,❌ Unavailable,,,,cashew nuts,,Yes
+🍋 Chili Lime Peanuts with Thai Herbs,Thai,Breakfast,,Low,Planned,❌ Unavailable,,,,Garlic,Aroma to dish,Yes
+🍋 Chili Lime Peanuts with Thai Herbs,Thai,Breakfast,,Low,Planned,❌ Unavailable,,,,Lime leaves,,Yes
+🍋 Chili Lime Peanuts with Thai Herbs,Thai,Breakfast,,Low,Planned,❌ Unavailable,,,,Chicken bouillon powder,,No
+🍋 Chili Lime Peanuts with Thai Herbs,Thai,Breakfast,,Low,Planned,❌ Unavailable,,,,Chili powder,,No
+🍋 Chili Lime Peanuts with Thai Herbs,Thai,Breakfast,,Low,Planned,❌ Unavailable,,,,Canora Cooking Oil,Oils and sauces,Yes
+🍋 Chili Lime Peanuts with Thai Herbs,Thai,Breakfast,,Low,Planned,❌ Unavailable,,,,Lime juice powder,,No
+🍋 Chili Lime Peanuts with Thai Herbs,Thai,Breakfast,,Low,Planned,❌ Unavailable,,,,Lemon,Aroma to dish,Yes
+Soy Sauce + Miso Mushroom Soup,Japanese,,,,Planned,⚠️ No ingredients linked,,,,(no ingredients linked),,
+Torigara Soup Powder Version (Mushroom Soup),Japanese,,,,✅ Cooked,⚠️ No ingredients linked,,,,(no ingredients linked),,
+🌶️ 口水鸡 — Sichuan Mouth-Watering Chicken,Chinese,,,,,⚠️ No ingredients linked,,,,(no ingredients linked),,
+Chicken & Chicken Liver Curry (North-Indian Style),Myanmar,Lunch,,,✅ Cooked,❌ Unavailable,,,,Chicken (with bones),Meat,No
+Chicken & Chicken Liver Curry (North-Indian Style),Myanmar,Lunch,,,✅ Cooked,❌ Unavailable,,,,Chicken lever,Meat,No
+Chicken & Chicken Liver Curry (North-Indian Style),Myanmar,Lunch,,,✅ Cooked,❌ Unavailable,,,,Onion,Vegetables,Yes
+Chicken & Chicken Liver Curry (North-Indian Style),Myanmar,Lunch,,,✅ Cooked,❌ Unavailable,,,,Canora Cooking Oil,Oils and sauces,Yes
+Chicken & Chicken Liver Curry (North-Indian Style),Myanmar,Lunch,,,✅ Cooked,❌ Unavailable,,,,Bay leaves,Spices,Yes
+Chicken & Chicken Liver Curry (North-Indian Style),Myanmar,Lunch,,,✅ Cooked,❌ Unavailable,,,,Cumin Seeds,Spices,Yes
+Chicken & Chicken Liver Curry (North-Indian Style),Myanmar,Lunch,,,✅ Cooked,❌ Unavailable,,,,Black pepper,,Yes
+Chicken & Chicken Liver Curry (North-Indian Style),Myanmar,Lunch,,,✅ Cooked,❌ Unavailable,,,,Turmeric Powder,Spices,Yes
+Chicken & Chicken Liver Curry (North-Indian Style),Myanmar,Lunch,,,✅ Cooked,❌ Unavailable,,,,Chilli Powder,Spices,Yes
+Chicken & Chicken Liver Curry (North-Indian Style),Myanmar,Lunch,,,✅ Cooked,❌ Unavailable,,,,Garam Masala,Spices,Yes
+Chicken & Chicken Liver Curry (North-Indian Style),Myanmar,Lunch,,,✅ Cooked,❌ Unavailable,,,,Salt,Others,Yes
+🧀 Cheesecake,,Dessert,,,,⚠️ No ingredients linked,,,,(no ingredients linked),,
+Japanese Simmered Beans (市販豆の簡単煮物),Japanese,,,,,⚠️ No ingredients linked,,,,(no ingredients linked),,
+Burmese-Style Gongura Leaf Stir-Fry,Myanmar,,,,,⚠️ No ingredients linked,,,,(no ingredients linked),,
+Devil’s egg,,,,,,⚠️ No ingredients linked,,,,(no ingredients linked),,

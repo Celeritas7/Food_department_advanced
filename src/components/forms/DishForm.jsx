@@ -1,18 +1,20 @@
 /**
- * DishForm.jsx — Dish creation/edit with category-tabbed picker + CSV import
+ * DishForm.jsx — Dish creation/edit with inline editing, picker + CSV import
  */
 import { useState, useRef } from 'react';
 import { DelIcon } from '../ui/Icons';
 import { getCatEmoji } from '../../config/emoji.js';
 import IngredientPicker from '../ui/IngredientPicker';
 
+const UNIT_OPTIONS = ['g', 'ml', 'pcs', 'tbsp', 'tsp', 'cup', 'bunch', 'pack', 'pinch', 'slice', 'clove', 'stalk', 'can', 'sheet'];
+
 function parseIngredientCSV(text) {
   const lines = text.split(/\r?\n/).filter(l => l.trim());
   if (lines.length < 2) throw new Error('CSV needs a header row + at least 1 data row');
-
   const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/\s+/g, '_'));
   const nameIdx = headers.findIndex(h => h === 'name' || h === 'ingredient' || h === 'ingredient_name');
   const qtyIdx = headers.findIndex(h => h === 'qty' || h === 'quantity' || h === 'amount');
+  const unitIdx = headers.findIndex(h => h === 'unit');
   if (nameIdx === -1) throw new Error('CSV must have a "name" or "ingredient" column');
 
   const rows = [];
@@ -27,9 +29,10 @@ function parseIngredientCSV(text) {
     }
     vals.push(current.trim());
     const name = vals[nameIdx];
-    if (!name) continue;
+    if (!name || name === '(no ingredients linked)') continue;
     const qty = qtyIdx >= 0 ? (parseFloat(vals[qtyIdx]) || 0) : 0;
-    rows.push({ name, qty });
+    const unit = unitIdx >= 0 ? (vals[unitIdx] || '') : '';
+    rows.push({ name, qty, unit });
   }
   return rows;
 }
@@ -42,7 +45,7 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
   const [recipeIngs, setRecipeIngs] = useState(initial?.recipeIngredients || []);
   const [recipeInts, setRecipeInts] = useState(initial?.recipeIntermediates || []);
   const [showIngPicker, setShowIngPicker] = useState(false);
-  const [csvMode, setCsvMode] = useState(null); // null | 'input' | 'preview'
+  const [csvMode, setCsvMode] = useState(null);
   const [csvText, setCsvText] = useState('');
   const [csvResult, setCsvResult] = useState(null);
   const csvFileRef = useRef(null);
@@ -57,21 +60,24 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
     setShowIngPicker(false);
   };
 
-  // CSV matching logic
+  // Inline edit qty
+  const updateIngQty = (idx, qty) => {
+    setRecipeIngs(prev => prev.map((r, i) => i === idx ? { ...r, qty: parseFloat(qty) || 0 } : r));
+  };
+
+  // Inline edit unit override (stored per-recipe-link, falls back to ingredient.unit)
+  const updateIngUnit = (idx, unit) => {
+    setRecipeIngs(prev => prev.map((r, i) => i === idx ? { ...r, unitOverride: unit } : r));
+  };
+
+  // CSV matching
   const matchCsvToIngredients = (csvRows) => {
-    const results = csvRows.map(row => {
+    return csvRows.map(row => {
       const csvName = row.name.toLowerCase().trim();
-      // Try exact match first, then partial
       let match = ingredients.find(i => i.name.toLowerCase() === csvName);
       if (!match) match = ingredients.find(i => i.name.toLowerCase().includes(csvName) || csvName.includes(i.name.toLowerCase()));
-      return {
-        csvName: row.name,
-        qty: row.qty,
-        matched: match || null,
-        status: match ? 'matched' : 'unmatched',
-      };
+      return { csvName: row.name, qty: row.qty, unit: row.unit, matched: match || null, status: match ? 'matched' : 'unmatched' };
     });
-    return results;
   };
 
   const handleCsvParse = () => {
@@ -97,10 +103,13 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
   const handleCsvConfirm = () => {
     if (!csvResult) return;
     const matched = csvResult.rows.filter(r => r.matched);
-    // Merge with existing recipeIngs
     const existing = new Map(recipeIngs.map(ri => [ri.ingredientId, ri]));
     matched.forEach(r => {
-      existing.set(r.matched.id, { ingredientId: r.matched.id, qty: r.qty || existing.get(r.matched.id)?.qty || 0 });
+      existing.set(r.matched.id, {
+        ingredientId: r.matched.id,
+        qty: r.qty || existing.get(r.matched.id)?.qty || 0,
+        unitOverride: r.unit || existing.get(r.matched.id)?.unitOverride || '',
+      });
     });
     setRecipeIngs(Array.from(existing.values()));
     setCsvMode(null);
@@ -108,7 +117,6 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
     setCsvResult(null);
   };
 
-  // Manual fix: let user pick a match for unmatched row
   const handleManualMatch = (rowIdx, ingredientId) => {
     setCsvResult(prev => {
       const updated = [...prev.rows];
@@ -150,7 +158,7 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
           <input value={type} onChange={e => setType(e.target.value)} placeholder="e.g., Curry, Salad, Soup" className="w-full px-4 py-2 rounded-lg border" />
         </div>
 
-        {/* Ingredients via picker or CSV */}
+        {/* Ingredients — inline editable */}
         <div className="border-t pt-4">
           <div className="flex justify-between items-center mb-2">
             <span className="text-sm font-medium">🥕 Ingredients ({recipeIngs.length})</span>
@@ -171,15 +179,15 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
             <div className="mb-3 p-3 rounded-xl border-2 border-terracotta/30 bg-terracotta/5">
               <p className="text-xs font-semibold text-charcoal mb-2">Paste or upload CSV with ingredient names + quantities</p>
               <div className="bg-cream rounded-lg p-2 mb-2">
-                <p className="text-[10px] font-mono text-warm-gray">name,qty</p>
-                <p className="text-[10px] font-mono text-warm-gray">Chicken (もも肉),200</p>
-                <p className="text-[10px] font-mono text-warm-gray">Onion,2</p>
-                <p className="text-[10px] font-mono text-warm-gray">Garlic,3</p>
+                <p className="text-[10px] font-mono text-warm-gray">name,qty,unit</p>
+                <p className="text-[10px] font-mono text-warm-gray">Chicken (もも肉),200,g</p>
+                <p className="text-[10px] font-mono text-warm-gray">Onion,2,pcs</p>
+                <p className="text-[10px] font-mono text-warm-gray">Garlic,3,clove</p>
               </div>
               <textarea
                 value={csvText}
                 onChange={e => setCsvText(e.target.value)}
-                placeholder={'name,qty\nChicken,200\nOnion,2'}
+                placeholder={'name,qty,unit\nChicken,200,g\nOnion,2,pcs'}
                 className="w-full px-3 py-2 rounded-lg border text-sm font-mono min-h-[80px] mb-2"
               />
               <div className="flex gap-2">
@@ -200,7 +208,7 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
             </div>
           )}
 
-          {/* CSV Preview / Match Results */}
+          {/* CSV Match Preview */}
           {csvMode === 'preview' && csvResult && (
             <div className="mb-3 p-3 rounded-xl border-2 border-terracotta/30 bg-white">
               <p className="text-xs font-semibold text-charcoal mb-2">
@@ -214,7 +222,7 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
                     <span>{row.matched ? '✅' : '❌'}</span>
                     <span className="font-medium flex-1 truncate">{row.csvName}</span>
                     {row.matched ? (
-                      <span className="text-warm-gray truncate">{getCatEmoji(row.matched.category)} {row.matched.name} · {row.qty || 0} {row.matched.unit}</span>
+                      <span className="text-warm-gray truncate">{getCatEmoji(row.matched.category)} {row.matched.name} · {row.qty || 0}{row.unit ? ` ${row.unit}` : ''}</span>
                     ) : (
                       <select
                         onChange={e => { if (e.target.value) handleManualMatch(i, e.target.value); }}
@@ -229,7 +237,7 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
                 ))}
               </div>
               <div className="flex gap-2 mt-3">
-                <button type="button" onClick={() => { setCsvMode('input'); }}
+                <button type="button" onClick={() => setCsvMode('input')}
                   className="text-xs font-medium text-warm-gray px-3 py-1.5">← Back</button>
                 <div className="flex-1" />
                 <button type="button" onClick={() => { setCsvMode(null); setCsvText(''); setCsvResult(null); }}
@@ -245,6 +253,7 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
             </div>
           )}
 
+          {/* Ingredient list — inline editable qty + unit */}
           {!recipeIngs.length && csvMode === null ? (
             <div className="text-center py-6 border-2 border-dashed rounded-xl text-warm-gray">
               <p className="text-2xl mb-1">🥘</p>
@@ -254,13 +263,30 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
             <div className="space-y-1.5">
               {recipeIngs.map((x, i) => {
                 const ig = ingredients.find(g => g.id === x.ingredientId);
+                const displayUnit = x.unitOverride || ig?.unit || 'g';
                 return (
-                  <div key={i} className="flex items-center justify-between px-3 py-2 rounded-lg bg-terracotta/5 border border-terracotta/20">
-                    <span className="text-sm font-medium truncate">{getCatEmoji(ig?.category)} {ig?.name || '?'}</span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-terracotta">{x.qty} {ig?.unit}</span>
-                      <button type="button" onClick={() => setRecipeIngs(recipeIngs.filter((_, j) => j !== i))} className="text-warm-gray hover:text-tomato"><DelIcon /></button>
-                    </div>
+                  <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-terracotta/5 border border-terracotta/20">
+                    <span className="text-sm font-medium truncate flex-1 min-w-0">
+                      {getCatEmoji(ig?.category)} {ig?.name || '?'}
+                    </span>
+                    <input
+                      type="number"
+                      value={x.qty}
+                      onChange={e => updateIngQty(i, e.target.value)}
+                      className="w-16 px-2 py-1 rounded border border-terracotta/30 text-sm text-center bg-white"
+                      min="0"
+                      step="any"
+                    />
+                    <select
+                      value={displayUnit}
+                      onChange={e => updateIngUnit(i, e.target.value)}
+                      className="w-16 px-1 py-1 rounded border border-terracotta/30 text-xs bg-white"
+                    >
+                      {UNIT_OPTIONS.map(u => <option key={u} value={u}>{u}</option>)}
+                      {!UNIT_OPTIONS.includes(displayUnit) && <option value={displayUnit}>{displayUnit}</option>}
+                    </select>
+                    <button type="button" onClick={() => setRecipeIngs(recipeIngs.filter((_, j) => j !== i))}
+                      className="text-warm-gray hover:text-tomato p-0.5"><DelIcon /></button>
                   </div>
                 );
               })}
@@ -268,7 +294,7 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
           )}
         </div>
 
-        {/* Intermediates (keep dropdown — small count) */}
+        {/* Intermediates */}
         <div className="border-t pt-4">
           <div className="flex justify-between mb-2">
             <span className="text-sm font-medium">🧑‍🍳 Preparations ({recipeInts.length})</span>
@@ -286,7 +312,7 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
                       {intermediates.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                     </select>
                     <input type="number" value={x.qty} onChange={e => { const u = [...recipeInts]; u[i] = { ...u[i], qty: +e.target.value || 0 }; setRecipeInts(u); }} className="w-16 px-2 py-1.5 rounded border border-purple/30 text-sm text-center" />
-                    <span className="text-xs text-warm-gray">{it?.unit}</span>
+                    <span className="text-xs text-warm-gray">portions</span>
                     <button type="button" onClick={() => setRecipeInts(recipeInts.filter((_, j) => j !== i))} className="p-1 text-warm-gray hover:text-tomato"><DelIcon /></button>
                   </div>
                 );

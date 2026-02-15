@@ -1,0 +1,7 @@
+Dish Name,Dish Country,Dish Priority,Cook Status,Intermediate Name,Intermediate Category,Intermediate Availability
+Chicken curry,Indian,Medium,Planned,Frozen japanese Rice,Rice base,✅ Available
+Mapo Tofu (Veg),Chinese,Low,Not planned,Chili Oil,Sauce base,✅ Available
+🌭🍗 Fried Rice,Chinese,Medium,In Progress,Garlic Oil,Sauce base,✅ Available
+🌭🍗 Fried Rice,Chinese,Medium,In Progress,Refrigerated Basmati rice,Rice base,✅ Available
+Myanmar salad,Myanmar,Medium,Planned,Chopped 小ねぎ🪴,Topping,✅ Available
+Myanmar salad,Myanmar,Medium,Planned,Fried chicken,Curry base,❌ Unavailable

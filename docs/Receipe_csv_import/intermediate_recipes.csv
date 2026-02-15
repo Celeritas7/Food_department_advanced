@@ -1,0 +1,11 @@
+Intermediate Name,Category,Country,Priority,Availability,Input Ingredient,Ingredient Category,Ingredient In Stock,Used In Dishes
+Frozen japanese Rice,Rice base,Japan,High,✅ Available,Rice,Carbs,Yes,Chicken curry
+Fried chicken,Curry base,,High,❌ Unavailable,Chicken (もも肉),Meat,No,Myanmar salad
+Chili Oil,Sauce base,Japan,Low,✅ Available,Green Chilies,Spices,Yes,Mapo Tofu (Veg)
+Chili Oil,Sauce base,Japan,Low,✅ Available,Chilli flakes,Spices,Yes,Mapo Tofu (Veg)
+Garlic Oil,Sauce base,Japan,Low,✅ Available,Garlic (China),Aroma to dish,Yes,🌭🍗 Fried Rice
+Refrigerated Basmati rice,Rice base,,Low,✅ Available,Basmati rice,Carbs,Yes,🌭🍗 Fried Rice
+昆布 powder,Japanese seasoning,,High,✅ Available,昆布[乾燥] (11gm),Aroma to dish,Yes,
+昆布 powder,Japanese seasoning,,High,✅ Available,Lemon,Aroma to dish,Yes,
+昆布 powder,Japanese seasoning,,High,✅ Available,Lemon zest,Aroma to dish,Yes,
+Chopped 小ねぎ🪴,Topping,,Medium,✅ Available,小ネギ,Vegetables,Yes,Myanmar salad
