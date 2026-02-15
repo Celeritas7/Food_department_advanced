@@ -327,7 +327,10 @@ export default function App() {
           ingredients={enrichedIngredients}
           dishes={enrichedDishes}
           dishIngs={dishIngs}
+          dishInts={dishInts}
+          intermediates={enrichedIntermediates}
           onBuy={(ig, sugQty) => setModal({ type: 'buyIng', data: ig, suggestedQty: sugQty })}
+          onCook={(dish) => handleCookDish(dish)}
         />
       )}
       {page === 'data' && (
