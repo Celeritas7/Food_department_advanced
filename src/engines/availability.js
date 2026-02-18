@@ -42,6 +42,13 @@ export function checkDishAvailability(dish, dishIngs, dishInts, ingredients, int
     unlinked: false,
     missing,
     missingInts,
+    totalIngs: myIngs.length,
+    totalInts: myInts.length,
+    haveIngs: myIngs.length - missing.length,
+    haveInts: myInts.length - missingInts.length,
+    completeness: myIngs.length + myInts.length > 0
+      ? Math.round(((myIngs.length - missing.length) + (myInts.length - missingInts.length)) / (myIngs.length + myInts.length) * 100)
+      : 0,
   };
 }
 
