@@ -8,13 +8,6 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
     persistSession: false,
     autoRefreshToken: false,
     detectSessionInUrl: false,
-    flowType: 'implicit',
-    lock: { acquireTimeout: 0 },
-    storage: {
-      getItem: () => null,
-      setItem: () => {},
-      removeItem: () => {},
-    },
   },
 });
 export default supabase;
