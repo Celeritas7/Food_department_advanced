@@ -5,341 +5,11 @@
  *   🥣 Preparation (checklist)
  *   👨‍🍳 Step-by-Step Cooking (grouped steps + precautions)
  *   🍽️ Serve
- *
- * ▶ NEW: AI Import — paste Notion recipe text, Claude API parses it
  */
 import { useState, useCallback } from 'react';
 import { BackIcon } from '../ui/Icons';
 
 const uid = () => Math.random().toString(36).slice(2, 9);
-
-// ─── AI Import: System prompt for Claude ───
-const AI_SYSTEM_PROMPT = `You are a recipe parser. You receive raw text copied from a Notion recipe page and must convert it into a structured JSON object. Return ONLY valid JSON, no markdown, no backticks, no explanation.
-
-The JSON must have this exact structure:
-{
-  "ingredientGroups": [
-    {
-      "name": "Group Name (e.g. Rice, For Yakhni, Spices, etc.)",
-      "items": [
-        { "text": "2 cups basmati rice" },
-        { "text": "Wash & soak for 30 minutes" }
-      ]
-    }
-  ],
-  "preparation": [
-    { "text": "Wash rice gently" },
-    { "text": "Soak for 30 min" },
-    { "text": "Slice onion for fried onions" }
-  ],
-  "cookingSteps": [
-    {
-      "name": "Step 1: Make Yakhni (Stock)",
-      "items": [
-        { "text": "Add 4 cups water" },
-        { "text": "Add all whole spices + onion + garlic + stems" }
-      ],
-      "precautions": [
-        { "text": "Don't over-boil" },
-        { "text": "Use same cup for measurements" }
-      ]
-    }
-  ],
-  "serve": "Serve hot with raita and salad. Garnish with fried onions and fresh coriander."
-}
-
-Rules:
-- If ingredients have obvious sub-groups (Rice, Spices, Vegetables, etc.), split them into separate ingredientGroups. If no clear grouping, use a single group named "All Ingredients".
-- Items in preparation are individual prep tasks (before cooking begins).
-- Each cookingStep is a named stage (e.g. "Step 1: Make Stock", "Step 2: Fry Onions"). Each has items (action checkboxes) and optional precautions (warnings/tips specific to that step).
-- "serve" is a plain text string describing plating/garnish/accompaniments.
-- If a section has no content in the input, use an empty array [] or empty string "".
-- Parse all content faithfully — do not add, invent, or omit anything from the source text.
-- Precautions are marked by ⚠️ or "Precautions" or "Warning" or "Don't" / "Avoid" type phrases grouped under a step.`;
-
-// ─── AI Import Modal ───
-function AIImportModal({ onImport, onClose, notify }) {
-  const [text, setText] = useState('');
-  const [parsing, setParsing] = useState(false);
-  const [preview, setPreview] = useState(null);
-  const [apiError, setApiError] = useState(null); // { type, message, detail }
-
-  const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY;
-  const hasKey = !!apiKey;
-
-  const handleParse = async () => {
-    if (!text.trim()) return notify('Paste your Notion recipe text first');
-    setApiError(null);
-
-    if (!hasKey) {
-      setApiError({
-        type: 'no_key',
-        message: 'API key not configured',
-        detail: 'Add VITE_ANTHROPIC_API_KEY=sk-ant-... to your .env file and restart the dev server.',
-      });
-      return;
-    }
-
-    setParsing(true);
-    try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 4096,
-          system: AI_SYSTEM_PROMPT,
-          messages: [{ role: 'user', content: `Parse this Notion recipe into the JSON structure:\n\n${text}` }],
-        }),
-      });
-
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        const status = response.status;
-        const msg = err.error?.message || '';
-
-        // Specific error handling by status code
-        if (status === 401) {
-          setApiError({
-            type: 'auth',
-            message: 'Invalid API key',
-            detail: 'Your VITE_ANTHROPIC_API_KEY is invalid or expired. Check your key at console.anthropic.com.',
-          });
-        } else if (status === 429 || status === 529) {
-          setApiError({
-            type: 'rate_limit',
-            message: 'Rate limited — too many requests',
-            detail: 'Wait a minute and try again. If this persists, check your plan usage at console.anthropic.com.',
-          });
-        } else if (status === 403 || msg.toLowerCase().includes('credit') || msg.toLowerCase().includes('billing')) {
-          setApiError({
-            type: 'credits',
-            message: 'No API credits available',
-            detail: 'Your Anthropic API credits may be exhausted. Add credits at console.anthropic.com/settings/billing, or add the recipe manually using the + buttons.',
-          });
-        } else {
-          setApiError({
-            type: 'api',
-            message: `API error (${status})`,
-            detail: msg || 'Something went wrong with the API request. Try again in a moment.',
-          });
-        }
-        setParsing(false);
-        return;
-      }
-
-      const data = await response.json();
-      const raw = data.content?.map(c => c.text || '').join('') || '';
-      // Strip any accidental markdown fences
-      const clean = raw.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim();
-      const parsed = JSON.parse(clean);
-
-      // Validate structure
-      if (!parsed.ingredientGroups && !parsed.preparation && !parsed.cookingSteps) {
-        throw new Error('Parsed result missing expected sections');
-      }
-
-      setPreview(parsed);
-      notify('Parsed successfully! Review below.', 'success');
-    } catch (err) {
-      console.error('AI parse error:', err);
-      // If it's a JSON parse error, the API returned something unexpected
-      if (err instanceof SyntaxError) {
-        setApiError({
-          type: 'parse',
-          message: 'AI returned unexpected format',
-          detail: 'The AI response could not be parsed. Try again — sometimes rephrasing or simplifying the pasted text helps.',
-        });
-      } else if (!apiError) {
-        // Only set generic if we haven't already set a specific one
-        setApiError({
-          type: 'generic',
-          message: 'Parse failed',
-          detail: err.message,
-        });
-      }
-    }
-    setParsing(false);
-  };
-
-  const handleApply = () => {
-    if (!preview) return;
-
-    // Inject uid() into all items
-    const withIds = {
-      ingredientGroups: (preview.ingredientGroups || []).map(g => ({
-        id: uid(),
-        name: g.name || '',
-        items: (g.items || []).map(it => ({ id: uid(), text: it.text || '' })),
-      })),
-      preparation: (preview.preparation || []).map(p => ({
-        id: uid(),
-        text: p.text || '',
-        checked: false,
-      })),
-      cookingSteps: (preview.cookingSteps || []).map(s => ({
-        id: uid(),
-        name: s.name || '',
-        items: (s.items || []).map(it => ({ id: uid(), text: it.text || '', checked: false })),
-        precautions: (s.precautions || []).map(p => ({ id: uid(), text: p.text || '' })),
-      })),
-      serve: preview.serve || '',
-    };
-
-    onImport(withIds);
-    onClose();
-  };
-
-  // Count items in preview for summary
-  const previewSummary = preview ? {
-    groups: preview.ingredientGroups?.length || 0,
-    items: (preview.ingredientGroups || []).reduce((a, g) => a + (g.items?.length || 0), 0),
-    prep: preview.preparation?.length || 0,
-    steps: preview.cookingSteps?.length || 0,
-    stepItems: (preview.cookingSteps || []).reduce((a, s) => a + (s.items?.length || 0), 0),
-    precautions: (preview.cookingSteps || []).reduce((a, s) => a + (s.precautions?.length || 0), 0),
-    hasServe: !!preview.serve,
-  } : null;
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="px-5 py-4 border-b flex items-center justify-between">
-          <div>
-            <h2 className="font-bold text-base">🤖 AI Recipe Import</h2>
-            <p className="text-xs text-warm-gray mt-0.5">Paste your Notion recipe text → AI parses it into all 4 sections</p>
-          </div>
-          <button onClick={onClose} className="p-2 rounded-lg text-warm-gray hover:bg-light-gray/20 text-lg">✕</button>
-        </div>
-
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-          {/* Instructions */}
-          <div className="bg-blue-50 rounded-xl p-3 text-xs text-blue-800 space-y-1">
-            <p className="font-semibold">How to copy from Notion:</p>
-            <p>1. Open your recipe page in Notion</p>
-            <p>2. Select all content (Ctrl+A / ⌘+A)</p>
-            <p>3. Copy (Ctrl+C / ⌘+C) and paste below</p>
-            <p className="text-blue-600 mt-1">💡 Works with any text format — Notion, plain text, or even a messy recipe from the web.</p>
-          </div>
-
-          {/* Missing key warning (persistent, shown before user tries) */}
-          {!hasKey && (
-            <div className="bg-amber-50 rounded-xl p-3 text-xs text-amber-800 flex items-start gap-2 border border-amber-200/60">
-              <span className="text-sm">🔑</span>
-              <div>
-                <p className="font-semibold">API key not configured</p>
-                <p className="text-amber-700 mt-0.5">Add <code className="bg-amber-100 px-1 py-0.5 rounded text-[10px] font-mono">VITE_ANTHROPIC_API_KEY=sk-ant-...</code> to your <code className="bg-amber-100 px-1 py-0.5 rounded text-[10px] font-mono">.env</code> file and restart the dev server to enable AI parsing.</p>
-              </div>
-            </div>
-          )}
-
-          {/* Textarea */}
-          <textarea
-            value={text}
-            onChange={e => setText(e.target.value)}
-            rows={12}
-            placeholder={`Paste your recipe here...\n\nExample:\n\nIngredients\n\nRice\n• 2 cups basmati rice\n• Wash & soak 30 min\n\nFor Yakhni\n• 4 cups water\n• 1 onion\n...\n\nPreparation\n☑ Wash rice gently\n☑ Soak for 30 min\n☑ Slice onions\n...\n\nStep-by-Step Cooking\n\nStep 1: Make Yakhni\n☑ Add water\n☑ Add spices\n⚠ Don't over-boil\n\nServe\nServe hot with raita`}
-            className="w-full px-4 py-3 rounded-xl border text-sm resize-none focus:border-terracotta/50 outline-none font-mono leading-relaxed"
-          />
-
-          {/* Error display */}
-          {apiError && (
-            <div className={`rounded-xl p-4 text-sm ${
-              apiError.type === 'no_key' ? 'bg-amber-50 border border-amber-200' :
-              apiError.type === 'credits' ? 'bg-orange-50 border border-orange-200' :
-              'bg-red-50 border border-red-200'
-            }`}>
-              <div className="flex items-start gap-2.5">
-                <span className="text-lg leading-none mt-0.5">
-                  {apiError.type === 'no_key' ? '🔑' :
-                   apiError.type === 'credits' ? '💳' :
-                   apiError.type === 'rate_limit' ? '⏳' :
-                   apiError.type === 'auth' ? '🔒' : '⚠️'}
-                </span>
-                <div className="flex-1 min-w-0">
-                  <p className={`font-semibold text-sm ${
-                    apiError.type === 'no_key' ? 'text-amber-800' :
-                    apiError.type === 'credits' ? 'text-orange-800' :
-                    'text-red-800'
-                  }`}>{apiError.message}</p>
-                  <p className={`text-xs mt-1 leading-relaxed ${
-                    apiError.type === 'no_key' ? 'text-amber-700' :
-                    apiError.type === 'credits' ? 'text-orange-700' :
-                    'text-red-700'
-                  }`}>{apiError.detail}</p>
-                  {(apiError.type === 'credits' || apiError.type === 'no_key') && (
-                    <p className="text-xs mt-2 text-warm-gray">You can still add the recipe manually — close this modal and use the + Group / + Step buttons.</p>
-                  )}
-                </div>
-                <button onClick={() => setApiError(null)} className="text-warm-gray hover:text-charcoal text-xs p-1 shrink-0">✕</button>
-              </div>
-            </div>
-          )}
-
-          {/* Parse button */}
-          {!preview && (
-            <button onClick={handleParse} disabled={parsing || !text.trim()}
-              className="w-full py-3 rounded-xl bg-gradient-to-r from-violet-500 to-indigo-500 text-white font-semibold text-sm disabled:opacity-40 flex items-center justify-center gap-2 hover:from-violet-600 hover:to-indigo-600 transition-all">
-              {parsing ? (
-                <>
-                  <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  Parsing with AI...
-                </>
-              ) : (
-                <>🧠 Parse with AI</>
-              )}
-            </button>
-          )}
-
-          {/* Preview */}
-          {preview && (
-            <div className="space-y-3">
-              <div className="bg-emerald-50 rounded-xl p-4">
-                <p className="font-semibold text-sm text-emerald-800 mb-2">✅ Parsed Successfully</p>
-                <div className="grid grid-cols-2 gap-2 text-xs text-emerald-700">
-                  <span>🧾 {previewSummary.groups} ingredient group{previewSummary.groups !== 1 ? 's' : ''} ({previewSummary.items} items)</span>
-                  <span>🥣 {previewSummary.prep} prep step{previewSummary.prep !== 1 ? 's' : ''}</span>
-                  <span>👨‍🍳 {previewSummary.steps} cooking stage{previewSummary.steps !== 1 ? 's' : ''} ({previewSummary.stepItems} actions)</span>
-                  <span>⚠️ {previewSummary.precautions} precaution{previewSummary.precautions !== 1 ? 's' : ''}</span>
-                  <span>🍽️ Serve: {previewSummary.hasServe ? 'Yes' : 'No'}</span>
-                </div>
-              </div>
-
-              {/* Collapsible preview sections */}
-              <details className="bg-gray-50 rounded-xl overflow-hidden">
-                <summary className="px-4 py-2.5 text-xs font-semibold text-charcoal cursor-pointer hover:bg-gray-100">
-                  🔍 Preview parsed data
-                </summary>
-                <pre className="px-4 py-3 text-[10px] text-gray-600 overflow-x-auto max-h-48 leading-relaxed">
-                  {JSON.stringify(preview, null, 2)}
-                </pre>
-              </details>
-
-              <div className="flex gap-2">
-                <button onClick={() => { setPreview(null); }}
-                  className="flex-1 py-2.5 rounded-xl border text-sm text-warm-gray font-medium hover:bg-cream">
-                  ← Re-parse
-                </button>
-                <button onClick={handleApply}
-                  className="flex-1 py-2.5 rounded-xl bg-terracotta text-white text-sm font-semibold hover:bg-terracotta/90">
-                  ✅ Apply to Recipe
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 
 // ─── Checkbox Item ───
 function CheckItem({ text, checked, onChange, onTextChange, onDelete, editable }) {
@@ -517,7 +187,6 @@ export default function RecipePage({ dish, onSave, onBack, notify }) {
   const [recipe, setRecipe] = useState(dish.recipe_data || empty);
   const [editing, setEditing] = useState(!dish.recipe_data);
   const [saving, setSaving] = useState(false);
-  const [showAIImport, setShowAIImport] = useState(false); // ▶ NEW
 
   const r = recipe;
   const set = (field, val) => setRecipe(prev => ({ ...prev, [field]: val }));
@@ -540,13 +209,6 @@ export default function RecipePage({ dish, onSave, onBack, notify }) {
   const updateStep = (idx, step) => { const s = [...r.cookingSteps]; s[idx] = step; set('cookingSteps', s); };
   const removeStep = (idx) => set('cookingSteps', r.cookingSteps.filter((_, i) => i !== idx));
   const addStep = () => set('cookingSteps', [...r.cookingSteps, { id: uid(), name: '', items: [{ id: uid(), text: '', checked: false }], precautions: [] }]);
-
-  // ─── AI Import handler ─── ▶ NEW
-  const handleAIImport = (parsedRecipe) => {
-    setRecipe(parsedRecipe);
-    setEditing(true);
-    notify('Recipe imported! Review and hit Save.', 'success');
-  };
 
   // ─── Save ───
   const handleSave = async () => {
@@ -600,11 +262,6 @@ export default function RecipePage({ dish, onSave, onBack, notify }) {
           </div>
           {editing ? (
             <div className="flex gap-2">
-              {/* ▶ NEW: AI Import button */}
-              <button onClick={() => setShowAIImport(true)}
-                className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-violet-500 to-indigo-500 text-white text-sm font-medium hover:from-violet-600 hover:to-indigo-600 transition-all">
-                🤖 AI
-              </button>
               <button onClick={() => { setRecipe(dish.recipe_data || empty); setEditing(false); }}
                 className="px-3 py-1.5 rounded-lg border text-sm text-warm-gray">Cancel</button>
               <button onClick={handleSave} disabled={saving}
@@ -620,20 +277,6 @@ export default function RecipePage({ dish, onSave, onBack, notify }) {
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-4 space-y-6">
-
-        {/* ▶ NEW: Empty state with prominent AI import CTA */}
-        {editing && !hasRecipe && (
-          <div className="bg-gradient-to-br from-violet-50 to-indigo-50 rounded-2xl p-6 text-center border border-violet-200/50">
-            <div className="text-4xl mb-3">🤖</div>
-            <h3 className="font-bold text-base text-charcoal mb-1">Import from Notion</h3>
-            <p className="text-sm text-warm-gray mb-4">Paste your Notion recipe text and AI will parse it into<br/>Ingredients, Preparation, Cooking Steps & Serve</p>
-            <button onClick={() => setShowAIImport(true)}
-              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-violet-500 to-indigo-500 text-white font-semibold text-sm hover:from-violet-600 hover:to-indigo-600 transition-all">
-              🧠 Paste & Parse Recipe
-            </button>
-            <p className="text-xs text-warm-gray mt-3">Or add sections manually using the + buttons below</p>
-          </div>
-        )}
 
         {/* ─── Section 1: Ingredients ─── */}
         <section>
@@ -746,15 +389,6 @@ export default function RecipePage({ dish, onSave, onBack, notify }) {
           </button>
         )}
       </main>
-
-      {/* ▶ NEW: AI Import Modal */}
-      {showAIImport && (
-        <AIImportModal
-          onImport={handleAIImport}
-          onClose={() => setShowAIImport(false)}
-          notify={notify}
-        />
-      )}
     </div>
   );
 }
