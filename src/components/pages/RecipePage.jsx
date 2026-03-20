@@ -21,20 +21,27 @@ const uid = () => Math.random().toString(36).slice(2, 9);
 // COLLAPSIBLE TOGGLE COMPONENT
 // ═══════════════════════════════════════════════════════════
 
-function Toggle({ open: defaultOpen = true, emoji, title, badge, rightSlot, children, level = 1 }) {
+function Toggle({ open: defaultOpen = true, emoji, title, badge, rightSlot, editableTitle, onTitleChange, children, level = 1 }) {
   const [open, setOpen] = useState(defaultOpen);
   const isMain = level === 1;
   return (
-    <div className={isMain ? 'mb-1' : 'mb-3'}>
-      <button onClick={() => setOpen(!open)}
-        className={`w-full flex items-center gap-2 text-left group py-2 px-1 rounded-lg hover:bg-black/[0.03] transition-colors ${isMain ? '' : 'pl-2'}`}>
-        <span className={`transition-transform duration-200 text-warm-gray ${open ? 'rotate-90' : ''}`} style={{ fontSize: isMain ? 14 : 12 }}>▶</span>
-        {emoji && <span className={isMain ? 'text-xl' : 'text-base'}>{emoji}</span>}
-        <span className={`font-semibold flex-1 ${isMain ? 'text-[15px]' : 'text-sm'}`}>{title}</span>
+    <div className={isMain ? 'mb-2' : 'mb-4'}>
+      <div className={`flex items-center gap-2.5 py-2 px-1 rounded-lg hover:bg-black/[0.03] transition-colors ${isMain ? '' : 'pl-1'}`}>
+        <button onClick={() => setOpen(!open)} className="shrink-0">
+          <span className={`transition-transform duration-200 text-warm-gray inline-block ${open ? 'rotate-90' : ''}`} style={{ fontSize: isMain ? 16 : 13 }}>▶</span>
+        </button>
+        {emoji && <span className={isMain ? 'text-2xl' : 'text-lg'}>{emoji}</span>}
+        {editableTitle ? (
+          <input value={title} onChange={e => onTitleChange(e.target.value)}
+            className={`font-bold flex-1 bg-transparent outline-none border-b border-dashed border-gray-300 focus:border-terracotta ${isMain ? 'text-xl' : 'text-[17px]'}`}
+            placeholder="Name..." />
+        ) : (
+          <button onClick={() => setOpen(!open)} className={`font-bold flex-1 text-left ${isMain ? 'text-xl' : 'text-[17px]'}`}>{title}</button>
+        )}
         {badge}
         {rightSlot}
-      </button>
-      {open && <div className={isMain ? 'pl-2 mt-1' : 'pl-4 mt-0.5'}>{children}</div>}
+      </div>
+      {open && <div className={isMain ? 'pl-4 mt-2' : 'pl-5 mt-1'}>{children}</div>}
     </div>
   );
 }
@@ -303,18 +310,18 @@ function ImportModal({ onImport, onClose, notify }) {
 
 function CheckItem({ text, checked, onChange, onTextChange, onDelete, editable }) {
   return (
-    <div className="flex items-start gap-2.5 group py-1.5">
+    <div className="flex items-start gap-3 group py-2">
       <button onClick={onChange}
-        className={'mt-0.5 w-[18px] h-[18px] rounded-[4px] flex-shrink-0 flex items-center justify-center border transition-all ' +
+        className={'mt-0.5 w-5 h-5 rounded-[4px] flex-shrink-0 flex items-center justify-center border-2 transition-all ' +
           (checked ? 'bg-blue-500 border-blue-500' : 'bg-white border-gray-300 hover:border-blue-400')}>
-        {checked && <span className="text-white text-[10px] font-bold">✓</span>}
+        {checked && <span className="text-white text-[11px] font-bold">✓</span>}
       </button>
       {editable ? (
         <input value={text} onChange={e => onTextChange(e.target.value)}
-          className={'flex-1 text-[14px] bg-transparent outline-none py-0 leading-snug ' + (checked ? 'line-through text-gray-400' : 'text-charcoal')}
+          className={'flex-1 text-base bg-transparent outline-none leading-normal ' + (checked ? 'line-through text-gray-400' : 'text-charcoal')}
           placeholder="Type here..." />
       ) : (
-        <span className={'flex-1 text-[14px] leading-snug ' + (checked ? 'line-through text-gray-400' : 'text-charcoal')}>{text}</span>
+        <span className={'flex-1 text-base leading-normal ' + (checked ? 'line-through text-gray-400' : 'text-charcoal')}>{text}</span>
       )}
       {editable && <button onClick={onDelete} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-tomato text-xs p-1">✕</button>}
     </div>
@@ -326,26 +333,23 @@ function IngredientGroup({ group, editable, onChange, onDelete }) {
   const removeItem = (idx) => onChange({ ...group, items: group.items.filter((_, i) => i !== idx) });
   const addItem = () => onChange({ ...group, items: [...group.items, { id: uid(), text: '' }] });
   return (
-    <Toggle level={2} title={group.name || 'Untitled group'} emoji=""
+    <Toggle level={2} title={group.name || 'Untitled group'}
+      editableTitle={editable} onTitleChange={name => onChange({ ...group, name })}
       rightSlot={editable ? <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="text-xs text-gray-400 hover:text-tomato px-1">🗑️</button> : null}>
-      {editable && (
-        <input value={group.name} onChange={e => onChange({ ...group, name: e.target.value })}
-          className="text-sm bg-transparent border-b border-dashed border-gray-300 focus:border-terracotta outline-none mb-2 w-full font-medium" placeholder="Group name..." />
-      )}
-      <div className="space-y-0.5">
+      <div className="space-y-1">
         {group.items.map((item, i) => (
-          <div key={item.id} className="flex items-start gap-2 group py-0.5 pl-1">
-            <span className="text-gray-400 text-sm mt-0.5">•</span>
+          <div key={item.id} className="flex items-start gap-2.5 group py-1 pl-1">
+            <span className="text-gray-400 text-base mt-0.5">•</span>
             {editable ? (
               <>
                 <input value={item.text} onChange={e => updateItem(i, 'text', e.target.value)}
-                  className="flex-1 text-[14px] bg-transparent outline-none leading-snug" placeholder="e.g., 2 cups basmati rice" />
+                  className="flex-1 text-base bg-transparent outline-none leading-normal" placeholder="e.g., 2 cups basmati rice" />
                 <button onClick={() => removeItem(i)} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-tomato text-xs p-1">✕</button>
               </>
-            ) : <span className="text-[14px] text-charcoal leading-snug">{item.text}</span>}
+            ) : <span className="text-base text-charcoal leading-normal">{item.text}</span>}
           </div>
         ))}
-        {editable && <button onClick={addItem} className="text-xs text-terracotta/60 hover:text-terracotta pl-5 py-1">+ Add item</button>}
+        {editable && <button onClick={addItem} className="text-sm text-terracotta/60 hover:text-terracotta pl-6 py-1">+ Add item</button>}
       </div>
     </Toggle>
   );
@@ -363,15 +367,12 @@ function CookingStep({ step, editable, onChange, onDelete }) {
   const total = step.items.length;
 
   return (
-    <Toggle level={2} title={step.name || 'Untitled step'} emoji=""
+    <Toggle level={2} title={step.name || 'Untitled step'}
+      editableTitle={editable} onTitleChange={name => onChange({ ...step, name })}
       badge={!editable && total > 0 ? (
-        <span className={'text-[10px] px-2 py-0.5 rounded-full font-medium ' + (done === total ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700')}>{done}/{total}</span>
+        <span className={'text-[11px] px-2 py-0.5 rounded-full font-medium ' + (done === total ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700')}>{done}/{total}</span>
       ) : null}
       rightSlot={editable ? <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="text-xs text-gray-400 hover:text-tomato px-1">🗑️</button> : null}>
-      {editable && (
-        <input value={step.name} onChange={e => onChange({ ...step, name: e.target.value })}
-          className="text-sm bg-transparent border-b border-dashed border-gray-300 focus:border-terracotta outline-none mb-2 w-full font-medium" placeholder="Step name..." />
-      )}
       <div className="space-y-0.5">
         {step.items.map((item, i) => (
           <CheckItem key={item.id} text={item.text} checked={item.checked}
@@ -379,25 +380,25 @@ function CookingStep({ step, editable, onChange, onDelete }) {
             onTextChange={val => updateItem(i, 'text', val)}
             onDelete={() => removeItem(i)} editable={editable} />
         ))}
-        {editable && <button onClick={addItem} className="text-xs text-terracotta/60 hover:text-terracotta pl-7 py-1">+ Add step</button>}
+        {editable && <button onClick={addItem} className="text-sm text-terracotta/60 hover:text-terracotta pl-8 py-1">+ Add step</button>}
       </div>
       {((step.precautions || []).length > 0 || editable) && (
         <div className="mt-3 pt-2 border-t border-dashed">
-          <p className="text-xs font-semibold text-amber-600 mb-1.5">⚠️ Precautions</p>
-          <div className="space-y-0.5 pl-1">
+          <p className="text-sm font-semibold text-amber-600 mb-2">⚠️ Precautions</p>
+          <div className="space-y-1 pl-1">
             {(step.precautions || []).map((p, i) => (
               <div key={p.id} className="flex items-start gap-2 group py-0.5">
-                <span className="text-amber-500 text-xs mt-1">⚡</span>
+                <span className="text-amber-500 text-sm mt-0.5">⚡</span>
                 {editable ? (
                   <>
                     <input value={p.text} onChange={e => updatePrec(i, 'text', e.target.value)}
-                      className="flex-1 text-xs bg-transparent outline-none text-amber-700" placeholder="Precaution..." />
+                      className="flex-1 text-sm bg-transparent outline-none text-amber-700" placeholder="Precaution..." />
                     <button onClick={() => removePrec(i)} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-tomato text-xs p-1">✕</button>
                   </>
-                ) : <span className="text-xs text-amber-700">{p.text}</span>}
+                ) : <span className="text-sm text-amber-700">{p.text}</span>}
               </div>
             ))}
-            {editable && <button onClick={addPrec} className="text-xs text-amber-400 hover:text-amber-600 pl-5 py-1">+ Add precaution</button>}
+            {editable && <button onClick={addPrec} className="text-sm text-amber-400 hover:text-amber-600 pl-6 py-1">+ Add precaution</button>}
           </div>
         </div>
       )}
@@ -535,7 +536,7 @@ export default function RecipePage({ dish, onSave, onBack, notify }) {
             <textarea value={r.serve || ''} onChange={e => set('serve', e.target.value)} rows={3} placeholder="How to serve, garnish, sides..."
               className="w-full px-3 py-2 rounded-lg border text-sm resize-none focus:border-terracotta/50 outline-none" />
           ) : (
-            <p className="text-[14px] text-charcoal pl-1 whitespace-pre-wrap leading-relaxed">{r.serve || <span className="text-gray-400">No serve instructions yet</span>}</p>
+            <p className="text-base text-charcoal pl-1 whitespace-pre-wrap leading-relaxed">{r.serve || <span className="text-gray-400">No serve instructions yet</span>}</p>
           )}
         </Toggle>
 
