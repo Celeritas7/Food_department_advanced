@@ -22,7 +22,7 @@ import ShopPage from './components/pages/ShopPage';
 import DataPage from './components/pages/DataPage';
 import CategoryManagerPage from './components/pages/CategoryManagerPage';
 import ExpiryAlertPage from './components/pages/ExpiryAlertPage';
-import RecipePage from './components/pages/RecipePage';
+import RecipePage from './components/pages/RecipePage'; // ▶ NEW
 
 // Forms
 import IngredientForm from './components/forms/IngredientForm';
@@ -37,6 +37,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
   const [modal, setModal] = useState({});
+  const [recipeDish, setRecipeDish] = useState(null); // ▶ NEW: dish being viewed in RecipePage
 
   // Raw data from Supabase
   const [ingredients, setIngredients] = useState([]);
@@ -230,9 +231,13 @@ export default function App() {
     } catch (err) { notify('Failed: ' + err.message); }
   };
 
+  // ─── Actions: Recipe ─────────────────────────────────  ▶ NEW
   const handleSaveRecipe = async (dishId, recipeData) => {
-    await db.updateRecipeData(dishId, recipeData);
-    setDishes(prev => prev.map(d => d.id === dishId ? { ...d, recipe_data: recipeData } : d));
+    const updated = await db.saveRecipeData(dishId, recipeData);
+    // Update local dishes state so RecipePage sees the saved data
+    setDishes(prev => prev.map(d => d.id === dishId ? { ...d, recipe_data: updated.recipe_data } : d));
+    // Also update the recipeDish ref so the page reflects the save
+    setRecipeDish(prev => prev && prev.id === dishId ? { ...prev, recipe_data: updated.recipe_data } : prev);
   };
 
   // ─── Actions: Categories ───────────────────────────────
@@ -329,6 +334,21 @@ export default function App() {
     );
   }
 
+  // ─── Recipe Page (full-screen overlay, above everything) ─── ▶ NEW
+  if (recipeDish) {
+    return (
+      <div>
+        {toast && <Toast key={toast.key} message={toast.msg} type={toast.type} onDone={() => setToast(null)} />}
+        <RecipePage
+          dish={recipeDish}
+          onSave={handleSaveRecipe}
+          onBack={() => setRecipeDish(null)}
+          notify={notify}
+        />
+      </div>
+    );
+  }
+
   // ─── Render ──────────────────────────────────────────
   return (
     <div>
@@ -364,15 +384,7 @@ export default function App() {
           onQuickStatus={handleQuickStatus}
           onDelete={handleDeleteDish}
           onManage={() => setModal({ type: 'manageDishes' })}
-          onRecipe={(d) => { setModal({ type: 'recipe', data: d }); setPage('recipe'); }}
-        />
-      )}
-      {page === 'recipe' && modal.data && (
-        <RecipePage
-          dish={modal.data}
-          onSave={handleSaveRecipe}
-          onBack={() => { setPage('dish'); setModal({}); }}
-          notify={notify}
+          onRecipe={(d) => setRecipeDish(d)}  /* ▶ NEW */
         />
       )}
       {page === 'shop' && (

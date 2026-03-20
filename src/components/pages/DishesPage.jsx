@@ -51,6 +51,14 @@ function DishCard({ d, showRing, showStatusDropdown, showCook, onCook, onQuickSt
     return () => document.removeEventListener('mousedown', handler);
   }, [dropOpen]);
 
+  // ▶ NEW: Check if dish has recipe data
+  const hasRecipe = d.recipe_data && (
+    (d.recipe_data.ingredientGroups?.length > 0) ||
+    (d.recipe_data.preparation?.length > 0) ||
+    (d.recipe_data.cookingSteps?.length > 0) ||
+    d.recipe_data.serve
+  );
+
   return (
     <div className={`bg-white rounded-xl border p-4 fade ${isCooked ? 'opacity-60' : ''}`}>
       <div className="flex gap-3">
@@ -121,7 +129,14 @@ function DishCard({ d, showRing, showStatusDropdown, showCook, onCook, onQuickSt
             ✅ Cook
           </button>
         )}
-        <button onClick={() => onRecipe(d)} className="p-1.5 rounded text-warm-gray hover:bg-terracotta/10 hover:text-terracotta" title="Recipe">📖</button>
+        {/* ▶ NEW: Recipe button */}
+        <button onClick={() => onRecipe(d)}
+          className={`p-1.5 rounded hover:bg-terracotta/10 ${hasRecipe ? 'text-terracotta' : 'text-warm-gray'}`}
+          title={hasRecipe ? 'View recipe' : 'Add recipe'}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
+          </svg>
+        </button>
         <button onClick={() => onEdit(d)} className="p-1.5 rounded text-warm-gray hover:bg-light-gray/20"><EditIcon /></button>
         <button onClick={() => onDelete(d)} className="p-1.5 rounded text-warm-gray hover:text-tomato"><DelIcon /></button>
       </div>
@@ -305,7 +320,7 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
                 onQuickStatus={onQuickStatus}
                 onEdit={onEdit}
                 onDelete={onDelete}
-                onRecipe={onRecipe}
+                onRecipe={onRecipe}  /* ▶ NEW */
               />
             ))}
           </div>

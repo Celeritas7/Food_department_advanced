@@ -266,12 +266,18 @@ export async function deleteDish(id) {
   if (error) throw error;
 }
 
-export async function updateRecipeData(dishId, recipeData) {
-  const { error } = await supabase
+// ─── RECIPE DATA (JSONB on dishes table) ────────────────
+// ▶ NEW: Save/load the Notion-style recipe_data JSON blob
+
+export async function saveRecipeData(dishId, recipeData) {
+  const { data, error } = await supabase
     .from('food_department_dishes')
     .update({ recipe_data: recipeData })
-    .eq('id', dishId);
+    .eq('id', dishId)
+    .select()
+    .single();
   if (error) throw error;
+  return data;
 }
 
 // ─── JUNCTION FETCHERS ───────────────────────────────────
