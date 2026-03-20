@@ -38,7 +38,7 @@ function CompletenessRing({ percent, size = 40, stroke = 4 }) {
 }
 
 // ─── Dish Card (shared across tabs) ───
-function DishCard({ d, showRing, showStatusDropdown, showCook, onCook, onQuickStatus, onEdit, onDelete, onRecipe }) {
+function DishCard({ d, showRing, showStatusDropdown, showCook, onCook, onQuickStatus, onEdit, onDelete }) {
   const [dropOpen, setDropOpen] = useState(false);
   const dropRef = useRef(null);
   const av = d._availability || {};
@@ -121,7 +121,6 @@ function DishCard({ d, showRing, showStatusDropdown, showCook, onCook, onQuickSt
             ✅ Cook
           </button>
         )}
-        <button onClick={() => onRecipe(d)} className="p-1.5 rounded text-warm-gray hover:bg-terracotta/10 hover:text-terracotta" title="Recipe">📖</button>
         <button onClick={() => onEdit(d)} className="p-1.5 rounded text-warm-gray hover:bg-light-gray/20"><EditIcon /></button>
         <button onClick={() => onDelete(d)} className="p-1.5 rounded text-warm-gray hover:text-tomato"><DelIcon /></button>
       </div>
@@ -130,7 +129,7 @@ function DishCard({ d, showRing, showStatusDropdown, showCook, onCook, onQuickSt
 }
 
 // ─── Main Page ───
-export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatus, onDelete, onManage, onRecipe }) {
+export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatus, onDelete, onManage }) {
   const [tab, setTab] = useState('planner');
   const [countryFilter, setCountryFilter] = useState([]);
   const [typeFilter, setTypeFilter] = useState([]);
@@ -305,7 +304,6 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
                 onQuickStatus={onQuickStatus}
                 onEdit={onEdit}
                 onDelete={onDelete}
-                onRecipe={onRecipe}
               />
             ))}
           </div>

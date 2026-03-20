@@ -22,7 +22,6 @@ import ShopPage from './components/pages/ShopPage';
 import DataPage from './components/pages/DataPage';
 import CategoryManagerPage from './components/pages/CategoryManagerPage';
 import ExpiryAlertPage from './components/pages/ExpiryAlertPage';
-import RecipePage from './components/pages/RecipePage';
 
 // Forms
 import IngredientForm from './components/forms/IngredientForm';
@@ -230,11 +229,6 @@ export default function App() {
     } catch (err) { notify('Failed: ' + err.message); }
   };
 
-  const handleSaveRecipe = async (dishId, recipeData) => {
-    await db.updateRecipeData(dishId, recipeData);
-    setDishes(prev => prev.map(d => d.id === dishId ? { ...d, recipe_data: recipeData } : d));
-  };
-
   // ─── Actions: Categories ───────────────────────────────
   const handleBulkRename = async (oldCat, newCat) => {
     try {
@@ -364,15 +358,6 @@ export default function App() {
           onQuickStatus={handleQuickStatus}
           onDelete={handleDeleteDish}
           onManage={() => setModal({ type: 'manageDishes' })}
-          onRecipe={(d) => { setModal({ type: 'recipe', data: d }); setPage('recipe'); }}
-        />
-      )}
-      {page === 'recipe' && modal.data && (
-        <RecipePage
-          dish={modal.data}
-          onSave={handleSaveRecipe}
-          onBack={() => { setPage('dish'); setModal({}); }}
-          notify={notify}
         />
       )}
       {page === 'shop' && (

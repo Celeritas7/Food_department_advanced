@@ -266,14 +266,6 @@ export async function deleteDish(id) {
   if (error) throw error;
 }
 
-export async function updateRecipeData(dishId, recipeData) {
-  const { error } = await supabase
-    .from('food_department_dishes')
-    .update({ recipe_data: recipeData })
-    .eq('id', dishId);
-  if (error) throw error;
-}
-
 // ─── JUNCTION FETCHERS ───────────────────────────────────
 
 export async function fetchDishIngredients() {
