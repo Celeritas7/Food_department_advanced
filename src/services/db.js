@@ -280,6 +280,27 @@ export async function saveRecipeData(dishId, recipeData) {
   return data;
 }
 
+// ─── LINK DISH INGREDIENTS FROM RECIPE (AI import) ──────
+// Replaces existing dish_ingredients with AI-matched ones
+
+export async function linkDishIngredientsFromRecipe(dishId, links) {
+  // links: [{ ingredientId, qty }]
+  if (!links || links.length === 0) return;
+
+  // Remove existing links for this dish
+  await supabase.from('food_department_dish_ingredients').delete().eq('dish_id', dishId);
+
+  // Insert new links
+  const rows = links.map(l => ({
+    dish_id: dishId,
+    ingredient_id: l.ingredientId,
+    qty: l.qty || 1,
+  }));
+
+  const { error } = await supabase.from('food_department_dish_ingredients').insert(rows);
+  if (error) throw error;
+}
+
 // ─── JUNCTION FETCHERS ───────────────────────────────────
 
 export async function fetchDishIngredients() {

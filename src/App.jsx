@@ -240,6 +240,12 @@ export default function App() {
     setRecipeDish(prev => prev && prev.id === dishId ? { ...prev, recipe_data: updated.recipe_data } : prev);
   };
 
+  // ─── Actions: Link dish ingredients from recipe AI import ─── ▶ NEW
+  const handleLinkIngredients = async (dishId, links) => {
+    await db.linkDishIngredientsFromRecipe(dishId, links);
+    await loadAll(); // Reload so availability % updates
+  };
+
   // ─── Actions: Categories ───────────────────────────────
   const handleBulkRename = async (oldCat, newCat) => {
     try {
@@ -341,7 +347,9 @@ export default function App() {
         {toast && <Toast key={toast.key} message={toast.msg} type={toast.type} onDone={() => setToast(null)} />}
         <RecipePage
           dish={recipeDish}
+          ingredients={enrichedIngredients}
           onSave={handleSaveRecipe}
+          onLinkIngredients={handleLinkIngredients}
           onBack={() => setRecipeDish(null)}
           notify={notify}
         />

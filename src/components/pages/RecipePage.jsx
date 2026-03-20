@@ -218,7 +218,13 @@ Structure:
   "ingredientGroups": [{ "name": "Group", "items": [{ "text": "2 cups rice" }] }],
   "preparation": [{ "text": "Wash rice" }],
   "cookingSteps": [{ "name": "Step 1: Make Stock", "items": [{ "text": "Add water" }], "precautions": [{ "text": "Don't over-boil" }] }],
-  "serve": "Serve hot with raita."
+  "serve": "Serve hot with raita.",
+  "structuredIngredients": [
+    { "name": "basmati rice", "qty": 2, "unit": "cups" },
+    { "name": "onion", "qty": 1, "unit": "piece" },
+    { "name": "garlic", "qty": 0.5, "unit": "bulb" },
+    { "name": "salt", "qty": 1, "unit": "tsp" }
+  ]
 }
 
 Rules:
@@ -227,14 +233,15 @@ Rules:
 - Split ingredients into sub-groups if obvious, otherwise "All Ingredients".
 - preparation = prep tasks before cooking. cookingSteps = named stages with items + precautions.
 - serve = plating/garnish text. Empty sections = [] or "".
-- Parse faithfully. Precautions marked by ⚠️ or warning phrases.`;
+- Parse faithfully. Precautions marked by ⚠️ or warning phrases.
+- structuredIngredients: extract EVERY ingredient across all groups into a flat list with normalized name (lowercase, singular, no qty/unit in name), numeric qty, and unit. This powers stock tracking. Include even small items like salt, oil, spices. If qty is unspecified, use 1. If unit is unclear, use "piece".`;
 
 
 // ═══════════════════════════════════════════════════════════
 // IMPORT MODAL
 // ═══════════════════════════════════════════════════════════
 
-function ImportModal({ onImport, onClose, notify }) {
+function ImportModal({ onImport, onClose, notify, stockIngredients = [] }) {
   const [text, setText] = useState('');
   const [parsing, setParsing] = useState(false);
   const [preview, setPreview] = useState(null);
@@ -242,6 +249,11 @@ function ImportModal({ onImport, onClose, notify }) {
   const [apiError, setApiError] = useState(null);
   const apiKey = ANTHROPIC_API_KEY;
   const hasKey = apiKey && apiKey !== 'YOUR_ANTHROPIC_API_KEY';
+
+  // Build stock names for AI context
+  const stockNamesStr = stockIngredients.length > 0
+    ? '\n\nAvailable stock ingredients (match structuredIngredients names to these when possible): ' + stockIngredients.map(s => s.name).join(', ')
+    : '';
 
   const handleAIParse = async () => {
     if (!text.trim()) return notify('Paste your Notion recipe text first');
@@ -252,7 +264,7 @@ function ImportModal({ onImport, onClose, notify }) {
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 4096, system: AI_SYSTEM_PROMPT, messages: [{ role: 'user', content: 'Parse this recipe:\n\n' + text }] }),
+        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 4096, system: AI_SYSTEM_PROMPT, messages: [{ role: 'user', content: 'Parse this recipe:' + stockNamesStr + '\n\n' + text }] }),
       });
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
@@ -281,9 +293,24 @@ function ImportModal({ onImport, onClose, notify }) {
     catch (err) { notify('Parse failed: ' + err.message); }
   };
 
+  // Match AI's structuredIngredients to stock
+  const matchedLinks = preview?.structuredIngredients && stockIngredients.length > 0
+    ? (preview.structuredIngredients || []).map(si => {
+        const siNorm = si.name.toLowerCase().trim();
+        let best = null; let bestScore = 0;
+        for (const s of stockIngredients) {
+          const sNorm = s.name.toLowerCase().trim();
+          if (siNorm === sNorm || siNorm.includes(sNorm) || sNorm.includes(siNorm)) {
+            const score = Math.max(siNorm.length, sNorm.length);
+            if (score > bestScore) { best = s; bestScore = score; }
+          }
+        }
+        return best ? { ingredientId: best.id, name: best.name, qty: si.qty || 1, recipeUnit: si.unit, stockUnit: best.unit, stockQty: best.stock_qty } : { name: si.name, qty: si.qty || 1, recipeUnit: si.unit, unmatched: true };
+      })
+    : [];
+
   const handleApply = () => {
     if (!preview) return;
-    // Detect which sections have content
     const detected = preview._detectedSections || [];
     const autoVisible = [...DEFAULT_VISIBLE];
     if (preview.overview && !autoVisible.includes('overview')) autoVisible.unshift('overview');
@@ -300,9 +327,14 @@ function ImportModal({ onImport, onClose, notify }) {
       preparation: (preview.preparation || []).map(p => ({ id: uid(), text: p.text || '', checked: false })),
       cookingSteps: (preview.cookingSteps || []).map(s => ({ id: uid(), name: s.name || '', items: (s.items || []).map(it => ({ id: uid(), text: it.text || '', checked: false })), precautions: (s.precautions || []).map(p => ({ id: uid(), text: p.text || '' })) })),
       serve: preview.serve || '',
+      // Pass matched dish-ingredient links (only matched ones)
+      _dishLinks: matchedLinks.filter(l => !l.unmatched).map(l => ({ ingredientId: l.ingredientId, qty: l.qty })),
     };
     onImport(withIds); onClose();
   };
+
+  const matchedCount = matchedLinks.filter(l => !l.unmatched).length;
+  const totalStructured = preview?.structuredIngredients?.length || 0;
 
   const ps = preview ? {
     hasOverview: !!preview.overview,
@@ -363,6 +395,29 @@ function ImportModal({ onImport, onClose, notify }) {
                   <span>⚠️ {ps.precautions} precautions</span>
                 </div>
               </div>
+
+              {/* Stock matching summary (AI parse only) */}
+              {parseMethod === 'ai' && totalStructured > 0 && (
+                <div className={'rounded-xl p-4 text-sm ' + (matchedCount > 0 ? 'bg-blue-50 border border-blue-200' : 'bg-amber-50 border border-amber-200')}>
+                  <p className="font-semibold text-sm mb-2">
+                    📦 Stock Linking: {matchedCount}/{totalStructured} ingredients matched
+                  </p>
+                  <div className="space-y-1 text-xs max-h-32 overflow-y-auto">
+                    {matchedLinks.map((l, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <span className={l.unmatched ? 'text-amber-500' : 'text-emerald-600'}>{l.unmatched ? '○' : '●'}</span>
+                        <span className={l.unmatched ? 'text-amber-700' : 'text-emerald-800'}>
+                          {l.name} — {l.qty} {l.recipeUnit || ''}
+                        </span>
+                        {!l.unmatched && <span className="text-gray-400 ml-auto">({l.stockQty} {l.stockUnit} in stock)</span>}
+                      </div>
+                    ))}
+                  </div>
+                  {matchedCount > 0 && (
+                    <p className="text-xs text-blue-600 mt-2">✓ Matched ingredients will auto-link to your dish — powers availability % and shopping list</p>
+                  )}
+                </div>
+              )}
               <details className="bg-gray-50 rounded-xl overflow-hidden"><summary className="px-4 py-2.5 text-xs font-semibold cursor-pointer hover:bg-gray-100">🔍 Preview raw data</summary>
                 <pre className="px-4 py-3 text-[10px] text-gray-600 overflow-x-auto max-h-48">{JSON.stringify(preview, null, 2)}</pre></details>
               <div className="flex gap-2">
@@ -373,6 +428,121 @@ function ImportModal({ onImport, onClose, notify }) {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════
+// INGREDIENT AUTO-MATCHING
+// ═══════════════════════════════════════════════════════════
+
+const UNITS_REGEX = /^\s*[\d½¼¾⅓⅔.,/\s-]+\s*(cups?|tbsp|tsp|tablespoons?|teaspoons?|gm?|grams?|kg|ml|l|liters?|litres?|oz|lbs?|inch|pieces?|bunch|bulb|cloves?|stalks?|sprigs?|pinch|handful)\s*/i;
+
+function normalizeForMatch(text) {
+  return text.toLowerCase().replace(UNITS_REGEX, '').replace(/[()]/g, '').replace(/\s+/g, ' ').trim();
+}
+
+function autoMatchIngredients(ingredientGroups, stockIngredients) {
+  if (!stockIngredients?.length) return ingredientGroups;
+
+  const stockNorm = stockIngredients.map(s => ({
+    id: s.id,
+    name: s.name,
+    norm: s.name.toLowerCase().trim(),
+    unit: s.unit,
+    stock_qty: s.stock_qty,
+  }));
+
+  return ingredientGroups.map(group => ({
+    ...group,
+    items: group.items.map(item => {
+      if (item.ingredientId) return item; // already linked
+      const norm = normalizeForMatch(item.text);
+      if (!norm) return item;
+
+      // Try to find best match
+      let best = null;
+      let bestScore = 0;
+      for (const s of stockNorm) {
+        // Check if stock name appears in recipe text or vice versa
+        const sWords = s.norm.split(' ');
+        const nWords = norm.split(' ');
+
+        // Full name match
+        if (norm.includes(s.norm) || s.norm.includes(norm)) {
+          const score = s.norm.length;
+          if (score > bestScore) { best = s; bestScore = score; }
+        }
+        // Word overlap: count how many stock name words appear in recipe text
+        else {
+          const overlap = sWords.filter(w => w.length > 2 && nWords.some(nw => nw.includes(w) || w.includes(nw))).length;
+          const score = overlap / sWords.length;
+          if (score >= 0.5 && overlap > 0 && (overlap > bestScore || (overlap === bestScore && s.norm.length > (best?.norm?.length || 0)))) {
+            best = s;
+            bestScore = overlap;
+          }
+        }
+      }
+
+      if (best) {
+        return { ...item, ingredientId: best.id, linkedName: best.name, linkedUnit: best.unit, linkedStock: best.stock_qty };
+      }
+      return item;
+    }),
+  }));
+}
+
+// ─── Link Picker (inline search dropdown) ───
+function LinkPicker({ stockIngredients, currentId, onLink, onUnlink }) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const ref = useRef(null);
+  useEffect(() => {
+    if (!open) return;
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, [open]);
+
+  const filtered = stockIngredients.filter(s =>
+    s.name.toLowerCase().includes(search.toLowerCase())
+  ).slice(0, 8);
+
+  if (currentId) {
+    return (
+      <button onClick={(e) => { e.stopPropagation(); onUnlink(); }}
+        className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-medium hover:bg-red-100 hover:text-red-600 transition-colors shrink-0"
+        title="Click to unlink">
+        🔗 linked
+      </button>
+    );
+  }
+
+  return (
+    <div className="relative shrink-0" ref={ref}>
+      <button onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
+        className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-400 hover:bg-blue-50 hover:text-blue-500 transition-colors"
+        title="Link to stock ingredient">
+        🔗
+      </button>
+      {open && (
+        <div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-lg border z-30 w-52 overflow-hidden">
+          <input value={search} onChange={e => setSearch(e.target.value)} autoFocus
+            placeholder="Search ingredient..."
+            className="w-full px-3 py-2 text-xs border-b outline-none" />
+          <div className="max-h-40 overflow-y-auto">
+            {filtered.map(s => (
+              <button key={s.id} onClick={() => { onLink(s.id, s.name, s.unit, s.stock_qty); setOpen(false); setSearch(''); }}
+                className="w-full text-left px-3 py-2 text-xs hover:bg-cream flex items-center justify-between">
+                <span>{s.name}</span>
+                <span className="text-gray-400">{s.stock_qty} {s.unit}</span>
+              </button>
+            ))}
+            {filtered.length === 0 && <p className="px-3 py-2 text-xs text-gray-400">No match</p>}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -401,7 +571,7 @@ function CheckItem({ text, checked, onChange, onTextChange, onDelete, editable }
   );
 }
 
-function BulletItem({ text, editable, onChange, onDelete }) {
+function BulletItem({ text, editable, onChange, onDelete, linked, linkedName, linkedStock, linkedUnit, stockIngredients, onLink, onUnlink }) {
   return (
     <div className="flex items-start gap-2.5 group py-1 pl-1">
       <span className="text-gray-400 text-base mt-0.5">•</span>
@@ -409,24 +579,51 @@ function BulletItem({ text, editable, onChange, onDelete }) {
         <>
           <input value={text} onChange={e => onChange(e.target.value)}
             className="flex-1 text-base bg-transparent outline-none leading-normal" placeholder="..." />
+          {stockIngredients && (
+            <LinkPicker stockIngredients={stockIngredients} currentId={linked} onLink={onLink} onUnlink={onUnlink} />
+          )}
           <button onClick={onDelete} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-tomato text-xs p-1">✕</button>
         </>
-      ) : <span className="text-base text-charcoal leading-normal">{text}</span>}
+      ) : (
+        <>
+          <span className="flex-1 text-base text-charcoal leading-normal">{text}</span>
+          {linked && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-medium shrink-0" title={`${linkedName}: ${linkedStock ?? '?'} ${linkedUnit || ''} in stock`}>
+              📦 {linkedStock ?? '?'}{linkedUnit ? ' ' + linkedUnit : ''}
+            </span>
+          )}
+        </>
+      )}
     </div>
   );
 }
 
-function IngredientGroup({ group, editable, onChange, onDelete }) {
+function IngredientGroup({ group, editable, onChange, onDelete, stockIngredients }) {
   const updateItem = (idx, val) => { const items = [...group.items]; items[idx] = { ...items[idx], text: val }; onChange({ ...group, items }); };
   const removeItem = (idx) => onChange({ ...group, items: group.items.filter((_, i) => i !== idx) });
   const addItem = () => onChange({ ...group, items: [...group.items, { id: uid(), text: '' }] });
+  const linkItem = (idx, ingId, name, unit, stock) => {
+    const items = [...group.items];
+    items[idx] = { ...items[idx], ingredientId: ingId, linkedName: name, linkedUnit: unit, linkedStock: stock };
+    onChange({ ...group, items });
+  };
+  const unlinkItem = (idx) => {
+    const items = [...group.items];
+    items[idx] = { ...items[idx], ingredientId: null, linkedName: null, linkedUnit: null, linkedStock: null };
+    onChange({ ...group, items });
+  };
   return (
     <Toggle level={2} title={group.name || 'Untitled group'}
       editableTitle={editable} onTitleChange={name => onChange({ ...group, name })}
       rightSlot={editable ? <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="text-xs text-gray-400 hover:text-tomato px-1">🗑️</button> : null}>
       <div className="space-y-1">
         {group.items.map((item, i) => (
-          <BulletItem key={item.id} text={item.text} editable={editable} onChange={val => updateItem(i, val)} onDelete={() => removeItem(i)} />
+          <BulletItem key={item.id} text={item.text} editable={editable}
+            onChange={val => updateItem(i, val)} onDelete={() => removeItem(i)}
+            linked={item.ingredientId} linkedName={item.linkedName} linkedStock={item.linkedStock} linkedUnit={item.linkedUnit}
+            stockIngredients={stockIngredients}
+            onLink={(id, name, unit, stock) => linkItem(i, id, name, unit, stock)}
+            onUnlink={() => unlinkItem(i)} />
         ))}
         {editable && <button onClick={addItem} className="text-sm text-terracotta/60 hover:text-terracotta pl-6 py-1">+ Add item</button>}
       </div>
@@ -485,7 +682,7 @@ function CookingStep({ step, editable, onChange, onDelete }) {
 // MAIN RECIPE PAGE
 // ═══════════════════════════════════════════════════════════
 
-export default function RecipePage({ dish, onSave, onBack, notify }) {
+export default function RecipePage({ dish, ingredients: stockIngredients = [], onSave, onLinkIngredients, onBack, notify }) {
   const empty = { visibleSections: [...DEFAULT_VISIBLE], overview: '', nutrition: [], ingredientGroups: [], preparation: [], cookingSteps: [], serve: '' };
   const [recipe, setRecipe] = useState(() => {
     const data = dish.recipe_data || empty;
@@ -515,7 +712,29 @@ export default function RecipePage({ dish, onSave, onBack, notify }) {
   const removeNutrition = (idx) => set('nutrition', r.nutrition.filter((_, i) => i !== idx));
   const addNutrition = () => set('nutrition', [...r.nutrition, { id: uid(), text: '' }]);
 
-  const handleImport = (parsed) => { setRecipe({ ...empty, ...parsed }); setEditing(true); notify('Imported! Review and Save.', 'success'); };
+  const handleImport = (parsed) => {
+    // Extract dish links before cleaning
+    const dishLinks = parsed._dishLinks || [];
+    delete parsed._dishLinks;
+
+    // Auto-match recipe ingredients to stock (fuzzy match for display)
+    const matched = { ...empty, ...parsed, ingredientGroups: autoMatchIngredients(parsed.ingredientGroups || [], stockIngredients) };
+    const linkedCount = matched.ingredientGroups.reduce((a, g) => a + g.items.filter(i => i.ingredientId).length, 0);
+    const totalCount = matched.ingredientGroups.reduce((a, g) => a + g.items.length, 0);
+    setRecipe(matched);
+    setEditing(true);
+
+    // Save dish ingredient links if AI provided them (powers availability %, shopping)
+    if (dishLinks.length > 0 && onLinkIngredients) {
+      onLinkIngredients(dish.id, dishLinks).then(() => {
+        notify(`Imported! ${dishLinks.length} ingredients linked to dish stock.`, 'success');
+      }).catch(err => {
+        notify(`Imported recipe, but linking failed: ${err.message}`);
+      });
+    } else {
+      notify(`Imported! ${linkedCount}/${totalCount} ingredients matched.`, 'success');
+    }
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -617,7 +836,7 @@ export default function RecipePage({ dish, onSave, onBack, notify }) {
             rightSlot={editing ? <button onClick={(e) => { e.stopPropagation(); addGroup(); }} className="text-xs px-2.5 py-1 rounded-lg bg-terracotta/10 text-terracotta font-medium">+ Group</button> : null}>
             {r.ingredientGroups.length === 0 && !editing && <p className="text-sm text-gray-400 pl-4">No ingredients yet</p>}
             {r.ingredientGroups.map((g, i) => (
-              <IngredientGroup key={g.id} group={g} editable={editing} onChange={u => updateGroup(i, u)} onDelete={() => removeGroup(i)} />
+              <IngredientGroup key={g.id} group={g} editable={editing} onChange={u => updateGroup(i, u)} onDelete={() => removeGroup(i)} stockIngredients={stockIngredients} />
             ))}
           </Toggle>
         )}
@@ -674,7 +893,7 @@ export default function RecipePage({ dish, onSave, onBack, notify }) {
         )}
       </main>
 
-      {showImport && <ImportModal onImport={handleImport} onClose={() => setShowImport(false)} notify={notify} />}
+      {showImport && <ImportModal onImport={handleImport} onClose={() => setShowImport(false)} notify={notify} stockIngredients={stockIngredients} />}
     </div>
   );
 }
