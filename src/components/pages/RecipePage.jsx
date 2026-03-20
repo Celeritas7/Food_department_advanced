@@ -1,24 +1,35 @@
 /**
  * RecipePage.jsx — Full recipe view & editor
- * Notion-style collapsible sections:
+ * 6 Notion-style collapsible sections (all optional):
+ *   🍗🔥 Overview (description, key idea, flavor notes)
+ *   🍎 Nutrition (calories, protein, etc.)
  *   🧾 Ingredients (grouped, collapsible)
  *   🥣 Preparation (checklist, collapsible)
- *   👨‍🍳 Step-by-Step Cooking (grouped steps + precautions, collapsible)
- *   🍽️ Serve (collapsible)
+ *   👨‍🍳 Step-by-Step Cooking (grouped steps + precautions)
+ *   🍽️ Serve
  *
- * Two import modes:
- *   🧠 AI Import (primary) — Claude API parses any text
- *   📋 Quick Parse (fallback) — offline, parses Notion markdown format
+ * Section visibility is configurable per recipe via ⚙️ button.
+ * Two import modes: AI (Claude API) and Quick Parse (offline).
  */
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { BackIcon } from '../ui/Icons';
 import ANTHROPIC_API_KEY from '../../config/anthropic.js';
 
 const uid = () => Math.random().toString(36).slice(2, 9);
 
+const ALL_SECTIONS = [
+  { key: 'overview', emoji: '🔥', label: 'Overview' },
+  { key: 'nutrition', emoji: '🍎', label: 'Nutrition' },
+  { key: 'ingredients', emoji: '🧾', label: 'Ingredients' },
+  { key: 'preparation', emoji: '🥣', label: 'Preparation' },
+  { key: 'cooking', emoji: '👨‍🍳', label: 'Step-by-Step Cooking' },
+  { key: 'serve', emoji: '🍽️', label: 'Serve' },
+];
+const DEFAULT_VISIBLE = ['ingredients', 'preparation', 'cooking', 'serve'];
+
 
 // ═══════════════════════════════════════════════════════════
-// COLLAPSIBLE TOGGLE COMPONENT
+// TOGGLE COMPONENT
 // ═══════════════════════════════════════════════════════════
 
 function Toggle({ open: defaultOpen = true, emoji, title, badge, rightSlot, editableTitle, onTitleChange, children, level = 1 }) {
@@ -26,17 +37,17 @@ function Toggle({ open: defaultOpen = true, emoji, title, badge, rightSlot, edit
   const isMain = level === 1;
   return (
     <div className={isMain ? 'mb-2' : 'mb-4'}>
-      <div className={`flex items-center gap-2.5 py-2 px-1 rounded-lg hover:bg-black/[0.03] transition-colors ${isMain ? '' : 'pl-1'}`}>
+      <div className={'flex items-center gap-2.5 py-2 px-1 rounded-lg hover:bg-black/[0.03] transition-colors ' + (isMain ? '' : 'pl-1')}>
         <button onClick={() => setOpen(!open)} className="shrink-0">
-          <span className={`transition-transform duration-200 text-warm-gray inline-block ${open ? 'rotate-90' : ''}`} style={{ fontSize: isMain ? 16 : 13 }}>▶</span>
+          <span className={'transition-transform duration-200 text-warm-gray inline-block ' + (open ? 'rotate-90' : '')} style={{ fontSize: isMain ? 16 : 13 }}>▶</span>
         </button>
         {emoji && <span className={isMain ? 'text-2xl' : 'text-lg'}>{emoji}</span>}
         {editableTitle ? (
           <input value={title} onChange={e => onTitleChange(e.target.value)}
-            className={`font-bold flex-1 bg-transparent outline-none border-b border-dashed border-gray-300 focus:border-terracotta ${isMain ? 'text-xl' : 'text-[17px]'}`}
+            className={'font-bold flex-1 bg-transparent outline-none border-b border-dashed border-gray-300 focus:border-terracotta ' + (isMain ? 'text-xl' : 'text-[17px]')}
             placeholder="Name..." />
         ) : (
-          <button onClick={() => setOpen(!open)} className={`font-bold flex-1 text-left ${isMain ? 'text-xl' : 'text-[17px]'}`}>{title}</button>
+          <button onClick={() => setOpen(!open)} className={'font-bold flex-1 text-left ' + (isMain ? 'text-xl' : 'text-[17px]')}>{title}</button>
         )}
         {badge}
         {rightSlot}
@@ -48,39 +59,85 @@ function Toggle({ open: defaultOpen = true, emoji, title, badge, rightSlot, edit
 
 
 // ═══════════════════════════════════════════════════════════
-// OFFLINE PARSER — parses Notion copy/paste markdown format
+// SECTION VISIBILITY MANAGER
+// ═══════════════════════════════════════════════════════════
+
+function SectionManager({ visible, onChange, onClose }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [onClose]);
+
+  const toggle = (key) => {
+    if (visible.includes(key)) {
+      onChange(visible.filter(k => k !== key));
+    } else {
+      // Insert in canonical order
+      const ordered = ALL_SECTIONS.map(s => s.key).filter(k => visible.includes(k) || k === key);
+      onChange(ordered);
+    }
+  };
+
+  return (
+    <div ref={ref} className="absolute right-0 top-full mt-2 bg-white rounded-xl shadow-lg border z-30 py-2 w-56">
+      <p className="px-3 pb-2 text-xs font-semibold text-warm-gray border-b mb-1">Visible Sections</p>
+      {ALL_SECTIONS.map(s => (
+        <button key={s.key} onClick={() => toggle(s.key)}
+          className="w-full flex items-center gap-2.5 px-3 py-2 text-sm hover:bg-cream text-left">
+          <span className={'w-4 h-4 rounded border flex items-center justify-center text-[10px] ' +
+            (visible.includes(s.key) ? 'bg-terracotta border-terracotta text-white' : 'border-gray-300')}>
+            {visible.includes(s.key) && '✓'}
+          </span>
+          <span>{s.emoji}</span>
+          <span className="flex-1">{s.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+
+// ═══════════════════════════════════════════════════════════
+// OFFLINE PARSER
 // ═══════════════════════════════════════════════════════════
 
 function offlineParseNotionText(raw) {
   const lines = raw.split('\n');
   const sectionRegexes = {
-    ingredients: /^#*\s*(?:🧾|📋)?\s*\**ingredients\**/i,
+    overview: /^#*\s*(?:🍗?🔥?|📝)?\s*\**overview\**/i,
+    nutrition: /^#*\s*(?:🍎|🥗)?\s*\**nutrition\**/i,
+    ingredients: /^#*\s*(?:🧾|📋|🍲)?\s*\**ingredients\**/i,
     preparation: /^#*\s*(?:🥣|🔪)?\s*\**preparation/i,
     cooking: /^#*\s*(?:👨‍🍳|🍳|👩‍🍳)?\s*\**(?:step[- ]by[- ]step|cooking|cook)\**/i,
     serve: /^#*\s*(?:🍽️?|🍽)?\s*\**serve\**/i,
   };
   const sections = [];
   lines.forEach((line, i) => {
-    const trimmed = line.trim();
-    if (!trimmed) return;
+    const t = line.trim(); if (!t) return;
     for (const [key, regex] of Object.entries(sectionRegexes)) {
-      if (regex.test(trimmed)) { sections.push({ key, start: i }); return; }
+      if (regex.test(t)) { sections.push({ key, start: i }); return; }
     }
   });
   if (sections.length === 0) {
     const items = lines.filter(l => l.trim()).map(l => ({ text: cleanLine(l) })).filter(i => i.text);
-    return { ingredientGroups: items.length ? [{ name: 'All Ingredients', items }] : [], preparation: [], cookingSteps: [], serve: '' };
+    return { overview: '', nutrition: [], ingredientGroups: items.length ? [{ name: 'All Ingredients', items }] : [], preparation: [], cookingSteps: [], serve: '' };
   }
   const sectionLines = {};
   sections.forEach((sec, idx) => {
     const nextStart = idx < sections.length - 1 ? sections[idx + 1].start : lines.length;
     sectionLines[sec.key] = lines.slice(sec.start + 1, nextStart);
   });
+  const detected = sections.map(s => s.key);
   return {
+    overview: parseTextBlock(sectionLines.overview || []),
+    nutrition: parseBulletList(sectionLines.nutrition || []),
     ingredientGroups: parseIngredients(sectionLines.ingredients || []),
     preparation: parseChecklist(sectionLines.preparation || []),
     cookingSteps: parseCookingSteps(sectionLines.cooking || []),
     serve: parseServe(sectionLines.serve || []),
+    _detectedSections: detected,
   };
 }
 
@@ -90,6 +147,14 @@ function cleanLine(line) {
 function isBullet(line) { return /^\s*[-•*]\s/.test(line); }
 function isCheckbox(line) { return /^\s*[-•*]\s*\[[ x]\]/.test(line) || /^\s*\[[ x]\]/.test(line); }
 function isHeading(line) { return /^\s*#{2,}\s/.test(line); }
+
+function parseTextBlock(lines) {
+  return lines.filter(l => l.trim()).map(l => cleanLine(l)).filter(t => t).join('\n');
+}
+
+function parseBulletList(lines) {
+  return lines.filter(l => l.trim() && (isBullet(l) || l.trim().length > 0)).map(l => ({ text: cleanLine(l) })).filter(i => i.text);
+}
 
 function parseIngredients(lines) {
   const groups = []; let cur = null;
@@ -111,9 +176,11 @@ function parseIngredients(lines) {
   }
   return groups;
 }
+
 function parseChecklist(lines) {
   return lines.filter(l => l.trim() && (isBullet(l) || isCheckbox(l))).map(l => ({ text: cleanLine(l) })).filter(i => i.text);
 }
+
 function parseCookingSteps(lines) {
   const steps = []; let cur = null; let inPrec = false;
   for (const line of lines) {
@@ -132,43 +199,35 @@ function parseCookingSteps(lines) {
   if (cur && (cur.items.length > 0 || cur.precautions.length > 0)) steps.push(cur);
   return steps;
 }
+
 function parseServe(lines) {
   return lines.filter(l => l.trim()).map(l => cleanLine(l)).filter(t => t).join('\n');
 }
 
 
 // ═══════════════════════════════════════════════════════════
-// AI IMPORT: System prompt for Claude
+// AI SYSTEM PROMPT
 // ═══════════════════════════════════════════════════════════
 
-const AI_SYSTEM_PROMPT = `You are a recipe parser. You receive raw text copied from a Notion recipe page and must convert it into a structured JSON object. Return ONLY valid JSON, no markdown, no backticks, no explanation.
+const AI_SYSTEM_PROMPT = `You are a recipe parser. Convert raw recipe text into structured JSON. Return ONLY valid JSON.
 
-The JSON must have this exact structure:
+Structure:
 {
-  "ingredientGroups": [
-    { "name": "Group Name", "items": [{ "text": "2 cups basmati rice" }] }
-  ],
-  "preparation": [
-    { "text": "Wash rice gently" }
-  ],
-  "cookingSteps": [
-    {
-      "name": "Step 1: Make Yakhni",
-      "items": [{ "text": "Add 4 cups water" }],
-      "precautions": [{ "text": "Don't over-boil" }]
-    }
-  ],
+  "overview": "Plain text overview/description of the dish",
+  "nutrition": [{ "text": "Calories: 350 kcal" }, { "text": "Protein: 25g" }],
+  "ingredientGroups": [{ "name": "Group", "items": [{ "text": "2 cups rice" }] }],
+  "preparation": [{ "text": "Wash rice" }],
+  "cookingSteps": [{ "name": "Step 1: Make Stock", "items": [{ "text": "Add water" }], "precautions": [{ "text": "Don't over-boil" }] }],
   "serve": "Serve hot with raita."
 }
 
 Rules:
-- Split ingredients into sub-groups if obvious (Rice, Spices, etc.), otherwise use "All Ingredients".
-- preparation = individual prep tasks before cooking.
-- Each cookingStep = a named stage with action items and optional precautions.
-- serve = plain text string for plating/garnish.
-- Empty sections = empty array [] or "".
-- Parse faithfully — do not add or omit anything.
-- Precautions are marked by ⚠️ or "Precautions" or warning-type phrases.`;
+- overview = description, flavor notes, key ideas. Plain text, newline separated.
+- nutrition = array of bullet items (Calories, Protein, Fat, Carbs, Serving size, Yield, etc.)
+- Split ingredients into sub-groups if obvious, otherwise "All Ingredients".
+- preparation = prep tasks before cooking. cookingSteps = named stages with items + precautions.
+- serve = plating/garnish text. Empty sections = [] or "".
+- Parse faithfully. Precautions marked by ⚠️ or warning phrases.`;
 
 
 // ═══════════════════════════════════════════════════════════
@@ -187,37 +246,36 @@ function ImportModal({ onImport, onClose, notify }) {
   const handleAIParse = async () => {
     if (!text.trim()) return notify('Paste your Notion recipe text first');
     setApiError(null);
-    if (!hasKey) { setApiError({ type: 'no_key', message: 'API key not configured', detail: 'Add your Anthropic API key in src/config/anthropic.js or as a GitHub secret.' }); return; }
+    if (!hasKey) { setApiError({ type: 'no_key', message: 'API key not configured', detail: 'Add key in src/config/anthropic.js or GitHub secret.' }); return; }
     setParsing(true);
     try {
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 4096, system: AI_SYSTEM_PROMPT, messages: [{ role: 'user', content: 'Parse this Notion recipe into the JSON structure:\n\n' + text }] }),
+        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 4096, system: AI_SYSTEM_PROMPT, messages: [{ role: 'user', content: 'Parse this recipe:\n\n' + text }] }),
       });
       if (!response.ok) {
         const err = await response.json().catch(() => ({}));
         const status = response.status; const msg = err.error?.message || '';
-        if (status === 401) setApiError({ type: 'auth', message: 'Invalid API key', detail: 'Check your key at console.anthropic.com.' });
-        else if (status === 429 || status === 529) setApiError({ type: 'rate_limit', message: 'Rate limited', detail: 'Wait a minute and try again.' });
-        else if (status === 403 || msg.toLowerCase().includes('credit') || msg.toLowerCase().includes('billing')) setApiError({ type: 'credits', message: 'No API credits', detail: 'Add credits at console.anthropic.com/settings/billing.' });
+        if (status === 401) setApiError({ type: 'auth', message: 'Invalid API key', detail: 'Check at console.anthropic.com.' });
+        else if (status === 429 || status === 529) setApiError({ type: 'rate_limit', message: 'Rate limited', detail: 'Wait and retry.' });
+        else if (status === 403 || msg.toLowerCase().includes('credit') || msg.toLowerCase().includes('billing')) setApiError({ type: 'credits', message: 'No API credits', detail: 'Add at console.anthropic.com/settings/billing.' });
         else setApiError({ type: 'api', message: 'API error (' + status + ')', detail: msg || 'Try again.' });
         setParsing(false); return;
       }
       const data = await response.json();
       const raw = data.content?.map(c => c.text || '').join('') || '';
       const parsed = JSON.parse(raw.replace(/```json\s*/g, '').replace(/```\s*/g, '').trim());
-      if (!parsed.ingredientGroups && !parsed.preparation && !parsed.cookingSteps) throw new Error('Missing sections');
-      setPreview(parsed); setParseMethod('ai'); notify('AI parsed successfully!', 'success');
+      setPreview(parsed); setParseMethod('ai'); notify('AI parsed!', 'success');
     } catch (err) {
-      if (err instanceof SyntaxError) setApiError({ type: 'parse', message: 'AI returned bad format', detail: 'Try Quick Parse instead.' });
-      else if (!apiError) setApiError({ type: 'generic', message: 'Parse failed', detail: err.message });
+      if (err instanceof SyntaxError) setApiError({ type: 'parse', message: 'Bad AI format', detail: 'Try Quick Parse.' });
+      else setApiError({ type: 'generic', message: 'Failed', detail: err.message });
     }
     setParsing(false);
   };
 
   const handleOfflineParse = () => {
-    if (!text.trim()) return notify('Paste your Notion recipe text first');
+    if (!text.trim()) return notify('Paste recipe text first');
     setApiError(null);
     try { const parsed = offlineParseNotionText(text); setPreview(parsed); setParseMethod('offline'); notify('Quick parse done!', 'success'); }
     catch (err) { notify('Parse failed: ' + err.message); }
@@ -225,7 +283,19 @@ function ImportModal({ onImport, onClose, notify }) {
 
   const handleApply = () => {
     if (!preview) return;
+    // Detect which sections have content
+    const detected = preview._detectedSections || [];
+    const autoVisible = [...DEFAULT_VISIBLE];
+    if (preview.overview && !autoVisible.includes('overview')) autoVisible.unshift('overview');
+    if ((preview.nutrition || []).length > 0 && !autoVisible.includes('nutrition')) {
+      const idx = autoVisible.indexOf('ingredients');
+      autoVisible.splice(idx >= 0 ? idx : 1, 0, 'nutrition');
+    }
+
     const withIds = {
+      visibleSections: autoVisible,
+      overview: preview.overview || '',
+      nutrition: (preview.nutrition || []).map(n => ({ id: uid(), text: n.text || '' })),
       ingredientGroups: (preview.ingredientGroups || []).map(g => ({ id: uid(), name: g.name || '', items: (g.items || []).map(it => ({ id: uid(), text: it.text || '' })) })),
       preparation: (preview.preparation || []).map(p => ({ id: uid(), text: p.text || '', checked: false })),
       cookingSteps: (preview.cookingSteps || []).map(s => ({ id: uid(), name: s.name || '', items: (s.items || []).map(it => ({ id: uid(), text: it.text || '', checked: false })), precautions: (s.precautions || []).map(p => ({ id: uid(), text: p.text || '' })) })),
@@ -235,6 +305,8 @@ function ImportModal({ onImport, onClose, notify }) {
   };
 
   const ps = preview ? {
+    hasOverview: !!preview.overview,
+    nutritionCount: (preview.nutrition || []).length,
     groups: preview.ingredientGroups?.length || 0, items: (preview.ingredientGroups || []).reduce((a, g) => a + (g.items?.length || 0), 0),
     prep: preview.preparation?.length || 0, steps: preview.cookingSteps?.length || 0,
     stepItems: (preview.cookingSteps || []).reduce((a, s) => a + (s.items?.length || 0), 0),
@@ -245,24 +317,22 @@ function ImportModal({ onImport, onClose, notify }) {
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
         <div className="px-5 py-4 border-b flex items-center justify-between">
-          <div><h2 className="font-bold text-base">📥 Recipe Import</h2><p className="text-xs text-warm-gray mt-0.5">Paste Notion recipe → parse into all 4 sections</p></div>
+          <div><h2 className="font-bold text-base">📥 Recipe Import</h2><p className="text-xs text-warm-gray mt-0.5">Paste Notion recipe → parse into sections</p></div>
           <button onClick={onClose} className="p-2 rounded-lg text-warm-gray hover:bg-light-gray/20 text-lg">✕</button>
         </div>
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
           <div className="bg-blue-50 rounded-xl p-3 text-xs text-blue-800 space-y-1">
-            <p className="font-semibold">How to copy from Notion:</p>
-            <p>1. Open recipe in Notion → Select all (Ctrl+A) → Copy (Ctrl+C)</p>
-            <p>2. Paste below and choose a parse method</p>
+            <p className="font-semibold">Copy from Notion → Select all (Ctrl+A) → Copy (Ctrl+C) → Paste below</p>
           </div>
           <textarea value={text} onChange={e => { setText(e.target.value); setPreview(null); setApiError(null); setParseMethod(null); }}
             rows={12} placeholder={'Paste your recipe here...'}
             className="w-full px-4 py-3 rounded-xl border text-sm resize-none focus:border-terracotta/50 outline-none font-mono leading-relaxed" />
           {apiError && (
-            <div className={'rounded-xl p-4 text-sm ' + (apiError.type === 'credits' ? 'bg-orange-50 border border-orange-200' : apiError.type === 'no_key' ? 'bg-amber-50 border border-amber-200' : 'bg-red-50 border border-red-200')}>
+            <div className={'rounded-xl p-4 text-sm ' + (apiError.type === 'credits' || apiError.type === 'no_key' ? 'bg-amber-50 border border-amber-200' : 'bg-red-50 border border-red-200')}>
               <div className="flex items-start gap-2.5">
-                <span className="text-lg mt-0.5">{apiError.type === 'no_key' ? '🔑' : apiError.type === 'credits' ? '💳' : apiError.type === 'rate_limit' ? '⏳' : '⚠️'}</span>
+                <span className="text-lg mt-0.5">{apiError.type === 'no_key' ? '🔑' : apiError.type === 'credits' ? '💳' : '⚠️'}</span>
                 <div className="flex-1"><p className="font-semibold text-sm">{apiError.message}</p><p className="text-xs mt-1">{apiError.detail}</p>
-                  <p className="text-xs mt-2 text-emerald-700 font-medium">👇 Use Quick Parse below — free & instant!</p></div>
+                  <p className="text-xs mt-2 text-emerald-700 font-medium">👇 Use Quick Parse — free & instant!</p></div>
                 <button onClick={() => setApiError(null)} className="text-warm-gray text-xs p-1">✕</button>
               </div>
             </div>
@@ -285,8 +355,12 @@ function ImportModal({ onImport, onClose, notify }) {
               <div className="bg-emerald-50 rounded-xl p-4">
                 <p className="font-semibold text-sm text-emerald-800 mb-2">✅ Parsed {parseMethod === 'ai' ? 'with AI' : 'offline'}</p>
                 <div className="grid grid-cols-2 gap-2 text-xs text-emerald-700">
-                  <span>🧾 {ps.groups} group{ps.groups !== 1 ? 's' : ''} ({ps.items} items)</span><span>🥣 {ps.prep} prep steps</span>
-                  <span>👨‍🍳 {ps.steps} stages ({ps.stepItems} actions)</span><span>⚠️ {ps.precautions} precautions</span>
+                  {ps.hasOverview && <span>🔥 Overview: Yes</span>}
+                  {ps.nutritionCount > 0 && <span>🍎 {ps.nutritionCount} nutrition items</span>}
+                  <span>🧾 {ps.groups} group{ps.groups !== 1 ? 's' : ''} ({ps.items} items)</span>
+                  <span>🥣 {ps.prep} prep steps</span>
+                  <span>👨‍🍳 {ps.steps} stages ({ps.stepItems} actions)</span>
+                  <span>⚠️ {ps.precautions} precautions</span>
                 </div>
               </div>
               <details className="bg-gray-50 rounded-xl overflow-hidden"><summary className="px-4 py-2.5 text-xs font-semibold cursor-pointer hover:bg-gray-100">🔍 Preview raw data</summary>
@@ -305,7 +379,7 @@ function ImportModal({ onImport, onClose, notify }) {
 
 
 // ═══════════════════════════════════════════════════════════
-// UI COMPONENTS — Notion-style with collapsible toggles
+// UI COMPONENTS
 // ═══════════════════════════════════════════════════════════
 
 function CheckItem({ text, checked, onChange, onTextChange, onDelete, editable }) {
@@ -318,8 +392,7 @@ function CheckItem({ text, checked, onChange, onTextChange, onDelete, editable }
       </button>
       {editable ? (
         <input value={text} onChange={e => onTextChange(e.target.value)}
-          className={'flex-1 text-base bg-transparent outline-none leading-normal ' + (checked ? 'line-through text-gray-400' : 'text-charcoal')}
-          placeholder="Type here..." />
+          className={'flex-1 text-base bg-transparent outline-none leading-normal ' + (checked ? 'line-through text-gray-400' : 'text-charcoal')} placeholder="Type here..." />
       ) : (
         <span className={'flex-1 text-base leading-normal ' + (checked ? 'line-through text-gray-400' : 'text-charcoal')}>{text}</span>
       )}
@@ -328,8 +401,23 @@ function CheckItem({ text, checked, onChange, onTextChange, onDelete, editable }
   );
 }
 
+function BulletItem({ text, editable, onChange, onDelete }) {
+  return (
+    <div className="flex items-start gap-2.5 group py-1 pl-1">
+      <span className="text-gray-400 text-base mt-0.5">•</span>
+      {editable ? (
+        <>
+          <input value={text} onChange={e => onChange(e.target.value)}
+            className="flex-1 text-base bg-transparent outline-none leading-normal" placeholder="..." />
+          <button onClick={onDelete} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-tomato text-xs p-1">✕</button>
+        </>
+      ) : <span className="text-base text-charcoal leading-normal">{text}</span>}
+    </div>
+  );
+}
+
 function IngredientGroup({ group, editable, onChange, onDelete }) {
-  const updateItem = (idx, field, val) => { const items = [...group.items]; items[idx] = { ...items[idx], [field]: val }; onChange({ ...group, items }); };
+  const updateItem = (idx, val) => { const items = [...group.items]; items[idx] = { ...items[idx], text: val }; onChange({ ...group, items }); };
   const removeItem = (idx) => onChange({ ...group, items: group.items.filter((_, i) => i !== idx) });
   const addItem = () => onChange({ ...group, items: [...group.items, { id: uid(), text: '' }] });
   return (
@@ -338,16 +426,7 @@ function IngredientGroup({ group, editable, onChange, onDelete }) {
       rightSlot={editable ? <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="text-xs text-gray-400 hover:text-tomato px-1">🗑️</button> : null}>
       <div className="space-y-1">
         {group.items.map((item, i) => (
-          <div key={item.id} className="flex items-start gap-2.5 group py-1 pl-1">
-            <span className="text-gray-400 text-base mt-0.5">•</span>
-            {editable ? (
-              <>
-                <input value={item.text} onChange={e => updateItem(i, 'text', e.target.value)}
-                  className="flex-1 text-base bg-transparent outline-none leading-normal" placeholder="e.g., 2 cups basmati rice" />
-                <button onClick={() => removeItem(i)} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-tomato text-xs p-1">✕</button>
-              </>
-            ) : <span className="text-base text-charcoal leading-normal">{item.text}</span>}
-          </div>
+          <BulletItem key={item.id} text={item.text} editable={editable} onChange={val => updateItem(i, val)} onDelete={() => removeItem(i)} />
         ))}
         {editable && <button onClick={addItem} className="text-sm text-terracotta/60 hover:text-terracotta pl-6 py-1">+ Add item</button>}
       </div>
@@ -359,19 +438,15 @@ function CookingStep({ step, editable, onChange, onDelete }) {
   const updateItem = (idx, field, val) => { const items = [...step.items]; items[idx] = { ...items[idx], [field]: val }; onChange({ ...step, items }); };
   const removeItem = (idx) => onChange({ ...step, items: step.items.filter((_, i) => i !== idx) });
   const addItem = () => onChange({ ...step, items: [...step.items, { id: uid(), text: '', checked: false }] });
-  const updatePrec = (idx, field, val) => { const p = [...(step.precautions || [])]; p[idx] = { ...p[idx], [field]: val }; onChange({ ...step, precautions: p }); };
+  const updatePrec = (idx, val) => { const p = [...(step.precautions || [])]; p[idx] = { ...p[idx], text: val }; onChange({ ...step, precautions: p }); };
   const removePrec = (idx) => onChange({ ...step, precautions: step.precautions.filter((_, i) => i !== idx) });
   const addPrec = () => onChange({ ...step, precautions: [...(step.precautions || []), { id: uid(), text: '' }] });
-
   const done = step.items.filter(i => i.checked).length;
   const total = step.items.length;
-
   return (
     <Toggle level={2} title={step.name || 'Untitled step'}
       editableTitle={editable} onTitleChange={name => onChange({ ...step, name })}
-      badge={!editable && total > 0 ? (
-        <span className={'text-[11px] px-2 py-0.5 rounded-full font-medium ' + (done === total ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700')}>{done}/{total}</span>
-      ) : null}
+      badge={!editable && total > 0 ? <span className={'text-[11px] px-2 py-0.5 rounded-full font-medium ' + (done === total ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700')}>{done}/{total}</span> : null}
       rightSlot={editable ? <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="text-xs text-gray-400 hover:text-tomato px-1">🗑️</button> : null}>
       <div className="space-y-0.5">
         {step.items.map((item, i) => (
@@ -391,8 +466,7 @@ function CookingStep({ step, editable, onChange, onDelete }) {
                 <span className="text-amber-500 text-sm mt-0.5">⚡</span>
                 {editable ? (
                   <>
-                    <input value={p.text} onChange={e => updatePrec(i, 'text', e.target.value)}
-                      className="flex-1 text-sm bg-transparent outline-none text-amber-700" placeholder="Precaution..." />
+                    <input value={p.text} onChange={e => updatePrec(i, e.target.value)} className="flex-1 text-sm bg-transparent outline-none text-amber-700" placeholder="Precaution..." />
                     <button onClick={() => removePrec(i)} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-tomato text-xs p-1">✕</button>
                   </>
                 ) : <span className="text-sm text-amber-700">{p.text}</span>}
@@ -412,15 +486,22 @@ function CookingStep({ step, editable, onChange, onDelete }) {
 // ═══════════════════════════════════════════════════════════
 
 export default function RecipePage({ dish, onSave, onBack, notify }) {
-  const empty = { ingredientGroups: [], preparation: [], cookingSteps: [], serve: '' };
-  const [recipe, setRecipe] = useState(dish.recipe_data || empty);
+  const empty = { visibleSections: [...DEFAULT_VISIBLE], overview: '', nutrition: [], ingredientGroups: [], preparation: [], cookingSteps: [], serve: '' };
+  const [recipe, setRecipe] = useState(() => {
+    const data = dish.recipe_data || empty;
+    return { ...empty, ...data, visibleSections: data.visibleSections || [...DEFAULT_VISIBLE] };
+  });
   const [editing, setEditing] = useState(!dish.recipe_data);
   const [saving, setSaving] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [showSectionMgr, setShowSectionMgr] = useState(false);
 
   const r = recipe;
+  const vis = r.visibleSections || DEFAULT_VISIBLE;
+  const isVisible = (key) => vis.includes(key);
   const set = (field, val) => setRecipe(prev => ({ ...prev, [field]: val }));
 
+  // Section data mutators
   const updateGroup = (idx, group) => { const g = [...r.ingredientGroups]; g[idx] = group; set('ingredientGroups', g); };
   const removeGroup = (idx) => set('ingredientGroups', r.ingredientGroups.filter((_, i) => i !== idx));
   const addGroup = () => set('ingredientGroups', [...r.ingredientGroups, { id: uid(), name: '', items: [{ id: uid(), text: '' }] }]);
@@ -430,8 +511,11 @@ export default function RecipePage({ dish, onSave, onBack, notify }) {
   const updateStep = (idx, step) => { const s = [...r.cookingSteps]; s[idx] = step; set('cookingSteps', s); };
   const removeStep = (idx) => set('cookingSteps', r.cookingSteps.filter((_, i) => i !== idx));
   const addStep = () => set('cookingSteps', [...r.cookingSteps, { id: uid(), name: '', items: [{ id: uid(), text: '', checked: false }], precautions: [] }]);
+  const updateNutrition = (idx, val) => { const n = [...r.nutrition]; n[idx] = { ...n[idx], text: val }; set('nutrition', n); };
+  const removeNutrition = (idx) => set('nutrition', r.nutrition.filter((_, i) => i !== idx));
+  const addNutrition = () => set('nutrition', [...r.nutrition, { id: uid(), text: '' }]);
 
-  const handleImport = (parsed) => { setRecipe(parsed); setEditing(true); notify('Recipe imported! Review and Save.', 'success'); };
+  const handleImport = (parsed) => { setRecipe({ ...empty, ...parsed }); setEditing(true); notify('Imported! Review and Save.', 'success'); };
 
   const handleSave = async () => {
     setSaving(true);
@@ -454,7 +538,7 @@ export default function RecipePage({ dish, onSave, onBack, notify }) {
   const prepDone = r.preparation.filter(p => p.checked).length;
   const totalStepItems = r.cookingSteps.reduce((a, s) => a + s.items.length, 0);
   const stepsDone = r.cookingSteps.reduce((a, s) => a + s.items.filter(i => i.checked).length, 0);
-  const hasRecipe = r.ingredientGroups.length > 0 || r.preparation.length > 0 || r.cookingSteps.length > 0 || r.serve;
+  const hasRecipe = r.ingredientGroups.length > 0 || r.preparation.length > 0 || r.cookingSteps.length > 0 || r.serve || r.overview || (r.nutrition || []).length > 0;
 
   return (
     <div className="min-h-screen bg-cream pb-24">
@@ -472,11 +556,21 @@ export default function RecipePage({ dish, onSave, onBack, notify }) {
           {editing ? (
             <div className="flex gap-2">
               <button onClick={() => setShowImport(true)} className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-violet-500 to-indigo-500 text-white text-sm font-medium">📥</button>
-              <button onClick={() => { setRecipe(dish.recipe_data || empty); setEditing(false); }} className="px-3 py-1.5 rounded-lg border text-sm text-warm-gray">Cancel</button>
+              <div className="relative">
+                <button onClick={() => setShowSectionMgr(!showSectionMgr)} className="px-3 py-1.5 rounded-lg border text-sm text-warm-gray hover:bg-cream">⚙️</button>
+                {showSectionMgr && <SectionManager visible={vis} onChange={v => set('visibleSections', v)} onClose={() => setShowSectionMgr(false)} />}
+              </div>
+              <button onClick={() => { setRecipe(dish.recipe_data ? { ...empty, ...dish.recipe_data } : empty); setEditing(false); }} className="px-3 py-1.5 rounded-lg border text-sm text-warm-gray">Cancel</button>
               <button onClick={handleSave} disabled={saving} className="px-4 py-1.5 rounded-lg bg-terracotta text-white text-sm font-medium disabled:opacity-50">{saving ? '...' : '💾 Save'}</button>
             </div>
           ) : (
-            <button onClick={() => setEditing(true)} className="px-3 py-1.5 rounded-lg bg-terracotta text-white text-sm font-medium">✏️ Edit</button>
+            <div className="flex gap-2">
+              <div className="relative">
+                <button onClick={() => setShowSectionMgr(!showSectionMgr)} className="px-3 py-1.5 rounded-lg border text-sm text-warm-gray hover:bg-cream">⚙️</button>
+                {showSectionMgr && <SectionManager visible={vis} onChange={async v => { set('visibleSections', v); await onSave(dish.id, { ...recipe, visibleSections: v }).catch(() => {}); }} onClose={() => setShowSectionMgr(false)} />}
+              </div>
+              <button onClick={() => setEditing(true)} className="px-3 py-1.5 rounded-lg bg-terracotta text-white text-sm font-medium">✏️ Edit</button>
+            </div>
           )}
         </div>
       </header>
@@ -486,61 +580,90 @@ export default function RecipePage({ dish, onSave, onBack, notify }) {
           <div className="bg-gradient-to-br from-violet-50 to-indigo-50 rounded-2xl p-6 text-center border border-violet-200/50 mb-4">
             <div className="text-4xl mb-3">📥</div>
             <h3 className="font-bold text-base text-charcoal mb-1">Import from Notion</h3>
-            <p className="text-sm text-warm-gray mb-4">Paste your recipe and it'll be parsed into all 4 sections</p>
+            <p className="text-sm text-warm-gray mb-4">Paste your recipe text → parsed into sections</p>
             <button onClick={() => setShowImport(true)} className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-violet-500 to-indigo-500 text-white font-semibold text-sm">📥 Paste & Parse</button>
-            <p className="text-xs text-warm-gray mt-3">Or add manually with + buttons</p>
+            <p className="text-xs text-warm-gray mt-3">Or add manually with + buttons. Use ⚙️ to show/hide sections.</p>
           </div>
         )}
 
-        {/* ─── Section 1: Ingredients ─── */}
-        <Toggle emoji="🧾" title="Ingredients"
-          rightSlot={editing ? <button onClick={(e) => { e.stopPropagation(); addGroup(); }} className="text-xs px-2.5 py-1 rounded-lg bg-terracotta/10 text-terracotta font-medium">+ Group</button> : null}>
-          {r.ingredientGroups.length === 0 && !editing && <p className="text-sm text-gray-400 pl-4">No ingredients added yet</p>}
-          {r.ingredientGroups.map((g, i) => (
-            <IngredientGroup key={g.id} group={g} editable={editing} onChange={u => updateGroup(i, u)} onDelete={() => removeGroup(i)} />
-          ))}
-        </Toggle>
+        {/* ─── Overview ─── */}
+        {isVisible('overview') && (
+          <Toggle emoji="🔥" title="Overview">
+            {editing ? (
+              <textarea value={r.overview || ''} onChange={e => set('overview', e.target.value)} rows={4} placeholder="Dish description, flavor notes, key idea..."
+                className="w-full px-3 py-2 rounded-lg border text-base resize-none focus:border-terracotta/50 outline-none leading-relaxed" />
+            ) : (
+              <p className="text-base text-charcoal pl-1 whitespace-pre-wrap leading-relaxed">{r.overview || <span className="text-gray-400">No overview yet</span>}</p>
+            )}
+          </Toggle>
+        )}
 
-        {/* ─── Section 2: Preparation ─── */}
-        <Toggle emoji="🥣" title="Preparation"
-          badge={!editing && r.preparation.length > 0 ? (
-            <span className={'text-[10px] px-2 py-0.5 rounded-full font-medium ' + (prepDone === r.preparation.length ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700')}>{prepDone}/{r.preparation.length}</span>
-          ) : null}
-          rightSlot={editing ? <button onClick={(e) => { e.stopPropagation(); addPrep(); }} className="text-xs px-2.5 py-1 rounded-lg bg-terracotta/10 text-terracotta font-medium">+ Step</button> : null}>
-          {r.preparation.length === 0 && !editing && <p className="text-sm text-gray-400 pl-4">No prep steps yet</p>}
-          <div className="space-y-0.5">
-            {r.preparation.map((p, i) => (
-              <CheckItem key={p.id} text={p.text} checked={p.checked}
-                onChange={() => editing ? updatePrep(i, 'checked', !p.checked) : togglePrepCheck(i)}
-                onTextChange={val => updatePrep(i, 'text', val)}
-                onDelete={() => removePrep(i)} editable={editing} />
+        {/* ─── Nutrition ─── */}
+        {isVisible('nutrition') && (
+          <Toggle emoji="🍎" title="Nutrition"
+            rightSlot={editing ? <button onClick={(e) => { e.stopPropagation(); addNutrition(); }} className="text-xs px-2.5 py-1 rounded-lg bg-terracotta/10 text-terracotta font-medium">+ Item</button> : null}>
+            {(r.nutrition || []).length === 0 && !editing && <p className="text-sm text-gray-400 pl-4">No nutrition info yet</p>}
+            <div className="space-y-1">
+              {(r.nutrition || []).map((n, i) => (
+                <BulletItem key={n.id} text={n.text} editable={editing} onChange={val => updateNutrition(i, val)} onDelete={() => removeNutrition(i)} />
+              ))}
+            </div>
+          </Toggle>
+        )}
+
+        {/* ─── Ingredients ─── */}
+        {isVisible('ingredients') && (
+          <Toggle emoji="🧾" title="Ingredients"
+            rightSlot={editing ? <button onClick={(e) => { e.stopPropagation(); addGroup(); }} className="text-xs px-2.5 py-1 rounded-lg bg-terracotta/10 text-terracotta font-medium">+ Group</button> : null}>
+            {r.ingredientGroups.length === 0 && !editing && <p className="text-sm text-gray-400 pl-4">No ingredients yet</p>}
+            {r.ingredientGroups.map((g, i) => (
+              <IngredientGroup key={g.id} group={g} editable={editing} onChange={u => updateGroup(i, u)} onDelete={() => removeGroup(i)} />
             ))}
-          </div>
-        </Toggle>
+          </Toggle>
+        )}
 
-        {/* ─── Section 3: Step-by-Step Cooking ─── */}
-        <Toggle emoji="👨‍🍳" title="Step-by-Step Cooking"
-          badge={!editing && totalStepItems > 0 ? (
-            <span className={'text-[10px] px-2 py-0.5 rounded-full font-medium ' + (stepsDone === totalStepItems ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700')}>{stepsDone}/{totalStepItems}</span>
-          ) : null}
-          rightSlot={editing ? <button onClick={(e) => { e.stopPropagation(); addStep(); }} className="text-xs px-2.5 py-1 rounded-lg bg-terracotta/10 text-terracotta font-medium">+ Step</button> : null}>
-          {r.cookingSteps.length === 0 && !editing && <p className="text-sm text-gray-400 pl-4">No cooking steps yet</p>}
-          {r.cookingSteps.map((step, i) => (
-            <CookingStep key={step.id} step={step} editable={editing} onChange={u => updateStep(i, u)} onDelete={() => removeStep(i)} />
-          ))}
-        </Toggle>
+        {/* ─── Preparation ─── */}
+        {isVisible('preparation') && (
+          <Toggle emoji="🥣" title="Preparation"
+            badge={!editing && r.preparation.length > 0 ? <span className={'text-[11px] px-2 py-0.5 rounded-full font-medium ' + (prepDone === r.preparation.length ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700')}>{prepDone}/{r.preparation.length}</span> : null}
+            rightSlot={editing ? <button onClick={(e) => { e.stopPropagation(); addPrep(); }} className="text-xs px-2.5 py-1 rounded-lg bg-terracotta/10 text-terracotta font-medium">+ Step</button> : null}>
+            {r.preparation.length === 0 && !editing && <p className="text-sm text-gray-400 pl-4">No prep steps yet</p>}
+            <div className="space-y-0.5">
+              {r.preparation.map((p, i) => (
+                <CheckItem key={p.id} text={p.text} checked={p.checked}
+                  onChange={() => editing ? updatePrep(i, 'checked', !p.checked) : togglePrepCheck(i)}
+                  onTextChange={val => updatePrep(i, 'text', val)}
+                  onDelete={() => removePrep(i)} editable={editing} />
+              ))}
+            </div>
+          </Toggle>
+        )}
 
-        {/* ─── Section 4: Serve ─── */}
-        <Toggle emoji="🍽️" title="Serve">
-          {editing ? (
-            <textarea value={r.serve || ''} onChange={e => set('serve', e.target.value)} rows={3} placeholder="How to serve, garnish, sides..."
-              className="w-full px-3 py-2 rounded-lg border text-sm resize-none focus:border-terracotta/50 outline-none" />
-          ) : (
-            <p className="text-base text-charcoal pl-1 whitespace-pre-wrap leading-relaxed">{r.serve || <span className="text-gray-400">No serve instructions yet</span>}</p>
-          )}
-        </Toggle>
+        {/* ─── Cooking ─── */}
+        {isVisible('cooking') && (
+          <Toggle emoji="👨‍🍳" title="Step-by-Step Cooking"
+            badge={!editing && totalStepItems > 0 ? <span className={'text-[11px] px-2 py-0.5 rounded-full font-medium ' + (stepsDone === totalStepItems ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700')}>{stepsDone}/{totalStepItems}</span> : null}
+            rightSlot={editing ? <button onClick={(e) => { e.stopPropagation(); addStep(); }} className="text-xs px-2.5 py-1 rounded-lg bg-terracotta/10 text-terracotta font-medium">+ Step</button> : null}>
+            {r.cookingSteps.length === 0 && !editing && <p className="text-sm text-gray-400 pl-4">No cooking steps yet</p>}
+            {r.cookingSteps.map((step, i) => (
+              <CookingStep key={step.id} step={step} editable={editing} onChange={u => updateStep(i, u)} onDelete={() => removeStep(i)} />
+            ))}
+          </Toggle>
+        )}
 
-        {/* ─── Reset Checkboxes ─── */}
+        {/* ─── Serve ─── */}
+        {isVisible('serve') && (
+          <Toggle emoji="🍽️" title="Serve">
+            {editing ? (
+              <textarea value={r.serve || ''} onChange={e => set('serve', e.target.value)} rows={3} placeholder="How to serve, garnish, sides..."
+                className="w-full px-3 py-2 rounded-lg border text-base resize-none focus:border-terracotta/50 outline-none leading-relaxed" />
+            ) : (
+              <p className="text-base text-charcoal pl-1 whitespace-pre-wrap leading-relaxed">{r.serve || <span className="text-gray-400">No serve instructions yet</span>}</p>
+            )}
+          </Toggle>
+        )}
+
+        {/* Reset */}
         {!editing && (prepDone > 0 || stepsDone > 0) && (
           <button onClick={async () => {
             const reset = { ...recipe, preparation: recipe.preparation.map(p => ({ ...p, checked: false })), cookingSteps: recipe.cookingSteps.map(s => ({ ...s, items: s.items.map(i => ({ ...i, checked: false })) })) };
