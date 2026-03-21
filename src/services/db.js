@@ -290,11 +290,21 @@ export async function linkDishIngredientsFromRecipe(dishId, links) {
   // Remove existing links for this dish
   await supabase.from('food_department_dish_ingredients').delete().eq('dish_id', dishId);
 
-  // Insert new links
-  const rows = links.map(l => ({
+  // Deduplicate by ingredient_id — sum quantities if same ingredient appears multiple times
+  const deduped = new Map();
+  for (const l of links) {
+    const existing = deduped.get(l.ingredientId);
+    if (existing) {
+      existing.qty += (l.qty || 1);
+    } else {
+      deduped.set(l.ingredientId, { ingredientId: l.ingredientId, qty: l.qty || 1 });
+    }
+  }
+
+  const rows = [...deduped.values()].map(l => ({
     dish_id: dishId,
     ingredient_id: l.ingredientId,
-    qty: l.qty || 1,
+    qty: l.qty,
   }));
 
   const { error } = await supabase.from('food_department_dish_ingredients').insert(rows);
