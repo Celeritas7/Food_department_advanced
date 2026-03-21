@@ -630,7 +630,9 @@ function CheckItem({ text, checked, onChange, onTextChange, onDelete, editable }
 function BulletItem({ text, editable, onChange, onDelete, linked, linkedName, linkedStock, linkedUnit, stockIngredients, dishIngs = [], onUpdateStock, onLink, onUnlink }) {
   const [editingStock, setEditingStock] = useState(false);
   const [tempQty, setTempQty] = useState('');
+  const [tempUnit, setTempUnit] = useState('');
   const popRef = useRef(null);
+  const UNITS = ['g', 'kg', 'ml', 'l', 'piece', 'tsp', 'tbsp', 'cup', 'pinch', 'bunch', 'bulb', 'clove'];
 
   const liveStock = linked && stockIngredients ? stockIngredients.find(s => s.id === linked) : null;
   const stockQty = liveStock ? liveStock.stock_qty : 0;
@@ -650,10 +652,10 @@ function BulletItem({ text, editable, onChange, onDelete, linked, linkedName, li
     return () => document.removeEventListener('mousedown', h);
   }, [editingStock]);
 
-  const openStockEdit = () => { setTempQty(String(stockQty)); setEditingStock(true); };
+  const openStockEdit = () => { setTempQty(String(stockQty)); setTempUnit(stockUnit); setEditingStock(true); };
   const saveStock = () => {
     const val = parseFloat(tempQty);
-    if (!isNaN(val) && val >= 0 && onUpdateStock && linked) onUpdateStock(linked, val);
+    if (!isNaN(val) && val >= 0 && onUpdateStock && linked) onUpdateStock(linked, val, tempUnit || stockUnit);
     setEditingStock(false);
   };
 
@@ -682,15 +684,19 @@ function BulletItem({ text, editable, onChange, onDelete, linked, linkedName, li
                 📦 {stockQty} {stockUnit}
               </button>
               {editingStock && (
-                <div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-lg border z-30 p-3 w-48">
+                <div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-lg border z-30 p-3 w-52">
                   <p className="text-xs font-semibold text-charcoal mb-1.5 truncate">{liveStock?.name || linkedName}</p>
                   <p className="text-[10px] text-warm-gray mb-2">Recipe needs {neededQty} {recipeUnit}</p>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5">
                     <input type="number" value={tempQty} onChange={e => setTempQty(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && saveStock()}
                       autoFocus min="0" step="any"
-                      className="flex-1 px-2 py-1.5 rounded-lg border text-sm outline-none focus:border-terracotta w-20" />
-                    <span className="text-xs text-warm-gray">{stockUnit}</span>
+                      className="flex-1 px-2 py-1.5 rounded-lg border text-sm outline-none focus:border-terracotta w-16" />
+                    <select value={tempUnit} onChange={e => setTempUnit(e.target.value)}
+                      className="px-1.5 py-1.5 rounded-lg border text-sm outline-none focus:border-terracotta bg-white">
+                      {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                      {!UNITS.includes(tempUnit) && tempUnit && <option value={tempUnit}>{tempUnit}</option>}
+                    </select>
                   </div>
                   <div className="flex gap-1.5 mt-2">
                     <button onClick={() => setEditingStock(false)} className="flex-1 text-xs py-1.5 rounded-lg border text-warm-gray">Cancel</button>
