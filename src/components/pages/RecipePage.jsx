@@ -121,6 +121,11 @@ function offlineParseNotionText(raw) {
     }
   });
   if (sections.length === 0) {
+    // Check if it's a standalone table (Notion database copy)
+    const tabLines = lines.filter(l => l.includes('\t') && l.trim());
+    if (tabLines.length >= 2) {
+      return { overview: '', nutrition: [], ingredientGroups: parseIngredientTable(tabLines), preparation: [], cookingSteps: [], serve: '' };
+    }
     const items = lines.filter(l => l.trim()).map(l => ({ text: cleanLine(l) })).filter(i => i.text);
     return { overview: '', nutrition: [], ingredientGroups: items.length ? [{ name: 'All Ingredients', items }] : [], preparation: [], cookingSteps: [], serve: '' };
   }
@@ -157,10 +162,17 @@ function parseBulletList(lines) {
 }
 
 function parseIngredients(lines) {
+  // ─── Detect table format (tab-separated, from Notion database copy) ───
+  const tabLines = lines.filter(l => l.includes('\t') && l.trim());
+  if (tabLines.length >= 2) {
+    return parseIngredientTable(tabLines);
+  }
+
+  // ─── Standard bullet-list format ───
   const groups = []; let cur = null;
   for (const line of lines) {
     const t = line.trim(); if (!t) continue;
-    if (isHeading(line) || (!isBullet(line) && !isCheckbox(line) && t.length < 80)) {
+    if (isHeading(line) || (!isBullet(line) && !isCheckbox(line) && !line.includes('\t') && t.length < 80)) {
       if (cur && cur.items.length > 0) groups.push(cur);
       cur = { name: cleanLine(line), items: [] };
     } else if (isBullet(line) || isCheckbox(line)) {
@@ -175,6 +187,50 @@ function parseIngredients(lines) {
     if (items.length) groups.push({ name: 'All Ingredients', items });
   }
   return groups;
+}
+
+// ─── Parse Notion database table (tab-separated) ───
+function parseIngredientTable(tabLines) {
+  // First line is likely the header
+  const header = tabLines[0].split('\t').map(h => h.trim().toLowerCase());
+  const dataLines = tabLines.slice(1);
+
+  // Try to identify columns
+  const nameCol = header.findIndex(h => /ingredient|name|item/i.test(h));
+  const amtCol = header.findIndex(h => /amount|qty|quantity|measure/i.test(h));
+  const notesCol = header.findIndex(h => /note|purpose|comment|tip/i.test(h));
+
+  // If we can't identify a name column, treat first column as name
+  const nIdx = nameCol >= 0 ? nameCol : 0;
+  const aIdx = amtCol >= 0 ? amtCol : (header.length > 1 ? 1 : -1);
+  const noteIdx = notesCol >= 0 ? notesCol : -1;
+
+  // Check if first "data" line is actually a header (no tabs = not data)
+  // or if there's no clear header row
+  let startIdx = 0;
+  if (nameCol < 0 && !tabLines[0].split('\t').some(c => /^\d/.test(c.trim()))) {
+    // First row looks like a header, skip it
+    startIdx = 0;
+  }
+
+  const items = [];
+  for (let i = startIdx; i < dataLines.length; i++) {
+    const cols = dataLines[i].split('\t').map(c => c.trim());
+    const name = cols[nIdx] || '';
+    if (!name) continue;
+
+    const amount = aIdx >= 0 ? (cols[aIdx] || '') : '';
+    const notes = noteIdx >= 0 ? (cols[noteIdx] || '') : '';
+
+    // Build display text: "name amount" or "name amount (notes)"
+    let text = name;
+    if (amount) text += ' ' + amount;
+    if (notes) text += ' — ' + notes;
+
+    items.push({ text: text.trim() });
+  }
+
+  return items.length > 0 ? [{ name: 'All Ingredients', items }] : [];
 }
 
 function parseChecklist(lines) {
@@ -572,6 +628,12 @@ function CheckItem({ text, checked, onChange, onTextChange, onDelete, editable }
 }
 
 function BulletItem({ text, editable, onChange, onDelete, linked, linkedName, linkedStock, linkedUnit, stockIngredients, onLink, onUnlink }) {
+  // Look up live stock qty if we have the ingredients list and a linked id
+  const liveStock = linked && stockIngredients ? stockIngredients.find(s => s.id === linked) : null;
+  const displayQty = liveStock ? liveStock.stock_qty : linkedStock;
+  const displayUnit = liveStock ? liveStock.unit : linkedUnit;
+  const displayName = liveStock ? liveStock.name : linkedName;
+
   return (
     <div className="flex items-start gap-2.5 group py-1 pl-1">
       <span className="text-gray-400 text-base mt-0.5">•</span>
@@ -588,8 +650,10 @@ function BulletItem({ text, editable, onChange, onDelete, linked, linkedName, li
         <>
           <span className="flex-1 text-base text-charcoal leading-normal">{text}</span>
           {linked && (
-            <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-medium shrink-0" title={`${linkedName}: ${linkedStock ?? '?'} ${linkedUnit || ''} in stock`}>
-              📦 {linkedStock ?? '?'}{linkedUnit ? ' ' + linkedUnit : ''}
+            <span className={'text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ' +
+              (displayQty > 0 ? 'bg-emerald-100 text-emerald-700' : 'bg-red-100 text-red-600')}
+              title={`${displayName}: ${displayQty ?? 0} ${displayUnit || ''} in stock`}>
+              📦 {displayQty ?? 0} {displayUnit || ''}
             </span>
           )}
         </>
