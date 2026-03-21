@@ -6,7 +6,7 @@ import { DelIcon } from '../ui/Icons';
 import { getCatEmoji } from '../../config/emoji.js';
 import IngredientPicker from '../ui/IngredientPicker';
 
-const UNIT_OPTIONS = ['g', 'ml', 'pcs', 'tbsp', 'tsp', 'cup', 'bunch', 'pack', 'pinch', 'slice', 'clove', 'stalk', 'can', 'sheet'];
+const UNIT_OPTIONS = ['g', 'ml', 'pcs', 'tbsp', 'tsp', 'cup', 'bunch', 'pack', 'pinch', 'slice', 'clove', 'stalk', 'can', 'sheet', 'optional'];
 
 // ─── Parsers ────────────────────────────────────────────
 
@@ -447,12 +447,28 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
               <p className="text-sm">Tap "Pick" to browse or "Paste" to import</p>
             </div>
           ) : importMode === null && (
-            <div className="space-y-1.5">
+            <div className="space-y-1.5" onDragOver={e => e.preventDefault()}>
               {recipeIngs.map((x, i) => {
                 const ig = ingredients.find(g => g.id === x.ingredientId);
                 const displayUnit = x.unitOverride || ig?.unit || 'g';
                 return (
-                  <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-lg bg-terracotta/5 border border-terracotta/20">
+                  <div key={x.ingredientId || i}
+                    draggable
+                    onDragStart={e => { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', i); e.currentTarget.style.opacity = '0.4'; }}
+                    onDragEnd={e => { e.currentTarget.style.opacity = '1'; }}
+                    onDragOver={e => { e.preventDefault(); e.currentTarget.style.borderTop = '2px solid #c0845e'; }}
+                    onDragLeave={e => { e.currentTarget.style.borderTop = ''; }}
+                    onDrop={e => {
+                      e.preventDefault(); e.currentTarget.style.borderTop = '';
+                      const from = parseInt(e.dataTransfer.getData('text/plain'));
+                      if (isNaN(from) || from === i) return;
+                      const a = [...recipeIngs];
+                      const [moved] = a.splice(from, 1);
+                      a.splice(i, 0, moved);
+                      setRecipeIngs(a);
+                    }}
+                    className="flex items-center gap-1.5 px-2 py-2 rounded-lg bg-terracotta/5 border border-terracotta/20 cursor-grab active:cursor-grabbing transition-all">
+                    <span className="text-gray-400 text-sm cursor-grab select-none px-0.5" title="Drag to reorder">⠿</span>
                     <span className="text-sm font-medium truncate flex-1 min-w-0">
                       {getCatEmoji(ig?.category)} {ig?.name || '?'}
                     </span>
