@@ -271,7 +271,7 @@ Structure:
 {
   "overview": "Plain text overview/description of the dish",
   "nutrition": [{ "text": "Calories: 350 kcal" }, { "text": "Protein: 25g" }],
-  "ingredientGroups": [{ "name": "Group", "items": [{ "text": "2 cups rice" }] }],
+  "ingredientGroups": [{ "name": "Group", "items": [{ "text": "Basmati rice" }] }],
   "preparation": [{ "text": "Wash rice" }],
   "cookingSteps": [{ "name": "Step 1: Make Stock", "items": [{ "text": "Add water" }], "precautions": [{ "text": "Don't over-boil" }] }],
   "serve": "Serve hot with raita.",
@@ -287,6 +287,7 @@ Rules:
 - overview = description, flavor notes, key ideas. Plain text, newline separated.
 - nutrition = array of bullet items (Calories, Protein, Fat, Carbs, Serving size, Yield, etc.)
 - Split ingredients into sub-groups if obvious, otherwise "All Ingredients".
+- IMPORTANT: ingredientGroups items.text must be CLEAN DISPLAY NAMES only — capitalize properly, NO quantities or units in the text. Example: "Unsalted butter" NOT "150 g unsalted butter". The quantities go ONLY in structuredIngredients. If there's a note like "(separated)" or "(fresh)" include it: "Eggs (separated)".
 - preparation = prep tasks before cooking. cookingSteps = named stages with items + precautions.
 - serve = plating/garnish text. Empty sections = [] or "".
 - Parse faithfully. Precautions marked by ⚠️ or warning phrases.
