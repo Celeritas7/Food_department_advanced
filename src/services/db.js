@@ -284,7 +284,7 @@ export async function saveRecipeData(dishId, recipeData) {
 // Replaces existing dish_ingredients with AI-matched ones
 
 export async function linkDishIngredientsFromRecipe(dishId, links) {
-  // links: [{ ingredientId, qty }]
+  // links: [{ ingredientId, qty, unit }]
   if (!links || links.length === 0) return;
 
   // Remove existing links for this dish
@@ -297,7 +297,7 @@ export async function linkDishIngredientsFromRecipe(dishId, links) {
     if (existing) {
       existing.qty += (l.qty || 1);
     } else {
-      deduped.set(l.ingredientId, { ingredientId: l.ingredientId, qty: l.qty || 1 });
+      deduped.set(l.ingredientId, { ingredientId: l.ingredientId, qty: l.qty || 1, unit: l.unit || null });
     }
   }
 
@@ -305,6 +305,7 @@ export async function linkDishIngredientsFromRecipe(dishId, links) {
     dish_id: dishId,
     ingredient_id: l.ingredientId,
     qty: l.qty,
+    recipe_unit: l.unit,
   }));
 
   const { error } = await supabase.from('food_department_dish_ingredients').insert(rows);

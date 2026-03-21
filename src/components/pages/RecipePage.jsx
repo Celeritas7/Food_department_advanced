@@ -384,7 +384,7 @@ function ImportModal({ onImport, onClose, notify, stockIngredients = [] }) {
       cookingSteps: (preview.cookingSteps || []).map(s => ({ id: uid(), name: s.name || '', items: (s.items || []).map(it => ({ id: uid(), text: it.text || '', checked: false })), precautions: (s.precautions || []).map(p => ({ id: uid(), text: p.text || '' })) })),
       serve: preview.serve || '',
       // Pass matched dish-ingredient links (only matched ones)
-      _dishLinks: matchedLinks.filter(l => !l.unmatched).map(l => ({ ingredientId: l.ingredientId, qty: l.qty })),
+      _dishLinks: matchedLinks.filter(l => !l.unmatched).map(l => ({ ingredientId: l.ingredientId, qty: l.qty, unit: l.recipeUnit || null })),
     };
     onImport(withIds); onClose();
   };
@@ -637,9 +637,11 @@ function BulletItem({ text, editable, onChange, onDelete, linked, linkedName, li
   const stockUnit = liveStock ? liveStock.unit : (linkedUnit || '');
   const dishLink = linked && dishIngs ? dishIngs.find(di => di.ingredient_id === linked) : null;
   const neededQty = dishLink ? dishLink.qty : 0;
-  const remaining = stockQty - neededQty;
-  const sufficient = stockQty >= neededQty && neededQty > 0;
-  const runningLow = sufficient && remaining < neededQty;
+  const recipeUnit = dishLink?.recipe_unit || stockUnit; // AI-provided unit or fallback to stock unit
+  const sameUnit = recipeUnit === stockUnit || !dishLink?.recipe_unit;
+  const remaining = sameUnit ? stockQty - neededQty : null; // only compare if same unit
+  const sufficient = sameUnit ? (stockQty >= neededQty && neededQty > 0) : stockQty > 0;
+  const runningLow = sameUnit && sufficient && remaining < neededQty;
 
   useEffect(() => {
     if (!editingStock) return;
@@ -675,14 +677,14 @@ function BulletItem({ text, editable, onChange, onDelete, linked, linkedName, li
               <button onClick={openStockEdit}
                 className={'text-[10px] px-1.5 py-0.5 rounded-full font-medium inline-flex items-center gap-1 cursor-pointer hover:ring-2 hover:ring-offset-1 transition-all ' +
                   (sufficient ? (runningLow ? 'bg-amber-100 text-amber-700 hover:ring-amber-300' : 'bg-emerald-100 text-emerald-700 hover:ring-emerald-300') : 'bg-red-100 text-red-600 hover:ring-red-300')}
-                title="Tap to update stock">
-                {neededQty > 0 && <span className="opacity-60">{neededQty}→</span>}
+                title={`Need ${neededQty} ${recipeUnit} · Have ${stockQty} ${stockUnit} · Tap to update`}>
+                {neededQty > 0 && <span className="opacity-60">{neededQty} {recipeUnit}→</span>}
                 📦 {stockQty} {stockUnit}
               </button>
               {editingStock && (
                 <div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-lg border z-30 p-3 w-48">
                   <p className="text-xs font-semibold text-charcoal mb-1.5 truncate">{liveStock?.name || linkedName}</p>
-                  <p className="text-[10px] text-warm-gray mb-2">Recipe needs {neededQty} {stockUnit}</p>
+                  <p className="text-[10px] text-warm-gray mb-2">Recipe needs {neededQty} {recipeUnit}</p>
                   <div className="flex items-center gap-2">
                     <input type="number" value={tempQty} onChange={e => setTempQty(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && saveStock()}
