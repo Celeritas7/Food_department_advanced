@@ -562,42 +562,41 @@ function LinkPicker({ stockIngredients, currentId, onLink, onUnlink }) {
     return () => document.removeEventListener('mousedown', h);
   }, [open]);
 
+  const currentStock = currentId ? stockIngredients.find(s => s.id === currentId) : null;
   const filtered = stockIngredients.filter(s =>
     s.name.toLowerCase().includes(search.toLowerCase())
   ).slice(0, 8);
 
-  if (currentId) {
-    return (
-      <button onClick={(e) => { e.stopPropagation(); onUnlink(); }}
-        className="text-[10px] px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 font-medium hover:bg-red-100 hover:text-red-600 transition-colors shrink-0"
-        title="Click to unlink">
-        🔗 linked
-      </button>
-    );
-  }
-
   return (
     <div className="relative shrink-0" ref={ref}>
-      <button onClick={(e) => { e.stopPropagation(); setOpen(!open); }}
-        className="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-400 hover:bg-blue-50 hover:text-blue-500 transition-colors"
-        title="Link to stock ingredient">
-        🔗
+      <button onClick={(e) => { e.stopPropagation(); setOpen(!open); setSearch(''); }}
+        className={'text-[10px] px-1.5 py-0.5 rounded-full font-medium transition-colors max-w-[140px] truncate ' +
+          (currentId ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-gray-100 text-gray-400 hover:bg-blue-50 hover:text-blue-500')}
+        title={currentId ? `Linked to: ${currentStock?.name || '?'} — click to change` : 'Link to stock ingredient'}>
+        🔗 {currentId ? (currentStock?.name || 'linked') : 'link'}
       </button>
       {open && (
-        <div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-lg border z-30 w-52 overflow-hidden">
+        <div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-lg border z-30 w-56 overflow-hidden">
           <input value={search} onChange={e => setSearch(e.target.value)} autoFocus
             placeholder="Search ingredient..."
             className="w-full px-3 py-2 text-xs border-b outline-none" />
-          <div className="max-h-40 overflow-y-auto">
+          <div className="max-h-44 overflow-y-auto">
             {filtered.map(s => (
               <button key={s.id} onClick={() => { onLink(s.id, s.name, s.unit, s.stock_qty); setOpen(false); setSearch(''); }}
-                className="w-full text-left px-3 py-2 text-xs hover:bg-cream flex items-center justify-between">
+                className={'w-full text-left px-3 py-2 text-xs hover:bg-cream flex items-center justify-between ' +
+                  (s.id === currentId ? 'bg-emerald-50 font-semibold' : '')}>
                 <span>{s.name}</span>
                 <span className="text-gray-400">{s.stock_qty} {s.unit}</span>
               </button>
             ))}
             {filtered.length === 0 && <p className="px-3 py-2 text-xs text-gray-400">No match</p>}
           </div>
+          {currentId && (
+            <button onClick={() => { onUnlink(); setOpen(false); }}
+              className="w-full text-left px-3 py-2 text-xs text-red-500 hover:bg-red-50 border-t font-medium">
+              ✕ Unlink
+            </button>
+          )}
         </div>
       )}
     </div>
