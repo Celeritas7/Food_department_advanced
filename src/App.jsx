@@ -492,10 +492,12 @@ export default function App() {
         {modal.data && <PrepareDialog intermediate={modal.data} intIngredients={intIngs.filter(ii => ii.intermediate_id === modal.data.id)} ingredients={ingredients} onPrepare={handlePrepareIntermediate} onCancel={() => setModal({})} />}
       </Modal>
       <Modal open={modal.type === 'addDish'} onClose={() => setModal({})} title="Add Dish">
-        <DishForm ingredients={enrichedIngredients} intermediates={enrichedIntermediates} onSave={handleAddDish} onCancel={() => setModal({})} />
+        <DishForm ingredients={enrichedIngredients} intermediates={enrichedIntermediates} onSave={handleAddDish} onCancel={() => setModal({})}
+          onCreateIngredient={async (data) => { const created = await db.addIngredient(data); setIngredients(prev => [...prev, created].sort((a,b) => a.name.localeCompare(b.name))); return created; }} />
       </Modal>
       <Modal open={modal.type === 'editDish'} onClose={() => setModal({})} title="Edit Dish">
-        {modal.data && <DishForm initial={getDishFormData(modal.data)} ingredients={enrichedIngredients} intermediates={enrichedIntermediates} onSave={handleEditDish} onCancel={() => setModal({})} />}
+        {modal.data && <DishForm initial={getDishFormData(modal.data)} ingredients={enrichedIngredients} intermediates={enrichedIntermediates} onSave={handleEditDish} onCancel={() => setModal({})}
+          onCreateIngredient={async (data) => { const created = await db.addIngredient(data); setIngredients(prev => [...prev, created].sort((a,b) => a.name.localeCompare(b.name))); return created; }} />}
       </Modal>
 
       {modal.type === 'manageDishes' && (
