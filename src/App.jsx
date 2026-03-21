@@ -32,12 +32,28 @@ import PrepareDialog from './components/forms/PrepareDialog';
 import DishForm from './components/forms/DishForm';
 
 export default function App() {
-  // ─── State ───────────────────────────────────────────
-  const [page, setPage] = useState('ing');
+  // ─── State (persisted in sessionStorage) ───────────────
+  const [page, setPageRaw] = useState(() => sessionStorage.getItem('fd_page') || 'dish');
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
   const [modal, setModal] = useState({});
-  const [recipeDish, setRecipeDish] = useState(null); // ▶ NEW: dish being viewed in RecipePage
+  const [recipeDish, setRecipeDishRaw] = useState(null);
+  const [pendingRecipeDishId] = useState(() => sessionStorage.getItem('fd_recipeDishId') || null);
+
+  // Wrap setters to persist
+  const setPage = (p) => { setPageRaw(p); sessionStorage.setItem('fd_page', p); };
+  const setRecipeDish = (dOrFn) => {
+    if (typeof dOrFn === 'function') {
+      setRecipeDishRaw(prev => {
+        const next = dOrFn(prev);
+        sessionStorage.setItem('fd_recipeDishId', next?.id || '');
+        return next;
+      });
+    } else {
+      setRecipeDishRaw(dOrFn);
+      sessionStorage.setItem('fd_recipeDishId', dOrFn?.id || '');
+    }
+  };
 
   // Raw data from Supabase
   const [ingredients, setIngredients] = useState([]);
@@ -66,6 +82,12 @@ export default function App() {
       setDishIngs(di);
       setDishInts(dint);
       setIntIngs(ii);
+
+      // Restore recipeDish from saved ID after data loads
+      if (pendingRecipeDishId && !recipeDish) {
+        const found = dsh.find(d => d.id === pendingRecipeDishId);
+        if (found) setRecipeDishRaw(found);
+      }
     } catch (err) {
       notify('Failed to load data: ' + err.message);
     } finally {
