@@ -514,30 +514,40 @@ function autoMatchIngredients(ingredientGroups, stockIngredients) {
   return ingredientGroups.map(group => ({
     ...group,
     items: group.items.map(item => {
-      if (item.ingredientId) return item; // already linked
+      if (item.ingredientId) return item;
       const norm = normalizeForMatch(item.text);
       if (!norm) return item;
 
-      // Try to find best match
       let best = null;
       let bestScore = 0;
-      for (const s of stockNorm) {
-        // Check if stock name appears in recipe text or vice versa
-        const sWords = s.norm.split(' ');
-        const nWords = norm.split(' ');
+      const nWords = norm.split(' ');
 
-        // Full name match
-        if (norm.includes(s.norm) || s.norm.includes(norm)) {
-          const score = s.norm.length;
+      for (const s of stockNorm) {
+        const sWords = s.norm.split(' ');
+
+        // Exact full match (best possible)
+        if (norm === s.norm) {
+          return { ...item, ingredientId: s.id, linkedName: s.name, linkedUnit: s.unit, linkedStock: s.stock_qty };
+        }
+
+        // Whole-word boundary match: "salt" matches "salt" but NOT "unsalted"
+        // Check if all words of the shorter name appear as whole words in the longer name
+        const shorter = norm.length <= s.norm.length ? nWords : sWords;
+        const longer = norm.length <= s.norm.length ? sWords : nWords;
+        const allMatch = shorter.length > 0 && shorter.every(sw => sw.length > 1 && longer.some(lw => lw === sw));
+
+        if (allMatch) {
+          // Score by how close the lengths are (prefer exact or near-exact)
+          const score = 100 - Math.abs(norm.length - s.norm.length);
           if (score > bestScore) { best = s; bestScore = score; }
         }
-        // Word overlap: count how many stock name words appear in recipe text
+        // Fallback: exact word overlap (not substring within words)
         else {
-          const overlap = sWords.filter(w => w.length > 2 && nWords.some(nw => nw.includes(w) || w.includes(nw))).length;
-          const score = overlap / sWords.length;
-          if (score >= 0.5 && overlap > 0 && (overlap > bestScore || (overlap === bestScore && s.norm.length > (best?.norm?.length || 0)))) {
+          const exactOverlap = sWords.filter(sw => sw.length > 2 && nWords.some(nw => nw === sw)).length;
+          const score = exactOverlap / Math.max(sWords.length, 1);
+          if (score >= 0.5 && exactOverlap > 0 && exactOverlap > bestScore) {
             best = s;
-            bestScore = overlap;
+            bestScore = exactOverlap;
           }
         }
       }
