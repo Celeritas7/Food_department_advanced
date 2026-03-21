@@ -197,6 +197,7 @@ export async function addDish(dish) {
       dish_id: data.id,
       ingredient_id: e.ingredientId,
       qty: e.qty || 1,
+      recipe_unit: e.unitOverride || null,
     }));
     await supabase.from('food_department_dish_ingredients').insert(links);
   }
@@ -240,6 +241,7 @@ export async function updateDish(id, updates) {
         dish_id: id,
         ingredient_id: e.ingredientId,
         qty: e.qty || 1,
+        recipe_unit: e.unitOverride || null,
       }));
       await supabase.from('food_department_dish_ingredients').insert(links);
     }
@@ -278,6 +280,38 @@ export async function saveRecipeData(dishId, recipeData) {
     .single();
   if (error) throw error;
   return data;
+}
+
+// ─── LINK DISH INGREDIENTS FROM RECIPE (AI import) ──────
+// Replaces existing dish_ingredients with AI-matched ones
+
+export async function linkDishIngredientsFromRecipe(dishId, links) {
+  // links: [{ ingredientId, qty, unit }]
+  if (!links || links.length === 0) return;
+
+  // Remove existing links for this dish
+  await supabase.from('food_department_dish_ingredients').delete().eq('dish_id', dishId);
+
+  // Deduplicate by ingredient_id — sum quantities if same ingredient appears multiple times
+  const deduped = new Map();
+  for (const l of links) {
+    const existing = deduped.get(l.ingredientId);
+    if (existing) {
+      existing.qty += (l.qty || 1);
+    } else {
+      deduped.set(l.ingredientId, { ingredientId: l.ingredientId, qty: l.qty || 1, unit: l.unit || null });
+    }
+  }
+
+  const rows = [...deduped.values()].map(l => ({
+    dish_id: dishId,
+    ingredient_id: l.ingredientId,
+    qty: l.qty,
+    recipe_unit: l.unit,
+  }));
+
+  const { error } = await supabase.from('food_department_dish_ingredients').insert(rows);
+  if (error) throw error;
 }
 
 // ─── JUNCTION FETCHERS ───────────────────────────────────

@@ -32,12 +32,28 @@ import PrepareDialog from './components/forms/PrepareDialog';
 import DishForm from './components/forms/DishForm';
 
 export default function App() {
-  // ─── State ───────────────────────────────────────────
-  const [page, setPage] = useState('ing');
+  // ─── State (persisted in sessionStorage) ───────────────
+  const [page, setPageRaw] = useState(() => sessionStorage.getItem('fd_page') || 'dish');
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
   const [modal, setModal] = useState({});
-  const [recipeDish, setRecipeDish] = useState(null); // ▶ NEW: dish being viewed in RecipePage
+  const [recipeDish, setRecipeDishRaw] = useState(null);
+  const [pendingRecipeDishId] = useState(() => sessionStorage.getItem('fd_recipeDishId') || null);
+
+  // Wrap setters to persist
+  const setPage = (p) => { setPageRaw(p); sessionStorage.setItem('fd_page', p); };
+  const setRecipeDish = (dOrFn) => {
+    if (typeof dOrFn === 'function') {
+      setRecipeDishRaw(prev => {
+        const next = dOrFn(prev);
+        sessionStorage.setItem('fd_recipeDishId', next?.id || '');
+        return next;
+      });
+    } else {
+      setRecipeDishRaw(dOrFn);
+      sessionStorage.setItem('fd_recipeDishId', dOrFn?.id || '');
+    }
+  };
 
   // Raw data from Supabase
   const [ingredients, setIngredients] = useState([]);
@@ -66,6 +82,12 @@ export default function App() {
       setDishIngs(di);
       setDishInts(dint);
       setIntIngs(ii);
+
+      // Restore recipeDish from saved ID after data loads
+      if (pendingRecipeDishId && !recipeDish) {
+        const found = dsh.find(d => d.id === pendingRecipeDishId);
+        if (found) setRecipeDishRaw(found);
+      }
     } catch (err) {
       notify('Failed to load data: ' + err.message);
     } finally {
@@ -240,6 +262,12 @@ export default function App() {
     setRecipeDish(prev => prev && prev.id === dishId ? { ...prev, recipe_data: updated.recipe_data } : prev);
   };
 
+  // ─── Actions: Link dish ingredients from recipe AI import ─── ▶ NEW
+  const handleLinkIngredients = async (dishId, links) => {
+    await db.linkDishIngredientsFromRecipe(dishId, links);
+    await loadAll(); // Reload so availability % updates
+  };
+
   // ─── Actions: Categories ───────────────────────────────
   const handleBulkRename = async (oldCat, newCat) => {
     try {
@@ -317,7 +345,7 @@ export default function App() {
     const myInts = dishInts.filter(di => di.dish_id === dish.id);
     return {
       ...dish,
-      recipeIngredients: myIngs.map(di => ({ ingredientId: di.ingredient_id, qty: di.qty })),
+      recipeIngredients: myIngs.map(di => ({ ingredientId: di.ingredient_id, qty: di.qty, unitOverride: di.recipe_unit || '' })),
       recipeIntermediates: myInts.map(di => ({ intermediateId: di.intermediate_id, qty: di.qty })),
     };
   };
@@ -341,7 +369,29 @@ export default function App() {
         {toast && <Toast key={toast.key} message={toast.msg} type={toast.type} onDone={() => setToast(null)} />}
         <RecipePage
           dish={recipeDish}
+          ingredients={enrichedIngredients}
+          dishIngs={dishIngs.filter(di => di.dish_id === recipeDish.id)}
           onSave={handleSaveRecipe}
+          onLinkIngredients={handleLinkIngredients}
+          onUpdateStock={async (ingredientId, newQty, newUnit) => {
+            try {
+              const ing = ingredients.find(i => i.id === ingredientId);
+              if (!ing) return;
+              const updates = { stockQty: newQty };
+              if (newUnit && newUnit !== ing.unit) updates.unit = newUnit;
+              await db.updateIngredient(ingredientId, updates);
+              await loadAll();
+              notify(`${ing.name} → ${newQty} ${newUnit || ing.unit}`, 'success');
+            } catch (err) { notify('Update failed: ' + err.message); }
+          }}
+          onCreateIngredient={async (name) => {
+            try {
+              const created = await db.addIngredient({ name, unit: 'g', stockQty: 0, shelfLifeDays: 30, category: '', country: '' });
+              setIngredients(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+              notify(`Created "${created.name}"`, 'success');
+              return created;
+            } catch (err) { notify('Create failed: ' + err.message); return null; }
+          }}
           onBack={() => setRecipeDish(null)}
           notify={notify}
         />
@@ -472,10 +522,12 @@ export default function App() {
         {modal.data && <PrepareDialog intermediate={modal.data} intIngredients={intIngs.filter(ii => ii.intermediate_id === modal.data.id)} ingredients={ingredients} onPrepare={handlePrepareIntermediate} onCancel={() => setModal({})} />}
       </Modal>
       <Modal open={modal.type === 'addDish'} onClose={() => setModal({})} title="Add Dish">
-        <DishForm ingredients={enrichedIngredients} intermediates={enrichedIntermediates} onSave={handleAddDish} onCancel={() => setModal({})} />
+        <DishForm ingredients={enrichedIngredients} intermediates={enrichedIntermediates} onSave={handleAddDish} onCancel={() => setModal({})}
+          onCreateIngredient={async (data) => { const created = await db.addIngredient(data); setIngredients(prev => [...prev, created].sort((a,b) => a.name.localeCompare(b.name))); return created; }} />
       </Modal>
       <Modal open={modal.type === 'editDish'} onClose={() => setModal({})} title="Edit Dish">
-        {modal.data && <DishForm initial={getDishFormData(modal.data)} ingredients={enrichedIngredients} intermediates={enrichedIntermediates} onSave={handleEditDish} onCancel={() => setModal({})} />}
+        {modal.data && <DishForm initial={getDishFormData(modal.data)} ingredients={enrichedIngredients} intermediates={enrichedIntermediates} onSave={handleEditDish} onCancel={() => setModal({})}
+          onCreateIngredient={async (data) => { const created = await db.addIngredient(data); setIngredients(prev => [...prev, created].sort((a,b) => a.name.localeCompare(b.name))); return created; }} />}
       </Modal>
 
       {modal.type === 'manageDishes' && (

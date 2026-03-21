@@ -147,7 +147,7 @@ function parseInput(text) {
 
 // ─── Component ──────────────────────────────────────────
 
-export default function DishForm({ initial, ingredients, intermediates, onSave, onCancel }) {
+export default function DishForm({ initial, ingredients, intermediates, onSave, onCancel, onCreateIngredient }) {
   const [name, setName] = useState(initial?.name || '');
   const [status, setStatus] = useState(initial?.status || 'Not planned');
   const [priority, setPriority] = useState(initial?.priority || 3);
@@ -182,13 +182,21 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
   // ─── Import matching ───────────────────
   const matchToIngredients = (parsedRows) => {
     return parsedRows.map(row => {
-      const csvName = row.name.toLowerCase().trim()
-        .replace(/\(.*?\)/g, '').trim(); // strip parenthetical notes
-      let match = ingredients.find(i => i.name.toLowerCase() === row.name.toLowerCase().trim());
+      const rawName = row.name.toLowerCase().trim();
+      const csvName = rawName.replace(/\(.*?\)/g, '').trim();
+      const csvWords = csvName.split(/\s+/);
+
+      // 1. Exact full name match
+      let match = ingredients.find(i => i.name.toLowerCase() === rawName);
+      // 2. Exact match after stripping parenthetical
       if (!match) match = ingredients.find(i => i.name.toLowerCase() === csvName);
-      if (!match) match = ingredients.find(i =>
-        i.name.toLowerCase().includes(csvName) || csvName.includes(i.name.toLowerCase())
-      );
+      // 3. Whole-word match: all words of shorter name appear as whole words in longer name
+      if (!match) match = ingredients.find(i => {
+        const stockWords = i.name.toLowerCase().split(/\s+/);
+        const shorter = csvWords.length <= stockWords.length ? csvWords : stockWords;
+        const longer = csvWords.length <= stockWords.length ? stockWords : csvWords;
+        return shorter.length > 0 && shorter.every(sw => sw.length > 1 && longer.some(lw => lw === sw));
+      });
       return { ...row, matched: match || null };
     });
   };
@@ -241,6 +249,30 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
       updated[rowIdx] = { ...updated[rowIdx], matched: ing };
       return { ...prev, rows: updated };
     });
+  };
+
+  const handleCreateAndMatch = async (rowIdx) => {
+    if (!onCreateIngredient) return;
+    const row = importResult.rows[rowIdx];
+    if (!row || row.matched) return;
+    try {
+      const created = await onCreateIngredient({
+        name: row.name.trim(),
+        unit: row.unit || 'g',
+        stockQty: 0,
+        shelfLifeDays: 30,
+        category: '',
+        country: '',
+      });
+      // Auto-match the row to the newly created ingredient
+      setImportResult(prev => {
+        const updated = [...prev.rows];
+        updated[rowIdx] = { ...updated[rowIdx], matched: created };
+        return { ...prev, rows: updated };
+      });
+    } catch (err) {
+      console.error('Create ingredient failed:', err);
+    }
   };
 
   const handleSubmit = (e) => {
@@ -371,15 +403,21 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
                         → {getCatEmoji(row.matched.category)} {row.matched.name}
                       </div>
                     ) : (
-                      <div className="ml-5 mt-1">
+                      <div className="ml-5 mt-1 flex gap-1.5 items-center">
                         <select
                           onChange={e => { if (e.target.value) handleManualMatch(i, e.target.value); }}
-                          className="text-xs px-1.5 py-1 rounded border border-tomato/30 bg-white w-full"
+                          className="text-xs px-1.5 py-1 rounded border border-tomato/30 bg-white flex-1"
                           defaultValue=""
                         >
                           <option value="">— pick ingredient —</option>
                           {ingredients.map(ig => <option key={ig.id} value={ig.id}>{getCatEmoji(ig.category)} {ig.name}</option>)}
                         </select>
+                        {onCreateIngredient && (
+                          <button type="button" onClick={() => handleCreateAndMatch(i)}
+                            className="text-[10px] font-medium px-2 py-1 rounded-lg bg-blue-500 text-white whitespace-nowrap hover:bg-blue-600">
+                            + Create
+                          </button>
+                        )}
                       </div>
                     )}
                   </div>

@@ -197,6 +197,7 @@ export async function addDish(dish) {
       dish_id: data.id,
       ingredient_id: e.ingredientId,
       qty: e.qty || 1,
+      recipe_unit: e.unitOverride || null,
     }));
     await supabase.from('food_department_dish_ingredients').insert(links);
   }
@@ -240,6 +241,7 @@ export async function updateDish(id, updates) {
         dish_id: id,
         ingredient_id: e.ingredientId,
         qty: e.qty || 1,
+        recipe_unit: e.unitOverride || null,
       }));
       await supabase.from('food_department_dish_ingredients').insert(links);
     }

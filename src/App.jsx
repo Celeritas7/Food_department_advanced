@@ -345,7 +345,7 @@ export default function App() {
     const myInts = dishInts.filter(di => di.dish_id === dish.id);
     return {
       ...dish,
-      recipeIngredients: myIngs.map(di => ({ ingredientId: di.ingredient_id, qty: di.qty })),
+      recipeIngredients: myIngs.map(di => ({ ingredientId: di.ingredient_id, qty: di.qty, unitOverride: di.recipe_unit || '' })),
       recipeIntermediates: myInts.map(di => ({ intermediateId: di.intermediate_id, qty: di.qty })),
     };
   };
