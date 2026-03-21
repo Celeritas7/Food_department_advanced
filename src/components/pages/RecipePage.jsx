@@ -657,12 +657,12 @@ function CheckItem({ text, checked, onChange, onTextChange, onDelete, editable }
   );
 }
 
-function BulletItem({ text, editable, onChange, onDelete, linked, linkedName, linkedStock, linkedUnit, stockIngredients, dishIngs = [], onUpdateStock, onLink, onUnlink, onCreateIngredient }) {
+function BulletItem({ text, editable, onChange, onDelete, linked, linkedName, linkedStock, linkedUnit, stockIngredients, dishIngs = [], onUpdateStock, onUpdateDishLink, onLink, onUnlink, onCreateIngredient }) {
   const [editingStock, setEditingStock] = useState(false);
   const [tempQty, setTempQty] = useState('');
   const [tempUnit, setTempUnit] = useState('');
   const popRef = useRef(null);
-  const UNITS = ['g', 'kg', 'ml', 'l', 'piece', 'pack', 'tsp', 'tbsp', 'cup', 'pinch', 'bunch', 'bulb', 'clove'];
+  const UNITS = ['g', 'kg', 'ml', 'l', 'piece', 'pack', 'tsp', 'tbsp', 'cup', 'pinch', 'bunch', 'bulb', 'clove', 'slices', 'stick'];
 
   const liveStock = linked && stockIngredients ? stockIngredients.find(s => s.id === linked) : null;
   const stockQty = liveStock ? liveStock.stock_qty : 0;
@@ -699,11 +699,19 @@ function BulletItem({ text, editable, onChange, onDelete, linked, linkedName, li
           {stockIngredients && (
             <LinkPicker stockIngredients={stockIngredients} currentId={linked} onLink={onLink} onUnlink={onUnlink} onCreate={onCreateIngredient} />
           )}
-          {linked && liveStock && (
-            <span className={'text-[9px] px-1 py-0.5 rounded font-medium shrink-0 ' +
-              (sufficient ? (runningLow ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600') : 'bg-red-50 text-red-500')}>
-              {neededQty > 0 ? `${neededQty}${recipeUnit}→` : ''}📦{stockQty}{stockUnit}
-            </span>
+          {linked && (
+            <div className="flex items-center gap-1 shrink-0">
+              <input type="number" value={neededQty || ''} min="0" step="any"
+                onChange={e => onUpdateDishLink && onUpdateDishLink(linked, parseFloat(e.target.value) || 0, recipeUnit)}
+                className="w-12 px-1 py-0.5 rounded border border-gray-200 text-xs text-center bg-white focus:border-terracotta/50 outline-none"
+                placeholder="qty" />
+              <select value={recipeUnit}
+                onChange={e => onUpdateDishLink && onUpdateDishLink(linked, neededQty, e.target.value)}
+                className="px-0.5 py-0.5 rounded border border-gray-200 text-[10px] bg-white focus:border-terracotta/50 outline-none">
+                {UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                {!UNITS.includes(recipeUnit) && recipeUnit && <option value={recipeUnit}>{recipeUnit}</option>}
+              </select>
+            </div>
           )}
           <button onClick={onDelete} className="text-gray-400 hover:text-tomato text-xs p-1 shrink-0">✕</button>
         </>
@@ -748,7 +756,7 @@ function BulletItem({ text, editable, onChange, onDelete, linked, linkedName, li
   );
 }
 
-function IngredientGroup({ group, editable, onChange, onDelete, stockIngredients, dishIngs = [], onUpdateStock, onCreateIngredient }) {
+function IngredientGroup({ group, editable, onChange, onDelete, stockIngredients, dishIngs = [], onUpdateStock, onCreateIngredient, onUpdateDishLink }) {
   const updateItem = (idx, val) => { const items = [...group.items]; items[idx] = { ...items[idx], text: val }; onChange({ ...group, items }); };
   const removeItem = (idx) => onChange({ ...group, items: group.items.filter((_, i) => i !== idx) });
   const addItem = () => onChange({ ...group, items: [...group.items, { id: uid(), text: '' }] });
@@ -771,7 +779,7 @@ function IngredientGroup({ group, editable, onChange, onDelete, stockIngredients
           <BulletItem key={item.id} text={item.text} editable={editable}
             onChange={val => updateItem(i, val)} onDelete={() => removeItem(i)}
             linked={item.ingredientId} linkedName={item.linkedName} linkedStock={item.linkedStock} linkedUnit={item.linkedUnit}
-            stockIngredients={stockIngredients} dishIngs={dishIngs} onUpdateStock={onUpdateStock} onCreateIngredient={onCreateIngredient}
+            stockIngredients={stockIngredients} dishIngs={dishIngs} onUpdateStock={onUpdateStock} onCreateIngredient={onCreateIngredient} onUpdateDishLink={onUpdateDishLink}
             onLink={(id, name, unit, stock) => linkItem(i, id, name, unit, stock)}
             onUnlink={() => unlinkItem(i)} />
         ))}
@@ -832,7 +840,7 @@ function CookingStep({ step, editable, onChange, onDelete }) {
 // MAIN RECIPE PAGE
 // ═══════════════════════════════════════════════════════════
 
-export default function RecipePage({ dish, ingredients: stockIngredients = [], dishIngs = [], onSave, onLinkIngredients, onUpdateStock, onCreateIngredient, onBack, notify }) {
+export default function RecipePage({ dish, ingredients: stockIngredients = [], dishIngs = [], onSave, onLinkIngredients, onUpdateStock, onCreateIngredient, onUpdateDishLink, onBack, notify }) {
   const empty = { visibleSections: [...DEFAULT_VISIBLE], overview: '', nutrition: [], ingredientGroups: [], preparation: [], cookingSteps: [], serve: '' };
   const [recipe, setRecipe] = useState(() => {
     const data = dish.recipe_data || empty;
@@ -986,7 +994,7 @@ export default function RecipePage({ dish, ingredients: stockIngredients = [], d
             rightSlot={editing ? <button onClick={(e) => { e.stopPropagation(); addGroup(); }} className="text-xs px-2.5 py-1 rounded-lg bg-terracotta/10 text-terracotta font-medium">+ Group</button> : null}>
             {r.ingredientGroups.length === 0 && !editing && <p className="text-sm text-gray-400 pl-4">No ingredients yet</p>}
             {r.ingredientGroups.map((g, i) => (
-              <IngredientGroup key={g.id} group={g} editable={editing} onChange={u => updateGroup(i, u)} onDelete={() => removeGroup(i)} stockIngredients={stockIngredients} dishIngs={dishIngs} onUpdateStock={onUpdateStock} onCreateIngredient={onCreateIngredient} />
+              <IngredientGroup key={g.id} group={g} editable={editing} onChange={u => updateGroup(i, u)} onDelete={() => removeGroup(i)} stockIngredients={stockIngredients} dishIngs={dishIngs} onUpdateStock={onUpdateStock} onCreateIngredient={onCreateIngredient} onUpdateDishLink={onUpdateDishLink} />
             ))}
           </Toggle>
         )}

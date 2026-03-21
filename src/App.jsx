@@ -392,6 +392,20 @@ export default function App() {
               return created;
             } catch (err) { notify('Create failed: ' + err.message); return null; }
           }}
+          onUpdateDishLink={async (ingredientId, qty, unit) => {
+            try {
+              await db.updateDishIngredientLink(recipeDish.id, ingredientId, qty, unit);
+              setDishIngs(prev => {
+                const idx = prev.findIndex(di => di.dish_id === recipeDish.id && di.ingredient_id === ingredientId);
+                if (idx >= 0) {
+                  const updated = [...prev];
+                  updated[idx] = { ...updated[idx], qty, recipe_unit: unit || null };
+                  return updated;
+                }
+                return [...prev, { dish_id: recipeDish.id, ingredient_id: ingredientId, qty, recipe_unit: unit || null }];
+              });
+            } catch (err) { notify('Update failed: ' + err.message); }
+          }}
           onBack={() => setRecipeDish(null)}
           notify={notify}
         />

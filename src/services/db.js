@@ -314,6 +314,28 @@ export async function linkDishIngredientsFromRecipe(dishId, links) {
   if (error) throw error;
 }
 
+// ─── UPDATE SINGLE DISH-INGREDIENT LINK ─────────────────
+
+export async function updateDishIngredientLink(dishId, ingredientId, qty, recipeUnit) {
+  // Try update first
+  const { data, error: updateErr } = await supabase
+    .from('food_department_dish_ingredients')
+    .update({ qty, recipe_unit: recipeUnit || null })
+    .eq('dish_id', dishId)
+    .eq('ingredient_id', ingredientId)
+    .select();
+
+  if (updateErr) throw updateErr;
+
+  // If no row existed, insert
+  if (!data || data.length === 0) {
+    const { error: insertErr } = await supabase
+      .from('food_department_dish_ingredients')
+      .insert({ dish_id: dishId, ingredient_id: ingredientId, qty, recipe_unit: recipeUnit || null });
+    if (insertErr) throw insertErr;
+  }
+}
+
 // ─── JUNCTION FETCHERS ───────────────────────────────────
 
 export async function fetchDishIngredients() {
