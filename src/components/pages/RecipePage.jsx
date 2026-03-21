@@ -642,7 +642,7 @@ function BulletItem({ text, editable, onChange, onDelete, linked, linkedName, li
   const [tempQty, setTempQty] = useState('');
   const [tempUnit, setTempUnit] = useState('');
   const popRef = useRef(null);
-  const UNITS = ['g', 'kg', 'ml', 'l', 'piece', 'tsp', 'tbsp', 'cup', 'pinch', 'bunch', 'bulb', 'clove'];
+  const UNITS = ['g', 'kg', 'ml', 'l', 'piece', 'pack', 'tsp', 'tbsp', 'cup', 'pinch', 'bunch', 'bulb', 'clove'];
 
   const liveStock = linked && stockIngredients ? stockIngredients.find(s => s.id === linked) : null;
   const stockQty = liveStock ? liveStock.stock_qty : 0;
