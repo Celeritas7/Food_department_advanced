@@ -561,9 +561,10 @@ function autoMatchIngredients(ingredientGroups, stockIngredients) {
 }
 
 // ─── Link Picker (inline search dropdown) ───
-function LinkPicker({ stockIngredients, currentId, onLink, onUnlink }) {
+function LinkPicker({ stockIngredients, currentId, onLink, onUnlink, onCreate }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState('');
+  const [creating, setCreating] = useState(false);
   const ref = useRef(null);
   useEffect(() => {
     if (!open) return;
@@ -577,6 +578,19 @@ function LinkPicker({ stockIngredients, currentId, onLink, onUnlink }) {
     s.name.toLowerCase().includes(search.toLowerCase())
   ).slice(0, 8);
 
+  const handleCreate = async () => {
+    if (!search.trim() || !onCreate) return;
+    setCreating(true);
+    try {
+      const created = await onCreate(search.trim());
+      if (created) {
+        onLink(created.id, created.name, created.unit, created.stock_qty || 0);
+        setOpen(false); setSearch('');
+      }
+    } catch (err) { console.error('Create failed:', err); }
+    setCreating(false);
+  };
+
   return (
     <div className="relative shrink-0" ref={ref}>
       <button onClick={(e) => { e.stopPropagation(); setOpen(!open); setSearch(''); }}
@@ -588,7 +602,7 @@ function LinkPicker({ stockIngredients, currentId, onLink, onUnlink }) {
       {open && (
         <div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-lg border z-30 w-56 overflow-hidden">
           <input value={search} onChange={e => setSearch(e.target.value)} autoFocus
-            placeholder="Search ingredient..."
+            placeholder="Search or type to create..."
             className="w-full px-3 py-2 text-xs border-b outline-none" />
           <div className="max-h-44 overflow-y-auto">
             {filtered.map(s => (
@@ -599,8 +613,14 @@ function LinkPicker({ stockIngredients, currentId, onLink, onUnlink }) {
                 <span className="text-gray-400">{s.stock_qty} {s.unit}</span>
               </button>
             ))}
-            {filtered.length === 0 && <p className="px-3 py-2 text-xs text-gray-400">No match</p>}
+            {filtered.length === 0 && !search.trim() && <p className="px-3 py-2 text-xs text-gray-400">No match</p>}
           </div>
+          {search.trim() && onCreate && (
+            <button onClick={handleCreate} disabled={creating}
+              className="w-full text-left px-3 py-2 text-xs text-blue-600 hover:bg-blue-50 border-t font-medium disabled:opacity-50">
+              {creating ? 'Creating...' : `+ Create "${search.trim()}"`}
+            </button>
+          )}
           {currentId && (
             <button onClick={() => { onUnlink(); setOpen(false); }}
               className="w-full text-left px-3 py-2 text-xs text-red-500 hover:bg-red-50 border-t font-medium">
@@ -637,7 +657,7 @@ function CheckItem({ text, checked, onChange, onTextChange, onDelete, editable }
   );
 }
 
-function BulletItem({ text, editable, onChange, onDelete, linked, linkedName, linkedStock, linkedUnit, stockIngredients, dishIngs = [], onUpdateStock, onLink, onUnlink }) {
+function BulletItem({ text, editable, onChange, onDelete, linked, linkedName, linkedStock, linkedUnit, stockIngredients, dishIngs = [], onUpdateStock, onLink, onUnlink, onCreateIngredient }) {
   const [editingStock, setEditingStock] = useState(false);
   const [tempQty, setTempQty] = useState('');
   const [tempUnit, setTempUnit] = useState('');
@@ -677,7 +697,7 @@ function BulletItem({ text, editable, onChange, onDelete, linked, linkedName, li
           <input value={text} onChange={e => onChange(e.target.value)}
             className="flex-1 text-base bg-white outline-none leading-normal px-2 py-1 rounded-lg border border-gray-200 focus:border-terracotta/50" placeholder="Ingredient name..." />
           {stockIngredients && (
-            <LinkPicker stockIngredients={stockIngredients} currentId={linked} onLink={onLink} onUnlink={onUnlink} />
+            <LinkPicker stockIngredients={stockIngredients} currentId={linked} onLink={onLink} onUnlink={onUnlink} onCreate={onCreateIngredient} />
           )}
           <button onClick={onDelete} className="text-gray-400 hover:text-tomato text-xs p-1 shrink-0">✕</button>
         </>
@@ -722,7 +742,7 @@ function BulletItem({ text, editable, onChange, onDelete, linked, linkedName, li
   );
 }
 
-function IngredientGroup({ group, editable, onChange, onDelete, stockIngredients, dishIngs = [], onUpdateStock }) {
+function IngredientGroup({ group, editable, onChange, onDelete, stockIngredients, dishIngs = [], onUpdateStock, onCreateIngredient }) {
   const updateItem = (idx, val) => { const items = [...group.items]; items[idx] = { ...items[idx], text: val }; onChange({ ...group, items }); };
   const removeItem = (idx) => onChange({ ...group, items: group.items.filter((_, i) => i !== idx) });
   const addItem = () => onChange({ ...group, items: [...group.items, { id: uid(), text: '' }] });
@@ -745,7 +765,7 @@ function IngredientGroup({ group, editable, onChange, onDelete, stockIngredients
           <BulletItem key={item.id} text={item.text} editable={editable}
             onChange={val => updateItem(i, val)} onDelete={() => removeItem(i)}
             linked={item.ingredientId} linkedName={item.linkedName} linkedStock={item.linkedStock} linkedUnit={item.linkedUnit}
-            stockIngredients={stockIngredients} dishIngs={dishIngs} onUpdateStock={onUpdateStock}
+            stockIngredients={stockIngredients} dishIngs={dishIngs} onUpdateStock={onUpdateStock} onCreateIngredient={onCreateIngredient}
             onLink={(id, name, unit, stock) => linkItem(i, id, name, unit, stock)}
             onUnlink={() => unlinkItem(i)} />
         ))}
@@ -806,7 +826,7 @@ function CookingStep({ step, editable, onChange, onDelete }) {
 // MAIN RECIPE PAGE
 // ═══════════════════════════════════════════════════════════
 
-export default function RecipePage({ dish, ingredients: stockIngredients = [], dishIngs = [], onSave, onLinkIngredients, onUpdateStock, onBack, notify }) {
+export default function RecipePage({ dish, ingredients: stockIngredients = [], dishIngs = [], onSave, onLinkIngredients, onUpdateStock, onCreateIngredient, onBack, notify }) {
   const empty = { visibleSections: [...DEFAULT_VISIBLE], overview: '', nutrition: [], ingredientGroups: [], preparation: [], cookingSteps: [], serve: '' };
   const [recipe, setRecipe] = useState(() => {
     const data = dish.recipe_data || empty;
@@ -960,7 +980,7 @@ export default function RecipePage({ dish, ingredients: stockIngredients = [], d
             rightSlot={editing ? <button onClick={(e) => { e.stopPropagation(); addGroup(); }} className="text-xs px-2.5 py-1 rounded-lg bg-terracotta/10 text-terracotta font-medium">+ Group</button> : null}>
             {r.ingredientGroups.length === 0 && !editing && <p className="text-sm text-gray-400 pl-4">No ingredients yet</p>}
             {r.ingredientGroups.map((g, i) => (
-              <IngredientGroup key={g.id} group={g} editable={editing} onChange={u => updateGroup(i, u)} onDelete={() => removeGroup(i)} stockIngredients={stockIngredients} dishIngs={dishIngs} onUpdateStock={onUpdateStock} />
+              <IngredientGroup key={g.id} group={g} editable={editing} onChange={u => updateGroup(i, u)} onDelete={() => removeGroup(i)} stockIngredients={stockIngredients} dishIngs={dishIngs} onUpdateStock={onUpdateStock} onCreateIngredient={onCreateIngredient} />
             ))}
           </Toggle>
         )}

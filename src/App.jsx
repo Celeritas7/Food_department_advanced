@@ -384,6 +384,14 @@ export default function App() {
               notify(`${ing.name} → ${newQty} ${newUnit || ing.unit}`, 'success');
             } catch (err) { notify('Update failed: ' + err.message); }
           }}
+          onCreateIngredient={async (name) => {
+            try {
+              const created = await db.addIngredient({ name, unit: 'g', stockQty: 0, shelfLifeDays: 30, category: '', country: '' });
+              setIngredients(prev => [...prev, created].sort((a, b) => a.name.localeCompare(b.name)));
+              notify(`Created "${created.name}"`, 'success');
+              return created;
+            } catch (err) { notify('Create failed: ' + err.message); return null; }
+          }}
           onBack={() => setRecipeDish(null)}
           notify={notify}
         />
