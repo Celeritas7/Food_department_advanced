@@ -619,11 +619,11 @@ function CheckItem({ text, checked, onChange, onTextChange, onDelete, editable }
       </button>
       {editable ? (
         <input value={text} onChange={e => onTextChange(e.target.value)}
-          className={'flex-1 text-base bg-transparent outline-none leading-normal ' + (checked ? 'line-through text-gray-400' : 'text-charcoal')} placeholder="Type here..." />
+          className={'flex-1 text-base outline-none leading-normal px-2 py-1 rounded-lg border border-gray-200 focus:border-terracotta/50 bg-white ' + (checked ? 'line-through text-gray-400' : 'text-charcoal')} placeholder="Type here..." />
       ) : (
         <span className={'flex-1 text-base leading-normal ' + (checked ? 'line-through text-gray-400' : 'text-charcoal')}>{text}</span>
       )}
-      {editable && <button onClick={onDelete} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-tomato text-xs p-1">✕</button>}
+      {editable && <button onClick={onDelete} className="text-gray-400 hover:text-tomato text-xs p-1 shrink-0">✕</button>}
     </div>
   );
 }
@@ -666,11 +666,11 @@ function BulletItem({ text, editable, onChange, onDelete, linked, linkedName, li
       {editable ? (
         <>
           <input value={text} onChange={e => onChange(e.target.value)}
-            className="flex-1 text-base bg-transparent outline-none leading-normal" placeholder="..." />
+            className="flex-1 text-base bg-white outline-none leading-normal px-2 py-1 rounded-lg border border-gray-200 focus:border-terracotta/50" placeholder="Ingredient name..." />
           {stockIngredients && (
             <LinkPicker stockIngredients={stockIngredients} currentId={linked} onLink={onLink} onUnlink={onUnlink} />
           )}
-          <button onClick={onDelete} className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-tomato text-xs p-1">✕</button>
+          <button onClick={onDelete} className="text-gray-400 hover:text-tomato text-xs p-1 shrink-0">✕</button>
         </>
       ) : (
         <>
