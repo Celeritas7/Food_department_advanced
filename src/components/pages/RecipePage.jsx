@@ -699,6 +699,12 @@ function BulletItem({ text, editable, onChange, onDelete, linked, linkedName, li
           {stockIngredients && (
             <LinkPicker stockIngredients={stockIngredients} currentId={linked} onLink={onLink} onUnlink={onUnlink} onCreate={onCreateIngredient} />
           )}
+          {linked && liveStock && (
+            <span className={'text-[9px] px-1 py-0.5 rounded font-medium shrink-0 ' +
+              (sufficient ? (runningLow ? 'bg-amber-50 text-amber-600' : 'bg-emerald-50 text-emerald-600') : 'bg-red-50 text-red-500')}>
+              {neededQty > 0 ? `${neededQty}${recipeUnit}→` : ''}📦{stockQty}{stockUnit}
+            </span>
+          )}
           <button onClick={onDelete} className="text-gray-400 hover:text-tomato text-xs p-1 shrink-0">✕</button>
         </>
       ) : (
