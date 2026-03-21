@@ -182,13 +182,21 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
   // ─── Import matching ───────────────────
   const matchToIngredients = (parsedRows) => {
     return parsedRows.map(row => {
-      const csvName = row.name.toLowerCase().trim()
-        .replace(/\(.*?\)/g, '').trim(); // strip parenthetical notes
-      let match = ingredients.find(i => i.name.toLowerCase() === row.name.toLowerCase().trim());
+      const rawName = row.name.toLowerCase().trim();
+      const csvName = rawName.replace(/\(.*?\)/g, '').trim();
+      const csvWords = csvName.split(/\s+/);
+
+      // 1. Exact full name match
+      let match = ingredients.find(i => i.name.toLowerCase() === rawName);
+      // 2. Exact match after stripping parenthetical
       if (!match) match = ingredients.find(i => i.name.toLowerCase() === csvName);
-      if (!match) match = ingredients.find(i =>
-        i.name.toLowerCase().includes(csvName) || csvName.includes(i.name.toLowerCase())
-      );
+      // 3. Whole-word match: all words of shorter name appear as whole words in longer name
+      if (!match) match = ingredients.find(i => {
+        const stockWords = i.name.toLowerCase().split(/\s+/);
+        const shorter = csvWords.length <= stockWords.length ? csvWords : stockWords;
+        const longer = csvWords.length <= stockWords.length ? stockWords : csvWords;
+        return shorter.length > 0 && shorter.every(sw => sw.length > 1 && longer.some(lw => lw === sw));
+      });
       return { ...row, matched: match || null };
     });
   };
