@@ -627,20 +627,33 @@ function CheckItem({ text, checked, onChange, onTextChange, onDelete, editable }
   );
 }
 
-function BulletItem({ text, editable, onChange, onDelete, linked, linkedName, linkedStock, linkedUnit, stockIngredients, dishIngs = [], onLink, onUnlink }) {
-  // Look up live stock data
+function BulletItem({ text, editable, onChange, onDelete, linked, linkedName, linkedStock, linkedUnit, stockIngredients, dishIngs = [], onUpdateStock, onLink, onUnlink }) {
+  const [editingStock, setEditingStock] = useState(false);
+  const [tempQty, setTempQty] = useState('');
+  const popRef = useRef(null);
+
   const liveStock = linked && stockIngredients ? stockIngredients.find(s => s.id === linked) : null;
   const stockQty = liveStock ? liveStock.stock_qty : 0;
   const stockUnit = liveStock ? liveStock.unit : (linkedUnit || '');
-
-  // Look up needed qty from dish_ingredients
   const dishLink = linked && dishIngs ? dishIngs.find(di => di.ingredient_id === linked) : null;
   const neededQty = dishLink ? dishLink.qty : 0;
-
-  // Determine stock status
   const remaining = stockQty - neededQty;
   const sufficient = stockQty >= neededQty && neededQty > 0;
-  const runningLow = sufficient && remaining < neededQty; // can cook but can't make it again after
+  const runningLow = sufficient && remaining < neededQty;
+
+  useEffect(() => {
+    if (!editingStock) return;
+    const h = (e) => { if (popRef.current && !popRef.current.contains(e.target)) setEditingStock(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, [editingStock]);
+
+  const openStockEdit = () => { setTempQty(String(stockQty)); setEditingStock(true); };
+  const saveStock = () => {
+    const val = parseFloat(tempQty);
+    if (!isNaN(val) && val >= 0 && onUpdateStock && linked) onUpdateStock(linked, val);
+    setEditingStock(false);
+  };
 
   return (
     <div className="flex items-start gap-2.5 group py-1 pl-1">
@@ -658,11 +671,32 @@ function BulletItem({ text, editable, onChange, onDelete, linked, linkedName, li
         <>
           <span className="flex-1 text-base text-charcoal leading-normal">{text}</span>
           {linked && (
-            <span className={'text-[10px] px-1.5 py-0.5 rounded-full font-medium shrink-0 ' +
-              (sufficient ? (runningLow ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700') : 'bg-red-100 text-red-600')}
-              title={`Need ${neededQty} ${stockUnit} · Have ${stockQty} ${stockUnit} · After: ${remaining >= 0 ? remaining : 0} ${stockUnit}`}>
-              📦 {stockQty} {stockUnit}
-            </span>
+            <div className="relative shrink-0" ref={popRef}>
+              <button onClick={openStockEdit}
+                className={'text-[10px] px-1.5 py-0.5 rounded-full font-medium inline-flex items-center gap-1 cursor-pointer hover:ring-2 hover:ring-offset-1 transition-all ' +
+                  (sufficient ? (runningLow ? 'bg-amber-100 text-amber-700 hover:ring-amber-300' : 'bg-emerald-100 text-emerald-700 hover:ring-emerald-300') : 'bg-red-100 text-red-600 hover:ring-red-300')}
+                title="Tap to update stock">
+                {neededQty > 0 && <span className="opacity-60">{neededQty}→</span>}
+                📦 {stockQty} {stockUnit}
+              </button>
+              {editingStock && (
+                <div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-lg border z-30 p-3 w-48">
+                  <p className="text-xs font-semibold text-charcoal mb-1.5 truncate">{liveStock?.name || linkedName}</p>
+                  <p className="text-[10px] text-warm-gray mb-2">Recipe needs {neededQty} {stockUnit}</p>
+                  <div className="flex items-center gap-2">
+                    <input type="number" value={tempQty} onChange={e => setTempQty(e.target.value)}
+                      onKeyDown={e => e.key === 'Enter' && saveStock()}
+                      autoFocus min="0" step="any"
+                      className="flex-1 px-2 py-1.5 rounded-lg border text-sm outline-none focus:border-terracotta w-20" />
+                    <span className="text-xs text-warm-gray">{stockUnit}</span>
+                  </div>
+                  <div className="flex gap-1.5 mt-2">
+                    <button onClick={() => setEditingStock(false)} className="flex-1 text-xs py-1.5 rounded-lg border text-warm-gray">Cancel</button>
+                    <button onClick={saveStock} className="flex-1 text-xs py-1.5 rounded-lg bg-terracotta text-white font-medium">Update</button>
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </>
       )}
@@ -670,7 +704,7 @@ function BulletItem({ text, editable, onChange, onDelete, linked, linkedName, li
   );
 }
 
-function IngredientGroup({ group, editable, onChange, onDelete, stockIngredients, dishIngs = [] }) {
+function IngredientGroup({ group, editable, onChange, onDelete, stockIngredients, dishIngs = [], onUpdateStock }) {
   const updateItem = (idx, val) => { const items = [...group.items]; items[idx] = { ...items[idx], text: val }; onChange({ ...group, items }); };
   const removeItem = (idx) => onChange({ ...group, items: group.items.filter((_, i) => i !== idx) });
   const addItem = () => onChange({ ...group, items: [...group.items, { id: uid(), text: '' }] });
@@ -693,7 +727,7 @@ function IngredientGroup({ group, editable, onChange, onDelete, stockIngredients
           <BulletItem key={item.id} text={item.text} editable={editable}
             onChange={val => updateItem(i, val)} onDelete={() => removeItem(i)}
             linked={item.ingredientId} linkedName={item.linkedName} linkedStock={item.linkedStock} linkedUnit={item.linkedUnit}
-            stockIngredients={stockIngredients} dishIngs={dishIngs}
+            stockIngredients={stockIngredients} dishIngs={dishIngs} onUpdateStock={onUpdateStock}
             onLink={(id, name, unit, stock) => linkItem(i, id, name, unit, stock)}
             onUnlink={() => unlinkItem(i)} />
         ))}
@@ -754,7 +788,7 @@ function CookingStep({ step, editable, onChange, onDelete }) {
 // MAIN RECIPE PAGE
 // ═══════════════════════════════════════════════════════════
 
-export default function RecipePage({ dish, ingredients: stockIngredients = [], dishIngs = [], onSave, onLinkIngredients, onBack, notify }) {
+export default function RecipePage({ dish, ingredients: stockIngredients = [], dishIngs = [], onSave, onLinkIngredients, onUpdateStock, onBack, notify }) {
   const empty = { visibleSections: [...DEFAULT_VISIBLE], overview: '', nutrition: [], ingredientGroups: [], preparation: [], cookingSteps: [], serve: '' };
   const [recipe, setRecipe] = useState(() => {
     const data = dish.recipe_data || empty;
@@ -908,7 +942,7 @@ export default function RecipePage({ dish, ingredients: stockIngredients = [], d
             rightSlot={editing ? <button onClick={(e) => { e.stopPropagation(); addGroup(); }} className="text-xs px-2.5 py-1 rounded-lg bg-terracotta/10 text-terracotta font-medium">+ Group</button> : null}>
             {r.ingredientGroups.length === 0 && !editing && <p className="text-sm text-gray-400 pl-4">No ingredients yet</p>}
             {r.ingredientGroups.map((g, i) => (
-              <IngredientGroup key={g.id} group={g} editable={editing} onChange={u => updateGroup(i, u)} onDelete={() => removeGroup(i)} stockIngredients={stockIngredients} dishIngs={dishIngs} />
+              <IngredientGroup key={g.id} group={g} editable={editing} onChange={u => updateGroup(i, u)} onDelete={() => removeGroup(i)} stockIngredients={stockIngredients} dishIngs={dishIngs} onUpdateStock={onUpdateStock} />
             ))}
           </Toggle>
         )}

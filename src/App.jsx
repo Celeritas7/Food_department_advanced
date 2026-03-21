@@ -348,8 +348,18 @@ export default function App() {
         <RecipePage
           dish={recipeDish}
           ingredients={enrichedIngredients}
+          dishIngs={dishIngs.filter(di => di.dish_id === recipeDish.id)}
           onSave={handleSaveRecipe}
           onLinkIngredients={handleLinkIngredients}
+          onUpdateStock={async (ingredientId, newQty) => {
+            try {
+              const ing = ingredients.find(i => i.id === ingredientId);
+              if (!ing) return;
+              await db.updateIngredient(ingredientId, { stockQty: newQty });
+              await loadAll();
+              notify(`${ing.name} → ${newQty} ${ing.unit}`, 'success');
+            } catch (err) { notify('Update failed: ' + err.message); }
+          }}
           onBack={() => setRecipeDish(null)}
           notify={notify}
         />
