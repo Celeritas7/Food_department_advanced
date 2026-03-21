@@ -146,10 +146,15 @@ function DishCard({ d, showRing, showStatusDropdown, showCook, onCook, onQuickSt
 
 // ─── Main Page ───
 export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatus, onDelete, onManage, onRecipe }) {
-  const [tab, setTab] = useState('planner');
-  const [countryFilter, setCountryFilter] = useState([]);
-  const [typeFilter, setTypeFilter] = useState([]);
-  const [minCompleteness, setMinCompleteness] = useState(0);
+  const [tab, setTabRaw] = useState(() => sessionStorage.getItem('fd_dishTab') || 'planner');
+  const [countryFilter, setCountryFilterRaw] = useState(() => { try { return JSON.parse(sessionStorage.getItem('fd_dishCountry')) || []; } catch { return []; } });
+  const [typeFilter, setTypeFilterRaw] = useState(() => { try { return JSON.parse(sessionStorage.getItem('fd_dishType')) || []; } catch { return []; } });
+  const [minCompleteness, setMinCompletenessRaw] = useState(() => parseInt(sessionStorage.getItem('fd_dishMin')) || 0);
+
+  const setTab = (v) => { setTabRaw(v); sessionStorage.setItem('fd_dishTab', v); };
+  const setCountryFilter = (v) => { const val = typeof v === 'function' ? v(countryFilter) : v; setCountryFilterRaw(val); sessionStorage.setItem('fd_dishCountry', JSON.stringify(val)); };
+  const setTypeFilter = (v) => { const val = typeof v === 'function' ? v(typeFilter) : v; setTypeFilterRaw(val); sessionStorage.setItem('fd_dishType', JSON.stringify(val)); };
+  const setMinCompleteness = (v) => { setMinCompletenessRaw(v); sessionStorage.setItem('fd_dishMin', String(v)); };
 
   const toggleFilter = (arr, setArr) => (val) => {
     setArr(prev => prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val]);
