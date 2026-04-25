@@ -14,6 +14,7 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { BackIcon } from '../ui/Icons';
 import ANTHROPIC_API_KEY from '../../config/anthropic.js';
+import { ALL_CATEGORIES, getCatEmoji } from '../../config/emoji.js';
 
 const uid = () => Math.random().toString(36).slice(2, 9);
 
@@ -135,13 +136,32 @@ function offlineParseNotionText(raw) {
     sectionLines[sec.key] = lines.slice(sec.start + 1, nextStart);
   });
   const detected = sections.map(s => s.key);
+  const ingredientGroups = parseIngredients(sectionLines.ingredients || []);
+  // Walk parsed items: if qty/unit are missing, try to extract them from the
+  // display text and rewrite text to a clean "Name" or "Name, note" form.
+  // Then collect a flat structuredIngredients list (same shape AI parse emits)
+  // so the existing matchedLinks → _dishLinks flow can populate dish qty/unit.
+  const structuredIngredients = [];
+  for (const g of ingredientGroups) {
+    for (const it of g.items) {
+      if (it.qty == null || !it.unit) {
+        const ex = extractQtyUnit(it.text);
+        if (ex) { it.text = ex.text; it.qty = ex.qty; it.unit = ex.unit; }
+      }
+      if (it.qty != null && it.unit) {
+        const namePart = (it.text.split(/[,;]/)[0] || '').trim().toLowerCase();
+        if (namePart) structuredIngredients.push({ name: namePart, qty: it.qty, unit: it.unit });
+      }
+    }
+  }
   return {
     overview: parseTextBlock(sectionLines.overview || []),
     nutrition: parseBulletList(sectionLines.nutrition || []),
-    ingredientGroups: parseIngredients(sectionLines.ingredients || []),
+    ingredientGroups,
     preparation: parseChecklist(sectionLines.preparation || []),
     cookingSteps: parseCookingSteps(sectionLines.cooking || []),
     serve: parseServe(sectionLines.serve || []),
+    structuredIngredients,
     _detectedSections: detected,
   };
 }
@@ -168,6 +188,18 @@ function parseIngredients(lines) {
     return parseIngredientTable(tabLines);
   }
 
+  const nonEmpty = lines.filter(l => l.trim());
+  const hasMarkup = nonEmpty.some(l => isBullet(l) || isCheckbox(l) || isHeading(l));
+
+  // ─── Smashed Notion table (rows collapsed onto one line, no tabs) ───
+  // e.g. "ItemAmountDuck (boneless)100g, sliced thinSoy Sauce1 tbspMirin1 tbsp..."
+  if (!hasMarkup && nonEmpty.length > 0) {
+    const smashed = parseSmashedIngredientLine(nonEmpty.join(' '));
+    if (smashed && smashed.length >= 2) {
+      return [{ name: 'All Ingredients', items: smashed }];
+    }
+  }
+
   // ─── Standard bullet-list format ───
   const groups = []; let cur = null;
   for (const line of lines) {
@@ -187,6 +219,99 @@ function parseIngredients(lines) {
     if (items.length) groups.push({ name: 'All Ingredients', items });
   }
   return groups;
+}
+
+// Shared unit alternation used by both the smashed-line splitter and the
+// per-item qty/unit extractor. Order matters: longer/specific forms come
+// first so e.g. "tablespoons" wins over the bare "g" alternative.
+const INGREDIENT_UNIT_RE = '(?:kilograms?|tablespoons?|teaspoons?|liters?|litres?|pieces?|packs?|slices?|cloves?|bunch(?:es)?|pinch(?:es)?|sticks?|bulbs?|sprigs?|stalks?|cans?|grams?|cups?|dashes|drops?|handful|tbsp|tsp|kgs?|mgs?|lbs?|pcs?|oz|ml|cl|kg|mg|g|L|l)';
+
+// Maps a raw unit token to a canonical form that aligns with the BulletItem
+// dropdown (which uses singular: "g", "kg", "ml", "l", "tsp", "tbsp", "cup",
+// "clove", "piece", "pack", "bunch", "pinch", "bulb", "stick"; plus "slices").
+function normalizeUnit(u) {
+  const t = String(u || '').toLowerCase().trim();
+  const map = {
+    tablespoon: 'tbsp', tablespoons: 'tbsp',
+    teaspoon: 'tsp', teaspoons: 'tsp',
+    gram: 'g', grams: 'g',
+    kilogram: 'kg', kilograms: 'kg', kgs: 'kg',
+    milligram: 'mg', milligrams: 'mg', mgs: 'mg',
+    liter: 'l', liters: 'l', litre: 'l', litres: 'l',
+    cups: 'cup', cloves: 'clove', pieces: 'piece', pcs: 'piece',
+    packs: 'pack', bunches: 'bunch', pinches: 'pinch',
+    sticks: 'stick', bulbs: 'bulb', sprigs: 'sprig', stalks: 'stalk',
+    cans: 'can', lbs: 'lb', slice: 'slices',
+  };
+  return map[t] || t;
+}
+
+// Pulls qty + unit out of a single ingredient display text and returns a
+// rewritten clean text (just the name, plus any post-comma note), along with
+// numeric qty and canonical unit. Cases handled:
+//   "Soy Sauce 1tbsp"        → name "Soy Sauce", qty 1, unit "tbsp"
+//   "Ginger 1tsp, grated"    → name "Ginger", qty 1, unit "tsp", note "grated"
+//   "1 clove, minced"        → name "" (qty-led),  qty 1, unit "clove", note "minced"
+//   "1 cup rice"             → name "rice"        (no comma → trailing is name)
+// Skips cleanly (returns null) for fractions, no quantity, or ambiguous text.
+function extractQtyUnit(text) {
+  if (!text) return null;
+  // Reject fraction characters per spec — these need manual entry.
+  if (/[½¼¾⅓⅔⅛⅜⅝⅞]/.test(text)) return null;
+  const re = new RegExp(`^(.*?)\\s*(\\d+(?:\\.\\d+)?(?:\\s*-\\s*\\d+(?:\\.\\d+)?)?)\\s*(${INGREDIENT_UNIT_RE})(?=\\b|$|[,;])(.*)$`, 'i');
+  const m = text.match(re);
+  if (!m) return null;
+  let name = m[1].trim().replace(/[,;:\s-]+$/, '');
+  const qtyNum = parseFloat(m[2]);
+  if (!isFinite(qtyNum)) return null;
+  const unit = normalizeUnit(m[3]);
+  let trailing = (m[4] || '').trim();
+  const trailingIsNote = /^[,;:.\-–—]/.test(trailing);
+  trailing = trailing.replace(/^[\s,;:.\-–—]+/, '').trim();
+  let note = '';
+  if (trailingIsNote) {
+    note = trailing;
+  } else if (!name && trailing) {
+    name = trailing;
+  } else if (trailing) {
+    note = trailing;
+  }
+  if (!name && !note) return null; // ambiguous: just a bare "1 cup" with nothing else
+  const cleanText = note && name ? `${name}, ${note}` : (name || note);
+  return { text: cleanText, qty: qtyNum, unit };
+}
+
+// Splits a Notion-table-style ingredient line where rows have been smashed
+// together with no separator: "ItemAmountDuck (boneless)100g, sliced thinSoy
+// Sauce1 tbspMirin1 tbsp...". Detects entries by anchoring on a quantity +
+// unit, and treats the text between matches as trailing notes for the prior
+// ingredient. Returns null if fewer than 2 entries are confidently found.
+function parseSmashedIngredientLine(line) {
+  const stripped = line.replace(/^\s*(?:item|ingredient|name)s?\s*amounts?\s*/i, '').trim();
+  if (!stripped) return null;
+  const re = new RegExp(`([A-Z][^\\d]*?)\\s*(\\d+(?:[.,/]\\d+)?(?:\\s*-\\s*\\d+(?:[.,/]\\d+)?)?)\\s*(${INGREDIENT_UNIT_RE})(?=\\b|[A-Z]|$)`, 'g');
+  const matches = [];
+  let m;
+  while ((m = re.exec(stripped)) !== null) {
+    matches.push({ start: m.index, end: re.lastIndex, name: m[1].trim().replace(/^[,;:\s-]+/, ''), qty: m[2].replace(/,/g, '.'), unit: m[3] });
+  }
+  if (matches.length < 2) return null;
+  const items = [];
+  for (let i = 0; i < matches.length; i++) {
+    const cur = matches[i];
+    const next = matches[i + 1];
+    const noteRaw = stripped.slice(cur.end, next ? next.start : stripped.length);
+    const notes = noteRaw.replace(/^[\s,;:-]+/, '').replace(/[\s,;:-]+$/, '').trim();
+    const cleanName = cur.name.trim();
+    const cleanText = notes && cleanName ? `${cleanName}, ${notes}` : (cleanName || notes);
+    const qtyNum = parseFloat(cur.qty);
+    items.push({
+      text: cleanText,
+      qty: isFinite(qtyNum) ? qtyNum : null,
+      unit: normalizeUnit(cur.unit),
+    });
+  }
+  return items;
 }
 
 // ─── Parse Notion database table (tab-separated) ───
@@ -234,21 +359,53 @@ function parseIngredientTable(tabLines) {
 }
 
 function parseChecklist(lines) {
-  return lines.filter(l => l.trim() && (isBullet(l) || isCheckbox(l))).map(l => ({ text: cleanLine(l) })).filter(i => i.text);
+  const bullets = lines.filter(l => l.trim() && (isBullet(l) || isCheckbox(l)));
+  if (bullets.length > 0) return bullets.map(l => ({ text: cleanLine(l) })).filter(i => i.text);
+  // No bullet markers detected — treat each non-empty paragraph line as a prep item.
+  return lines.filter(l => l.trim()).map(l => ({ text: cleanLine(l) })).filter(i => i.text);
 }
 
 function parseCookingSteps(lines) {
   const steps = []; let cur = null; let inPrec = false;
+  // Step heading: "## Step …", "Step 1 — Title", "Step 2 - Title", "Step 3: …", or "▾ …".
+  const stepHeadingRe = /^\s*(?:#{1,3}\s*)?(?:▾\s*)?step\s*\d+\b/i;
+  // Standalone "Precautions" header (still toggles section mode for following bullets/paragraphs).
+  const precHeadingRe = /^(?:#{2,}\s*|\*\*\s*)?(?:⚠️?\s*)?precaution/i;
+  // Inline precaution paragraph (⚠️ ...) — promoted regardless of section toggle.
+  const precParaRe = /^\s*(?:⚠️?|\*\*\s*⚠️?)/;
+
   for (const line of lines) {
     const t = line.trim(); if (!t) continue;
-    if (/precaution/i.test(t) && (/^#{2,}/.test(t) || /^⚠/.test(t) || /^\*\*⚠/.test(t) || /^\**precaution/i.test(t))) { inPrec = true; continue; }
-    if ((isHeading(line) || (/^(?:step\s*\d|▾)/i.test(t) && !isBullet(line))) && !/precaution/i.test(t)) {
-      inPrec = false; if (cur) steps.push(cur);
-      cur = { name: cleanLine(line), items: [], precautions: [] }; continue;
+
+    // "Precautions" section header — toggle on, don't consume line as content.
+    if (precHeadingRe.test(t) && !stepHeadingRe.test(t)) { inPrec = true; continue; }
+
+    // Step heading
+    if ((isHeading(line) || stepHeadingRe.test(t)) && !/precaution/i.test(t)) {
+      if (cur) steps.push(cur);
+      cur = { name: cleanLine(line), items: [], precautions: [] };
+      inPrec = false;
+      continue;
     }
+
+    if (!cur) cur = { name: 'Step 1', items: [], precautions: [] };
+
+    // Inline ⚠️ paragraph → precaution on current step
+    if (precParaRe.test(t)) {
+      const text = cleanLine(line); if (text) cur.precautions.push({ text });
+      continue;
+    }
+
+    // Bullets / checkboxes
     if (isBullet(line) || isCheckbox(line)) {
       const text = cleanLine(line); if (!text) continue;
-      if (!cur) cur = { name: 'Step 1', items: [], precautions: [] };
+      if (inPrec) cur.precautions.push({ text }); else cur.items.push({ text });
+      continue;
+    }
+
+    // Plain paragraph text under a step → step item (or precaution if in prec section)
+    const text = cleanLine(line);
+    if (text) {
       if (inPrec) cur.precautions.push({ text }); else cur.items.push({ text });
     }
   }
@@ -291,19 +448,79 @@ Rules:
 - preparation = prep tasks before cooking. cookingSteps = named stages with items + precautions.
 - serve = plating/garnish text. Empty sections = [] or "".
 - Parse faithfully. Precautions marked by ⚠️ or warning phrases.
-- structuredIngredients: extract EVERY ingredient across all groups into a flat list with normalized name (lowercase, singular, no qty/unit in name), numeric qty, and unit. This powers stock tracking. Include even small items like salt, oil, spices. If qty is unspecified, use 1. If unit is unclear, use "piece".`;
+- structuredIngredients: extract EVERY ingredient across all groups into a flat list with normalized name (lowercase, singular, no qty/unit in name), numeric qty, and unit. This powers stock tracking. Include even small items like salt, oil, spices. If qty is unspecified, use 1. If unit is unclear, use "piece".
+
+Notion paste quirks to handle robustly:
+- Ingredient tables sometimes paste as one big run with no separators, e.g. "ItemAmountDuck (boneless)100g, sliced thinSoy Sauce1 tbspMirin1 tbsp...". Split by detecting quantity+unit boundaries; the text before the digits is the ingredient name, the text after the unit until the next ingredient is a note (place it in ingredientGroups items.text only if it's a real prep note like "sliced thin"; never put qty/unit in items.text — those go in structuredIngredients only).
+- Step headings often look like "Step 1 — Title", "Step 2 - Title", or "Step 3: Title" rather than markdown ##. Treat each as a new entry in cookingSteps with that title as "name".
+- Step bodies are often plain paragraph text, not bullet points — each paragraph or sentence under a Step heading is a step item (cookingSteps[i].items).
+- A paragraph that begins with ⚠️ under a step belongs in cookingSteps[i].precautions for that step, not items.`;
 
 
 // ═══════════════════════════════════════════════════════════
 // IMPORT MODAL
 // ═══════════════════════════════════════════════════════════
 
-function ImportModal({ onImport, onClose, notify, stockIngredients = [] }) {
+// Keyword → category heuristic for newly-created ingredients during recipe import.
+// Order matters: more specific keywords come first so e.g. "egg noodles" hits Noodles.
+const CATEGORY_HINTS = [
+  { cat: 'Noodles', words: ['noodle', 'ramen', 'udon', 'soba', 'vermicelli', 'pasta', 'spaghetti', 'macaroni'] },
+  { cat: 'Seafood', words: ['fish', 'salmon', 'tuna', 'shrimp', 'prawn', 'crab', 'squid', 'octopus', 'anchovy', 'cod', 'mackerel', 'oyster', 'mussel', 'clam', 'scallop', 'lobster'] },
+  { cat: 'Meat', words: ['chicken', 'beef', 'pork', 'lamb', 'mutton', 'bacon', 'ham', 'sausage', 'mince', 'turkey', 'duck'] },
+  { cat: 'Egg', words: ['egg'] },
+  { cat: 'Dairy', words: ['milk', 'cream', 'butter', 'yogurt', 'yoghurt', 'cheese', 'paneer', 'ghee', 'curd'] },
+  { cat: 'Tofu', words: ['tofu'] },
+  { cat: 'Mushroom', words: ['mushroom', 'shiitake', 'enoki', 'oyster mushroom', 'porcini'] },
+  { cat: 'Herbs', words: ['basil', 'mint', 'cilantro', 'coriander leaves', 'parsley', 'thyme', 'rosemary', 'oregano', 'dill', 'sage', 'chives', 'lemongrass'] },
+  { cat: 'Spices', words: ['salt', 'pepper', 'cumin', 'turmeric', 'paprika', 'chili powder', 'chilli powder', 'cinnamon', 'clove', 'cardamom', 'nutmeg', 'mustard seed', 'fennel', 'star anise', 'bay leaf', 'curry powder', 'masala', 'garam'] },
+  { cat: 'Oil', words: ['oil', 'olive oil', 'sesame oil', 'ghee'] },
+  { cat: 'Sauces', words: ['sauce', 'ketchup', 'mayonnaise', 'mayo', 'soy sauce', 'fish sauce', 'oyster sauce', 'hoisin', 'sriracha', 'vinegar', 'mirin'] },
+  { cat: 'Flour', words: ['flour', 'cornstarch', 'corn starch', 'starch', 'semolina', 'besan'] },
+  { cat: 'Carbs', words: ['rice', 'bread', 'tortilla', 'roti', 'naan', 'oats', 'quinoa', 'couscous'] },
+  { cat: 'Nuts', words: ['almond', 'walnut', 'cashew', 'peanut', 'pistachio', 'pecan', 'hazelnut', 'pine nut', 'sesame seed'] },
+  { cat: 'Fruits', words: ['apple', 'banana', 'berry', 'strawberry', 'blueberry', 'lemon', 'lime', 'orange', 'mango', 'pineapple', 'grape', 'peach', 'pear', 'kiwi', 'watermelon', 'papaya', 'cherry', 'raisin'] },
+  { cat: 'Vegetables', words: ['tomato', 'onion', 'garlic', 'ginger', 'spinach', 'lettuce', 'carrot', 'cabbage', 'broccoli', 'cauliflower', 'potato', 'bell pepper', 'capsicum', 'cucumber', 'zucchini', 'eggplant', 'aubergine', 'pumpkin', 'corn', 'pea', 'bean', 'celery', 'leek', 'scallion', 'spring onion', 'green onion', 'radish', 'beet', 'kale', 'chard', 'asparagus', 'okra', 'chili', 'chilli', 'pepper'] },
+  { cat: 'Drinks', words: ['water', 'juice', 'tea', 'coffee', 'wine', 'beer', 'broth', 'stock'] },
+  { cat: 'Cake ingredient', words: ['sugar', 'baking powder', 'baking soda', 'yeast', 'vanilla', 'cocoa', 'chocolate'] },
+  { cat: 'Frozen', words: ['frozen'] },
+  { cat: 'Condiments', words: ['pickle', 'jam', 'honey', 'syrup'] },
+];
+
+function suggestCategory(name) {
+  if (!name) return '';
+  const n = name.toLowerCase();
+  for (const { cat, words } of CATEGORY_HINTS) {
+    if (words.some(w => n.includes(w))) return ALL_CATEGORIES.includes(cat) ? cat : '';
+  }
+  return '';
+}
+
+function suggestShelfLife(category) {
+  switch (category) {
+    case 'Spices': case 'Flour': case 'Carbs': case 'Oil': case 'Sauces':
+    case 'Nuts': case 'Noodles': case 'Cake ingredient': case 'Condiments':
+    case 'Drinks':
+      return 365;
+    case 'Frozen': return 90;
+    case 'Dairy': case 'Egg': case 'Tofu': return 14;
+    case 'Meat': case 'Seafood': case 'Mushroom': case 'Herbs':
+    case 'Vegetables': case 'Fruits':
+      return 7;
+    default: return 7;
+  }
+}
+
+const STOCK_UNITS = ['g', 'kg', 'ml', 'L', 'pieces', 'cups'];
+
+function ImportModal({ onImport, onClose, notify, stockIngredients = [], onBatchCreateIngredients }) {
   const [text, setText] = useState('');
   const [parsing, setParsing] = useState(false);
   const [preview, setPreview] = useState(null);
   const [parseMethod, setParseMethod] = useState(null);
   const [apiError, setApiError] = useState(null);
+  const [step, setStep] = useState('preview'); // 'preview' | 'create-missing'
+  const [missingRows, setMissingRows] = useState([]);
+  const [creating, setCreating] = useState(false);
   const apiKey = ANTHROPIC_API_KEY;
   const hasKey = apiKey && apiKey !== 'YOUR_ANTHROPIC_API_KEY';
 
@@ -366,17 +583,14 @@ function ImportModal({ onImport, onClose, notify, stockIngredients = [] }) {
       })
     : [];
 
-  const handleApply = () => {
-    if (!preview) return;
-    const detected = preview._detectedSections || [];
+  const buildPayload = (extraLinks = []) => {
     const autoVisible = [...DEFAULT_VISIBLE];
     if (preview.overview && !autoVisible.includes('overview')) autoVisible.unshift('overview');
     if ((preview.nutrition || []).length > 0 && !autoVisible.includes('nutrition')) {
       const idx = autoVisible.indexOf('ingredients');
       autoVisible.splice(idx >= 0 ? idx : 1, 0, 'nutrition');
     }
-
-    const withIds = {
+    return {
       visibleSections: autoVisible,
       overview: preview.overview || '',
       nutrition: (preview.nutrition || []).map(n => ({ id: uid(), text: n.text || '' })),
@@ -384,11 +598,76 @@ function ImportModal({ onImport, onClose, notify, stockIngredients = [] }) {
       preparation: (preview.preparation || []).map(p => ({ id: uid(), text: p.text || '', checked: false })),
       cookingSteps: (preview.cookingSteps || []).map(s => ({ id: uid(), name: s.name || '', items: (s.items || []).map(it => ({ id: uid(), text: it.text || '', checked: false })), precautions: (s.precautions || []).map(p => ({ id: uid(), text: p.text || '' })) })),
       serve: preview.serve || '',
-      // Pass matched dish-ingredient links (only matched ones)
-      _dishLinks: matchedLinks.filter(l => !l.unmatched).map(l => ({ ingredientId: l.ingredientId, qty: l.qty, unit: l.recipeUnit || null })),
+      _dishLinks: [
+        ...matchedLinks.filter(l => !l.unmatched).map(l => ({ ingredientId: l.ingredientId, qty: l.qty, unit: l.recipeUnit || null })),
+        ...extraLinks,
+      ],
     };
-    onImport(withIds); onClose();
   };
+
+  const unmatchedLinks = matchedLinks.filter(l => l.unmatched);
+
+  const handleApply = () => {
+    if (!preview) return;
+    // If AI parse left some structuredIngredients unmatched and the host wired
+    // batch-create, route the user through the "create missing" step first.
+    if (parseMethod === 'ai' && unmatchedLinks.length > 0 && onBatchCreateIngredients) {
+      const rows = unmatchedLinks.map(l => {
+        const cat = suggestCategory(l.name);
+        return {
+          name: l.name,
+          recipeQty: l.qty,
+          recipeUnit: l.recipeUnit || '',
+          category: cat,
+          unit: l.recipeUnit && STOCK_UNITS.includes(l.recipeUnit) ? l.recipeUnit : 'g',
+          shelfLifeDays: suggestShelfLife(cat),
+          skip: false,
+        };
+      });
+      setMissingRows(rows);
+      setStep('create-missing');
+      return;
+    }
+    onImport(buildPayload()); onClose();
+  };
+
+  const handleConfirmCreate = async () => {
+    if (!preview || !onBatchCreateIngredients) return;
+    const toCreate = missingRows.filter(r => !r.skip && r.name.trim());
+    setCreating(true);
+    try {
+      let extraLinks = [];
+      if (toCreate.length > 0) {
+        const created = await onBatchCreateIngredients(toCreate.map(r => ({
+          name: r.name.trim(), unit: r.unit, category: r.category, shelfLifeDays: parseInt(r.shelfLifeDays) || 7,
+        })));
+        // Map created rows back to recipe links by name (case-insensitive)
+        const byName = new Map((created || []).map(c => [c.name.trim().toLowerCase(), c]));
+        extraLinks = toCreate.map(r => {
+          const c = byName.get(r.name.trim().toLowerCase());
+          if (!c) return null;
+          return { ingredientId: c.id, qty: r.recipeQty || 1, unit: r.recipeUnit || null };
+        }).filter(Boolean);
+        notify(`Created ${extraLinks.length} ingredient${extraLinks.length === 1 ? '' : 's'}.`, 'success');
+      }
+      onImport(buildPayload(extraLinks));
+      onClose();
+    } catch (err) {
+      notify('Create failed: ' + err.message);
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const updateMissing = (idx, patch) => setMissingRows(prev => {
+    const next = [...prev];
+    next[idx] = { ...next[idx], ...patch };
+    // If category changes and shelf life still matches the old suggestion, refresh suggestion
+    if (patch.category !== undefined && next[idx].shelfLifeDays === suggestShelfLife(prev[idx].category)) {
+      next[idx].shelfLifeDays = suggestShelfLife(patch.category);
+    }
+    return next;
+  });
 
   const matchedCount = matchedLinks.filter(l => !l.unmatched).length;
   const totalStructured = preview?.structuredIngredients?.length || 0;
@@ -410,6 +689,7 @@ function ImportModal({ onImport, onClose, notify, stockIngredients = [] }) {
           <button onClick={onClose} className="p-2 rounded-lg text-warm-gray hover:bg-light-gray/20 text-lg">✕</button>
         </div>
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+          {step === 'preview' && (<>
           <div className="bg-blue-50 rounded-xl p-3 text-xs text-blue-800 space-y-1">
             <p className="font-semibold">Copy from Notion → Select all (Ctrl+A) → Copy (Ctrl+C) → Paste below</p>
           </div>
@@ -479,7 +759,97 @@ function ImportModal({ onImport, onClose, notify, stockIngredients = [] }) {
                 <pre className="px-4 py-3 text-[10px] text-gray-600 overflow-x-auto max-h-48">{JSON.stringify(preview, null, 2)}</pre></details>
               <div className="flex gap-2">
                 <button onClick={() => { setPreview(null); setParseMethod(null); }} className="flex-1 py-2.5 rounded-xl border text-sm text-warm-gray font-medium hover:bg-cream">← Re-parse</button>
-                <button onClick={handleApply} className="flex-1 py-2.5 rounded-xl bg-terracotta text-white text-sm font-semibold">✅ Apply to Recipe</button>
+                <button onClick={handleApply} className="flex-1 py-2.5 rounded-xl bg-terracotta text-white text-sm font-semibold">
+                  {parseMethod === 'ai' && unmatchedLinks.length > 0 && onBatchCreateIngredients
+                    ? `→ Review ${unmatchedLinks.length} missing`
+                    : '✅ Apply to Recipe'}
+                </button>
+              </div>
+            </div>
+          )}
+          </>)}
+
+          {step === 'create-missing' && preview && (
+            <div className="space-y-3">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                <p className="font-semibold text-sm text-amber-800 mb-1">📦 Create missing ingredients</p>
+                <p className="text-xs text-amber-700">
+                  These ingredients aren't in your stock yet. Review category, unit, and shelf life,
+                  then create them all at once. Skipped rows won't be linked to the dish.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                {missingRows.map((row, i) => (
+                  <div key={i} className={'rounded-xl border p-3 ' + (row.skip ? 'bg-gray-50 border-gray-200 opacity-60' : 'bg-white border-light-gray')}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <input
+                        value={row.name}
+                        onChange={e => updateMissing(i, { name: e.target.value })}
+                        disabled={row.skip}
+                        className="flex-1 px-3 py-1.5 rounded-lg border text-sm font-medium text-charcoal focus:border-terracotta/50 outline-none disabled:bg-transparent" />
+                      <span className="text-xs text-warm-gray shrink-0">
+                        {row.recipeQty} {row.recipeUnit}
+                      </span>
+                      <label className="flex items-center gap-1 text-xs text-warm-gray shrink-0 cursor-pointer">
+                        <input type="checkbox" checked={row.skip} onChange={e => updateMissing(i, { skip: e.target.checked })} />
+                        Skip
+                      </label>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div>
+                        <label className="block text-[10px] font-medium text-warm-gray mb-0.5">Category</label>
+                        <select
+                          value={row.category}
+                          onChange={e => updateMissing(i, { category: e.target.value })}
+                          disabled={row.skip}
+                          className="w-full px-2 py-1.5 rounded-lg border text-xs focus:border-terracotta/50 outline-none disabled:bg-transparent">
+                          <option value="">—</option>
+                          {ALL_CATEGORIES.map(c => (
+                            <option key={c} value={c}>{getCatEmoji(c)} {c}</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-medium text-warm-gray mb-0.5">Stock Unit</label>
+                        <select
+                          value={row.unit}
+                          onChange={e => updateMissing(i, { unit: e.target.value })}
+                          disabled={row.skip}
+                          className="w-full px-2 py-1.5 rounded-lg border text-xs focus:border-terracotta/50 outline-none disabled:bg-transparent">
+                          {STOCK_UNITS.map(u => <option key={u} value={u}>{u}</option>)}
+                          {!STOCK_UNITS.includes(row.unit) && row.unit && <option value={row.unit}>{row.unit}</option>}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-medium text-warm-gray mb-0.5">Shelf Life (days)</label>
+                        <input
+                          type="number" min="1"
+                          value={row.shelfLifeDays}
+                          onChange={e => updateMissing(i, { shelfLifeDays: e.target.value })}
+                          onFocus={e => e.target.select()}
+                          disabled={row.skip}
+                          className="w-full px-2 py-1.5 rounded-lg border text-xs focus:border-terracotta/50 outline-none disabled:bg-transparent" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex gap-2 pt-1">
+                <button
+                  onClick={() => setStep('preview')}
+                  disabled={creating}
+                  className="flex-1 py-2.5 rounded-xl border text-sm text-warm-gray font-medium hover:bg-cream disabled:opacity-50">
+                  ← Back
+                </button>
+                <button
+                  onClick={handleConfirmCreate}
+                  disabled={creating}
+                  className="flex-1 py-2.5 rounded-xl bg-terracotta text-white text-sm font-semibold disabled:opacity-50 flex items-center justify-center gap-2">
+                  {creating ? (<><span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" /> Creating...</>)
+                    : `✅ Create ${missingRows.filter(r => !r.skip).length} & Apply`}
+                </button>
               </div>
             </div>
           )}
@@ -840,7 +1210,7 @@ function CookingStep({ step, editable, onChange, onDelete }) {
 // MAIN RECIPE PAGE
 // ═══════════════════════════════════════════════════════════
 
-export default function RecipePage({ dish, ingredients: stockIngredients = [], dishIngs = [], onSave, onLinkIngredients, onUpdateStock, onCreateIngredient, onUpdateDishLink, onBack, notify }) {
+export default function RecipePage({ dish, ingredients: stockIngredients = [], dishIngs = [], onSave, onLinkIngredients, onUpdateStock, onCreateIngredient, onBatchCreateIngredients, onUpdateDishLink, onBack, notify }) {
   const empty = { visibleSections: [...DEFAULT_VISIBLE], overview: '', nutrition: [], ingredientGroups: [], preparation: [], cookingSteps: [], serve: '' };
   const [recipe, setRecipe] = useState(() => {
     const data = dish.recipe_data || empty;
@@ -1051,7 +1421,7 @@ export default function RecipePage({ dish, ingredients: stockIngredients = [], d
         )}
       </main>
 
-      {showImport && <ImportModal onImport={handleImport} onClose={() => setShowImport(false)} notify={notify} stockIngredients={stockIngredients} />}
+      {showImport && <ImportModal onImport={handleImport} onClose={() => setShowImport(false)} notify={notify} stockIngredients={stockIngredients} onBatchCreateIngredients={onBatchCreateIngredients} />}
     </div>
   );
 }

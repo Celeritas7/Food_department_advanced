@@ -507,6 +507,32 @@ export async function updateDishTypesByIds(ids, newType) {
 
 // ─── EXPORT / IMPORT (continued) ─────────────────────────
 
+// Batch-create ingredients during recipe import. Accepts the camelCase
+// shape used elsewhere in this file (shelfLifeDays/stockQty) and returns
+// the inserted rows so callers can map ids back to the recipe links.
+export async function batchCreateIngredients(rows) {
+  if (!rows || !rows.length) return [];
+  const now = new Date().toISOString();
+  const mapped = rows
+    .filter(r => r?.name && r.name.trim())
+    .map(r => ({
+      name: r.name.trim(),
+      unit: r.unit || 'g',
+      stock_qty: r.stockQty || 0,
+      shelf_life_days: r.shelfLifeDays || 7,
+      category: r.category || '',
+      country: r.country || '',
+      last_updated: now,
+    }));
+  if (!mapped.length) return [];
+  const { data, error } = await supabase
+    .from('food_department_ingredients')
+    .insert(mapped)
+    .select();
+  if (error) throw error;
+  return data;
+}
+
 export async function bulkInsertIngredients(rows) {
   // rows: array of { name, unit, stock_qty, shelf_life_days, category, country }
   const now = new Date().toISOString();

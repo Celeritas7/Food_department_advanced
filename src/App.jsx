@@ -392,6 +392,13 @@ export default function App() {
               return created;
             } catch (err) { notify('Create failed: ' + err.message); return null; }
           }}
+          onBatchCreateIngredients={async (rows) => {
+            const created = await db.batchCreateIngredients(rows);
+            if (created?.length) {
+              setIngredients(prev => [...prev, ...created].sort((a, b) => a.name.localeCompare(b.name)));
+            }
+            return created;
+          }}
           onUpdateDishLink={async (ingredientId, qty, unit) => {
             try {
               await db.updateDishIngredientLink(recipeDish.id, ingredientId, qty, unit);
