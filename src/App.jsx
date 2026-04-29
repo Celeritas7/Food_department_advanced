@@ -475,7 +475,6 @@ export default function App() {
           onEdit={(d) => setModal({ type: 'editDish', data: d })}
           onCook={(d) => handleCookDish(d)}
           onQuickStatus={handleQuickStatus}
-          onDelete={handleDeleteDish}
           onManage={() => setModal({ type: 'manageDishes' })}
           onRecipe={(d) => setRecipeDish(d)}  /* ▶ NEW */
         />
@@ -570,6 +569,14 @@ export default function App() {
       </Modal>
       <Modal open={modal.type === 'editDish'} onClose={() => setModal({})} title="Edit Dish">
         {modal.data && <DishForm initial={getDishFormData(modal.data)} ingredients={enrichedIngredients} intermediates={enrichedIntermediates} onSave={handleEditDish} onCancel={() => setModal({})}
+          onDelete={async (d) => {
+            try {
+              await db.deleteDish(d.id);
+              await loadAll();
+              notify(`Deleted ${d.name}`, 'warn');
+              setModal({});
+            } catch (err) { notify('Failed: ' + err.message); }
+          }}
           onCreateIngredient={async (data) => { const created = await db.addIngredient(data); setIngredients(prev => [...prev, created].sort((a,b) => a.name.localeCompare(b.name))); return created; }} />}
       </Modal>
 

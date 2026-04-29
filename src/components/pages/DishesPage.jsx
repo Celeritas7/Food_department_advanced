@@ -6,7 +6,7 @@
  *   📋 All (everything)
  */
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { DishIcon, PlusIcon, EditIcon, DelIcon } from '../ui/Icons';
+import { DishIcon, PlusIcon, EditIcon } from '../ui/Icons';
 import { PriorityBadge } from '../ui/Badges';
 import FilterBar from '../ui/FilterBar';
 import { getDishTypeEmoji, getCountryFlag } from '../../config/emoji.js';
@@ -38,7 +38,7 @@ function CompletenessRing({ percent, size = 40, stroke = 4 }) {
 }
 
 // ─── Dish Card (shared across tabs) ───
-function DishCard({ d, showRing, showStatusDropdown, showCook, onCook, onQuickStatus, onEdit, onDelete, onRecipe }) {
+function DishCard({ d, showRing, showStatusDropdown, showCook, onCook, onQuickStatus, onEdit, onRecipe }) {
   const [dropOpen, setDropOpen] = useState(false);
   const dropRef = useRef(null);
   const av = d._availability || {};
@@ -145,14 +145,13 @@ function DishCard({ d, showRing, showStatusDropdown, showCook, onCook, onQuickSt
           </svg>
         </button>
         <button onClick={() => onEdit(d)} className="p-1.5 rounded text-warm-gray hover:bg-light-gray/20"><EditIcon /></button>
-        <button onClick={() => onDelete(d)} className="p-1.5 rounded text-warm-gray hover:text-tomato"><DelIcon /></button>
       </div>
     </div>
   );
 }
 
 // ─── Main Page ───
-export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatus, onDelete, onManage, onRecipe }) {
+export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatus, onManage, onRecipe }) {
   const [tab, setTabRaw] = useState(() => sessionStorage.getItem('fd_dishTab') || 'planner');
   const [countryFilter, setCountryFilterRaw] = useState(() => { try { return JSON.parse(sessionStorage.getItem('fd_dishCountry')) || []; } catch { return []; } });
   const [typeFilter, setTypeFilterRaw] = useState(() => { try { return JSON.parse(sessionStorage.getItem('fd_dishType')) || []; } catch { return []; } });
@@ -333,7 +332,6 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
                 onCook={onCook}
                 onQuickStatus={onQuickStatus}
                 onEdit={onEdit}
-                onDelete={onDelete}
                 onRecipe={onRecipe}  /* ▶ NEW */
               />
             ))}

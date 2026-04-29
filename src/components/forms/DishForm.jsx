@@ -147,7 +147,7 @@ function parseInput(text) {
 
 // ─── Component ──────────────────────────────────────────
 
-export default function DishForm({ initial, ingredients, intermediates, onSave, onCancel, onCreateIngredient }) {
+export default function DishForm({ initial, ingredients, intermediates, onSave, onCancel, onDelete, onCreateIngredient }) {
   const [name, setName] = useState(initial?.name || '');
   const [status, setStatus] = useState(initial?.status || 'Not planned');
   const [priority, setPriority] = useState(initial?.priority || 3);
@@ -159,6 +159,8 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
   const [importMode, setImportMode] = useState(null); // null | 'input' | 'preview'
   const [importText, setImportText] = useState('');
   const [importResult, setImportResult] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const fileRef = useRef(null);
 
   const addInt = () => {
@@ -529,7 +531,49 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
           <button type="button" onClick={onCancel} className="flex-1 py-2 rounded-lg border">Cancel</button>
           <button type="submit" className="flex-1 py-2 rounded-lg bg-terracotta text-white">{initial ? 'Update' : 'Add'}</button>
         </div>
+
+        {initial && onDelete && (
+          <div className="pt-4 border-t border-red-100">
+            <button
+              type="button"
+              onClick={() => setShowDeleteConfirm(true)}
+              className="w-full py-2 rounded-lg border-2 border-red-300 text-red-600 font-medium hover:bg-red-50">
+              🗑️ Delete Dish
+            </button>
+          </div>
+        )}
       </form>
+
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => !deleting && setShowDeleteConfirm(false)}>
+          <div className="bg-white rounded-xl max-w-sm w-full p-5 shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="font-semibold text-lg text-charcoal mb-2">Delete {initial?.name}?</h3>
+            <p className="text-sm text-warm-gray mb-5">
+              This will permanently remove the dish and all its recipe data. This cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deleting}
+                className="flex-1 py-2 rounded-lg border font-medium disabled:opacity-50">
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={async () => {
+                  setDeleting(true);
+                  try { await onDelete(initial); }
+                  catch { setDeleting(false); setShowDeleteConfirm(false); }
+                }}
+                className="flex-1 py-2 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 disabled:opacity-60">
+                {deleting ? 'Deleting…' : 'Delete permanently'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showIngPicker && (
         <IngredientPicker
