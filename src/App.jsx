@@ -4,9 +4,12 @@
  */
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import * as db from './services/db.js';
+import supabase from './config/supabase.js';
 import { computeSpoilage } from './engines/spoilage.js';
 import { checkDishAvailability, checkIntermediateAvailability } from './engines/availability.js';
 import { aggregateRequirements } from './engines/quantity.js';
+import { computePriorityPropagation } from './engines/priorityPropagation.js';
+import { runAtomicCook, runAtomicPrepare, runAtomicBuy } from './engines/storageAtomicity.js';
 
 // UI Components
 import Toast from './components/ui/Toast';
@@ -98,9 +101,24 @@ export default function App() {
   useEffect(() => { loadAll(); }, [loadAll]);
 
   // ─── Enriched Data (engines) ─────────────────────────
+  // Inherited priority — propagated from planned dishes via intermediates.
+  // Each intermediate carries its inputs as `input_ingredients` (snake_case
+  // shape the engine accepts) so the propagation can reach raw ingredients.
+  const inheritedPriorities = useMemo(() => {
+    const intermediatesWithInputs = intermediates.map(i => ({
+      ...i,
+      input_ingredients: intIngs.filter(ii => ii.intermediate_id === i.id),
+    }));
+    return computePriorityPropagation(dishes, dishIngs, dishInts, intermediatesWithInputs).ingredientPriorities;
+  }, [dishes, dishIngs, dishInts, intermediates, intIngs]);
+
   const enrichedIngredients = useMemo(() =>
-    ingredients.map(i => ({ ...i, _spoilage: computeSpoilage(i) })),
-    [ingredients]
+    ingredients.map(i => ({
+      ...i,
+      _spoilage: computeSpoilage(i),
+      _inheritedPriority: inheritedPriorities.get(i.id) ?? null,
+    })),
+    [ingredients, inheritedPriorities]
   );
 
   const enrichedIntermediates = useMemo(() =>
@@ -150,11 +168,11 @@ export default function App() {
 
   const handleBuyIngredient = async (qty) => {
     try {
-      const updated = await db.buyIngredient(modal.data.id, qty);
-      setIngredients(prev => prev.map(i => i.id === modal.data.id ? updated : i));
+      const { updatedIngredient } = await runAtomicBuy(supabase, modal.data.id, qty);
+      setIngredients(prev => prev.map(i => i.id === modal.data.id ? updatedIngredient : i));
       setModal({});
-      notify(`Bought ${qty} ${modal.data.unit} of ${modal.data.name}`, 'success');
-    } catch (err) { notify('Failed: ' + err.message); }
+      notify('Stock updated', 'success');
+    } catch (err) { notify(err.message); }
   };
 
   const handleDeleteIngredient = async (ing) => {
@@ -187,13 +205,12 @@ export default function App() {
 
   const handlePrepareIntermediate = async (units) => {
     const inter = modal.data;
-    const inputs = intIngs.filter(ii => ii.intermediate_id === inter.id);
     try {
-      await db.prepareIntermediate(inter.id, units, inputs, ingredients);
+      await runAtomicPrepare(supabase, inter.id, units);
       await loadAll();
       setModal({});
       notify(`Prepared ${units} ${inter.unit} of ${inter.name}`, 'success');
-    } catch (err) { notify('Prepare failed: ' + err.message); }
+    } catch (err) { notify(err.message); }
   };
 
   const handleDeleteIntermediate = async (inter) => {
@@ -226,14 +243,19 @@ export default function App() {
 
   const handleCookDish = async (dish) => {
     if (dish.status === 'Cooked') return notify('Dish is already cooked');
-    const myIngs = dishIngs.filter(di => di.dish_id === dish.id);
-    const myInts = dishInts.filter(di => di.dish_id === dish.id);
+    if (dish._availability && !dish._availability.canCook) {
+      const missing = [
+        ...(dish._availability.missingIngredients || []).map(m => `${m.name} ${m.required - m.available}${ingredients.find(i => i.id === m.ingredientId)?.unit || ''}`),
+        ...(dish._availability.missingIntermediates || []).map(m => `${m.name} ${m.required - m.available}`),
+      ].join(', ');
+      return notify(missing ? `Missing: ${missing}` : `Cannot cook ${dish.name}`);
+    }
     try {
-      await db.cookDish(dish.id, myIngs, myInts, ingredients, intermediates);
+      await runAtomicCook(supabase, dish.id);
       await loadAll();
       setModal({});
       notify(`${dish.name} cooked!`, 'success');
-    } catch (err) { notify('Cook failed: ' + err.message); }
+    } catch (err) { notify(err.message); }
   };
 
   const handleQuickStatus = async (dish, newStatus) => {

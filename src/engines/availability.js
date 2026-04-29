@@ -6,14 +6,16 @@
 
 export function checkDishAvailability(dish, dishIngs, dishInts, ingredients, intermediates) {
   // Skip cooked dishes (TEST-AV-007)
-  if (dish.status === 'Cooked') return { canCook: false, skipped: true, missing: [], missingInts: [] };
+  if (dish.status === 'Cooked') {
+    return { canCook: false, skipped: true, missing: [], missingInts: [], missingIngredients: [], missingIntermediates: [] };
+  }
 
   const myIngs = dishIngs.filter(di => di.dish_id === dish.id);
   const myInts = dishInts.filter(di => di.dish_id === dish.id);
 
   // Unlinked dish (TEST-AV-001)
   if (!myIngs.length && !myInts.length) {
-    return { canCook: false, unlinked: true, missing: [], missingInts: [] };
+    return { canCook: false, unlinked: true, missing: [], missingInts: [], missingIngredients: [], missingIntermediates: [] };
   }
 
   const ingMap = new Map(ingredients.map(i => [i.id, i]));
@@ -42,6 +44,8 @@ export function checkDishAvailability(dish, dishIngs, dishInts, ingredients, int
     unlinked: false,
     missing,
     missingInts,
+    missingIngredients: missing,
+    missingIntermediates: missingInts,
     totalIngs: myIngs.length,
     totalInts: myInts.length,
     haveIngs: myIngs.length - missing.length,
@@ -50,6 +54,25 @@ export function checkDishAvailability(dish, dishIngs, dishInts, ingredients, int
       ? Math.round(((myIngs.length - missing.length) + (myInts.length - missingInts.length)) / (myIngs.length + myInts.length) * 100)
       : 0,
   };
+}
+
+/**
+ * Phase 2 batch wrapper.
+ * Returns a Map<dishId, { canCook, missingIngredients, missingIntermediates }>
+ * for every planned dish. Cooked dishes are skipped entirely (omitted from the map).
+ */
+export function computeAvailability(dishes, dishIngs, dishInts, ingredients, intermediates) {
+  const result = new Map();
+  for (const dish of dishes) {
+    if (dish.status === 'Cooked') continue;
+    const r = checkDishAvailability(dish, dishIngs, dishInts, ingredients, intermediates);
+    result.set(dish.id, {
+      canCook: r.canCook,
+      missingIngredients: r.missingIngredients,
+      missingIntermediates: r.missingIntermediates,
+    });
+  }
+  return result;
 }
 
 export function checkIntermediateAvailability(inter, intIngs, ingredients) {

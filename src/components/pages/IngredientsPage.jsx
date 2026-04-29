@@ -4,7 +4,7 @@
  */
 import { useState, useMemo } from 'react';
 import { PkgIcon, PlusIcon, EditIcon, DelIcon } from '../ui/Icons';
-import { SpoilageBadge } from '../ui/Badges';
+import { SpoilageBadge, InheritedPriorityBadge } from '../ui/Badges';
 import { getCatEmoji } from '../../config/emoji.js';
 
 export default function IngredientsPage({ ingredients, onAdd, onEdit, onBuy, onDelete }) {
@@ -43,12 +43,24 @@ export default function IngredientsPage({ ingredients, onAdd, onEdit, onBuy, onD
   }, [ingredients, search, catFilter, stockFilter, spoilFilter]);
 
   const grouped = useMemo(() => {
+    // Within each category, push Expired and NearExpiry items to the top
+    // (in that order), then everything else by name. Layout stays grouped
+    // by category; only intra-group ordering changes.
+    const spoilageRank = { Expired: 0, NearExpiry: 1, Fresh: 2, Unknown: 3 };
     const map = {};
     filtered.forEach(i => {
       const cat = i.category || 'Uncategorized';
       if (!map[cat]) map[cat] = [];
       map[cat].push(i);
     });
+    for (const items of Object.values(map)) {
+      items.sort((a, b) => {
+        const ra = spoilageRank[a._spoilage?.status] ?? 4;
+        const rb = spoilageRank[b._spoilage?.status] ?? 4;
+        if (ra !== rb) return ra - rb;
+        return a.name.localeCompare(b.name);
+      });
+    }
     return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
   }, [filtered]);
 
@@ -170,7 +182,10 @@ export default function IngredientsPage({ ingredients, onAdd, onEdit, onBuy, onD
                     <div key={i.id} className="bg-white rounded-xl border p-4 fade">
                       <div className="flex justify-between">
                         <div>
-                          <h3 className="font-semibold text-sm">{getCatEmoji(i.category)} {i.name}</h3>
+                          <h3 className="font-semibold text-sm flex items-center gap-1.5">
+                            <span>{getCatEmoji(i.category)} {i.name}</span>
+                            <InheritedPriorityBadge priority={i._inheritedPriority} />
+                          </h3>
                           <p className={`text-sm ${i.stock_qty > 0 ? '' : 'text-tomato'}`}>{i.stock_qty} {i.unit}</p>
                         </div>
                         <SpoilageBadge status={i._spoilage?.status} daysRemaining={i._spoilage?.daysRemaining} />

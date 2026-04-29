@@ -1,7 +1,18 @@
 {
   "permissions": {
     "allow": [
-      "Bash(node -e \"import\\('./src/services/db.js'\\).then\\(m => console.log\\('db.batchCreateIngredients =', typeof m.batchCreateIngredients\\)\\)\")"
+      "Bash(node -e \"import\\('./src/services/db.js'\\).then\\(m => console.log\\('db.batchCreateIngredients =', typeof m.batchCreateIngredients\\)\\)\")",
+      "WebFetch(domain:api.anthropic.com)",
+      "Bash(xxd \"C:/Users/manga/.claude/projects/D--Coding-App-generation-General-purpose-Food-department-advanced/980d07d2-b155-4bbe-9a73-5da79adbd107/tool-results/webfetch-1777165548434-efb9ob.bin\")",
+      "Bash(mkdir -p /tmp/design-pkg)",
+      "Bash(gunzip -c \"C:/Users/manga/.claude/projects/D--Coding-App-generation-General-purpose-Food-department-advanced/980d07d2-b155-4bbe-9a73-5da79adbd107/tool-results/webfetch-1777165548434-efb9ob.bin\")",
+      "Read(//tmp/**)",
+      "Read(//tmp/design-pkg/**)",
+      "Bash(tar -xf payload.bin)",
+      "Bash(npm i *)",
+      "Bash(node *)",
+      "Bash(npm test *)",
+      "Bash(npx vite *)"
     ]
   }
 }

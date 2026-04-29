@@ -94,6 +94,13 @@ function DishCard({ d, showRing, showStatusDropdown, showCook, onCook, onQuickSt
               <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_STYLES[d.status] || 'bg-gray-100 text-gray-500'}`}>{d.status}</span>
             )}
             <PriorityBadge priority={d.priority} />
+            {!isCooked && !av.unlinked && (
+              av.canCook
+                ? <span className="text-xs px-2 py-0.5 rounded-full bg-sage/15 text-sage font-medium">🟢 Ready</span>
+                : <span className="text-xs px-2 py-0.5 rounded-full bg-tomato/10 text-tomato font-medium">
+                    🔴 Missing {(av.missing?.length || 0) + (av.missingInts?.length || 0)}
+                  </span>
+            )}
             {d.country && <span className="text-xs px-2 py-0.5 rounded-full bg-light-gray/30">{getCountryFlag(d.country)} {d.country}</span>}
             {d.dish_type && <span className="text-xs px-2 py-0.5 rounded-full bg-light-gray/30">{getDishTypeEmoji(d.dish_type)} {d.dish_type}</span>}
           </div>
@@ -187,9 +194,11 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
     else if (tab === 'progress') list = list.filter(d => d.status === 'In Progress');
     else if (tab === 'cooked') list = list.filter(d => d.status === 'Cooked');
 
-    // Country & Type
-    if (countryFilter.length) list = list.filter(d => countryFilter.includes(d.country));
-    if (typeFilter.length) list = list.filter(d => typeFilter.includes(d.dish_type));
+    // Country & Type (skip on tabs where the filter UI is hidden)
+    if (tab !== 'progress' && tab !== 'cooked') {
+      if (countryFilter.length) list = list.filter(d => countryFilter.includes(d.country));
+      if (typeFilter.length) list = list.filter(d => typeFilter.includes(d.dish_type));
+    }
 
     // Completeness threshold (Menu Planner only)
     if (tab === 'planner' && minCompleteness > 0) {
@@ -291,14 +300,14 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
           </div>
         )}
 
-        {/* Country & Type filters */}
-        {countryOptions.length > 0 && (
+        {/* Country & Type filters (hidden on In Progress and Cooked tabs) */}
+        {tab !== 'progress' && tab !== 'cooked' && countryOptions.length > 0 && (
           <FilterBar label="Country" filters={countryOptions} active={countryFilter} onToggle={toggleFilter(countryFilter, setCountryFilter)} />
         )}
-        {typeOptions.length > 0 && (
+        {tab !== 'progress' && tab !== 'cooked' && typeOptions.length > 0 && (
           <FilterBar label="Type" filters={typeOptions} active={typeFilter} onToggle={toggleFilter(typeFilter, setTypeFilter)} />
         )}
-        {(countryFilter.length > 0 || typeFilter.length > 0) && (
+        {tab !== 'progress' && tab !== 'cooked' && (countryFilter.length > 0 || typeFilter.length > 0) && (
           <button onClick={() => { setCountryFilter([]); setTypeFilter([]); }} className="text-xs text-terracotta font-medium mb-4 hover:underline">✕ Clear filters</button>
         )}
 
