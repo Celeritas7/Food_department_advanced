@@ -9,7 +9,7 @@ import { computeSpoilage } from './engines/spoilage.js';
 import { checkDishAvailability, checkIntermediateAvailability } from './engines/availability.js';
 import { aggregateRequirements } from './engines/quantity.js';
 import { computePriorityPropagation } from './engines/priorityPropagation.js';
-import { runAtomicCook, runAtomicPrepare, runAtomicBuy } from './engines/storageAtomicity.js';
+import { runAtomicCook, runAtomicPrepare, runAtomicBuy, runAtomicStoreInFridge, runAtomicMarkEaten } from './engines/storageAtomicity.js';
 
 // UI Components
 import Toast from './components/ui/Toast';
@@ -258,6 +258,22 @@ export default function App() {
     } catch (err) { notify(err.message); }
   };
 
+  const handleStoreInFridge = async (dish) => {
+    try {
+      await runAtomicStoreInFridge(supabase, dish.id);
+      await loadAll();
+      notify(`${dish.name} stored in fridge`, 'success');
+    } catch (err) { notify(err.message); }
+  };
+
+  const handleMarkEaten = async (dish, notes) => {
+    try {
+      await runAtomicMarkEaten(supabase, dish.id, notes);
+      await loadAll();
+      notify(`${dish.name} marked eaten`, 'success');
+    } catch (err) { notify(err.message); }
+  };
+
   const handleQuickStatus = async (dish, newStatus) => {
     try {
       await db.updateDish(dish.id, { status: newStatus });
@@ -477,6 +493,8 @@ export default function App() {
           onQuickStatus={handleQuickStatus}
           onManage={() => setModal({ type: 'manageDishes' })}
           onRecipe={(d) => setRecipeDish(d)}  /* ▶ NEW */
+          onStoreInFridge={handleStoreInFridge}
+          onMarkEaten={handleMarkEaten}
         />
       )}
       {page === 'shop' && (

@@ -41,3 +41,18 @@ export async function runAtomicBuy(supabase, ingredientId, purchasedQty) {
   if (error) throw new Error(error.message || 'Buy failed');
   return data;
 }
+
+export async function runAtomicStoreInFridge(supabase, dishId) {
+  const { data, error } = await supabase.rpc('fd_store_in_fridge', { p_dish_id: dishId });
+  if (error) throw new Error(error.message || 'Store in fridge failed');
+  return data;
+}
+
+export async function runAtomicMarkEaten(supabase, dishId, notes) {
+  const { data, error } = await supabase.rpc('fd_mark_eaten', {
+    p_dish_id: dishId,
+    p_notes: notes || null,
+  });
+  if (error) throw new Error(error.message || 'Mark eaten failed');
+  return data;
+}

@@ -17,7 +17,16 @@ const STATUS_STYLES = {
   'Planned': 'bg-blue-100 text-blue-700',
   'In Progress': 'bg-amber-100 text-amber-700',
   'Cooked': 'bg-emerald-100 text-emerald-700',
+  'In Fridge': 'bg-cyan-100 text-cyan-700',
 };
+
+// Days between an ISO timestamp and now, floored.
+function daysSince(iso) {
+  if (!iso) return null;
+  const ms = Date.now() - new Date(iso).getTime();
+  if (!isFinite(ms) || ms < 0) return 0;
+  return Math.floor(ms / 86400000);
+}
 
 // ─── Completeness Ring SVG ───
 function CompletenessRing({ percent, size = 40, stroke = 4 }) {
@@ -38,11 +47,16 @@ function CompletenessRing({ percent, size = 40, stroke = 4 }) {
 }
 
 // ─── Dish Card (shared across tabs) ───
-function DishCard({ d, showRing, showStatusDropdown, showCook, onCook, onQuickStatus, onEdit, onRecipe }) {
+function DishCard({ d, showRing, showStatusDropdown, showCook, showStoreInFridge, showMarkEaten, onCook, onQuickStatus, onEdit, onRecipe, onStoreInFridge, onMarkEaten }) {
   const [dropOpen, setDropOpen] = useState(false);
+  const [eatenOpen, setEatenOpen] = useState(false);
+  const [eatenNotes, setEatenNotes] = useState('');
   const dropRef = useRef(null);
   const av = d._availability || {};
   const isCooked = d.status === 'Cooked';
+  const isInFridge = d.status === 'In Fridge';
+  const fridgeDays = isInFridge ? daysSince(d.stored_at) : null;
+  const fridgeStale = fridgeDays != null && fridgeDays > 3;
 
   useEffect(() => {
     if (!dropOpen) return;
@@ -60,9 +74,9 @@ function DishCard({ d, showRing, showStatusDropdown, showCook, onCook, onQuickSt
   );
 
   return (
-    <div className={`bg-white rounded-xl border p-4 fade ${isCooked ? 'opacity-60' : ''}`}>
+    <div className={`bg-white rounded-xl border p-4 fade ${isCooked ? 'opacity-60' : ''} ${isInFridge && fridgeStale ? 'border-tomato/40' : ''}`}>
       <div className="flex gap-3">
-        {showRing && !isCooked && !av.unlinked && (
+        {showRing && !isCooked && !isInFridge && !av.unlinked && (
           <div className="shrink-0 pt-0.5">
             <CompletenessRing percent={av.completeness || 0} />
           </div>
@@ -71,9 +85,19 @@ function DishCard({ d, showRing, showStatusDropdown, showCook, onCook, onQuickSt
           <h3 className="font-semibold text-sm leading-tight">
             {d.dish_type ? getDishTypeEmoji(d.dish_type) : '🍽️'} {d.name}
           </h3>
+          {/* Fridge-tab specific: days stored + stale warning */}
+          {isInFridge && fridgeDays != null && (
+            <div className="mt-1.5">
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${fridgeStale ? 'bg-tomato/15 text-tomato' : 'bg-cyan-100 text-cyan-700'}`}>
+                {fridgeStale ? '⚠️ ' : '🧊 '}
+                {fridgeDays === 0 ? 'Stored today' : `${fridgeDays} day${fridgeDays === 1 ? '' : 's'} in fridge`}
+                {fridgeStale ? ' — eat soon' : ''}
+              </span>
+            </div>
+          )}
           <div className="flex flex-wrap gap-1.5 mt-1.5">
             {/* Status badge (clickable dropdown) */}
-            {showStatusDropdown && !isCooked ? (
+            {showStatusDropdown && !isCooked && !isInFridge ? (
               <div className="relative" ref={dropOpen ? dropRef : null}>
                 <button onClick={() => setDropOpen(!dropOpen)}
                   className={`text-xs px-2 py-0.5 rounded-full font-medium cursor-pointer hover:ring-2 hover:ring-terracotta/30 ${STATUS_STYLES[d.status] || 'bg-gray-100 text-gray-500'}`}>
@@ -94,7 +118,7 @@ function DishCard({ d, showRing, showStatusDropdown, showCook, onCook, onQuickSt
               <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_STYLES[d.status] || 'bg-gray-100 text-gray-500'}`}>{d.status}</span>
             )}
             <PriorityBadge priority={d.priority} />
-            {!isCooked && !av.unlinked && (
+            {!isCooked && !isInFridge && !av.unlinked && (
               av.canCook
                 ? <span className="text-xs px-2 py-0.5 rounded-full bg-sage/15 text-sage font-medium">🟢 Ready</span>
                 : <span className="text-xs px-2 py-0.5 rounded-full bg-tomato/10 text-tomato font-medium">
@@ -105,7 +129,7 @@ function DishCard({ d, showRing, showStatusDropdown, showCook, onCook, onQuickSt
             {d.dish_type && <span className="text-xs px-2 py-0.5 rounded-full bg-light-gray/30">{getDishTypeEmoji(d.dish_type)} {d.dish_type}</span>}
           </div>
           {/* Availability info */}
-          {!isCooked && (
+          {!isCooked && !isInFridge && (
             <div className="text-xs mt-2">
               {av.unlinked ? <span className="text-amber-600">⚠️ Unlinked — add ingredients</span>
                 : av.canCook ? <span className="text-sage font-medium">✓ Ready to cook</span>
@@ -115,22 +139,51 @@ function DishCard({ d, showRing, showStatusDropdown, showCook, onCook, onQuickSt
         </div>
       </div>
 
+      {/* Mark-as-eaten notes input (Fridge tab) */}
+      {showMarkEaten && isInFridge && eatenOpen && (
+        <div className="mt-3 pt-3 border-t space-y-2">
+          <textarea value={eatenNotes} onChange={e => setEatenNotes(e.target.value)} rows={2}
+            placeholder="Notes (optional)... How was it? Any tweaks for next time?"
+            className="w-full px-3 py-2 rounded-lg border text-sm resize-none focus:border-terracotta/50 outline-none" />
+          <div className="flex gap-2">
+            <button onClick={() => { setEatenOpen(false); setEatenNotes(''); }}
+              className="flex-1 py-1.5 rounded border text-sm text-warm-gray hover:bg-cream">Cancel</button>
+            <button onClick={() => { onMarkEaten(d, eatenNotes.trim() || null); setEatenOpen(false); setEatenNotes(''); }}
+              className="flex-1 py-1.5 rounded bg-terracotta text-white text-sm font-medium">🍴 Confirm Eaten</button>
+          </div>
+        </div>
+      )}
+
       {/* Actions */}
       <div className="flex gap-1 mt-3 pt-3 border-t items-center">
-        {showCook && !isCooked && (
+        {showCook && !isCooked && !isInFridge && (
           <button onClick={() => onCook(d)} disabled={!av.canCook}
             className={`flex-1 py-1.5 rounded text-sm font-medium ${av.canCook ? 'text-sage hover:bg-sage/10' : 'text-light-gray cursor-not-allowed'}`}>
             {av.canCook ? '✅ Cook' : 'Cook'}
           </button>
         )}
+        {/* Cooked tab: Store in Fridge */}
+        {showStoreInFridge && isCooked && (
+          <button onClick={() => onStoreInFridge(d)}
+            className="flex-1 py-1.5 rounded text-sm font-medium text-cyan-700 hover:bg-cyan-50">
+            🧊 Store in Fridge
+          </button>
+        )}
+        {/* Fridge tab: Mark as Eaten (toggles inline notes input) */}
+        {showMarkEaten && isInFridge && !eatenOpen && (
+          <button onClick={() => setEatenOpen(true)}
+            className="flex-1 py-1.5 rounded text-sm font-medium text-terracotta hover:bg-terracotta/10">
+            🍴 Mark as Eaten
+          </button>
+        )}
         {/* Quick action buttons for Menu Planner */}
-        {!showCook && !isCooked && d.status !== 'In Progress' && (
+        {!showCook && !showStoreInFridge && !showMarkEaten && !isCooked && !isInFridge && d.status !== 'In Progress' && (
           <button onClick={() => onQuickStatus(d, 'In Progress')}
             className="flex-1 py-1.5 rounded text-sm font-medium text-amber-600 hover:bg-amber-50">
             🔥 Start
           </button>
         )}
-        {!showCook && !isCooked && d.status === 'In Progress' && (
+        {!showCook && !showStoreInFridge && !showMarkEaten && !isCooked && !isInFridge && d.status === 'In Progress' && (
           <button onClick={() => onCook(d)} disabled={!av.canCook}
             className={`flex-1 py-1.5 rounded text-sm font-medium ${av.canCook ? 'text-sage hover:bg-sage/10' : 'text-light-gray cursor-not-allowed'}`}>
             ✅ Cook
@@ -151,7 +204,7 @@ function DishCard({ d, showRing, showStatusDropdown, showCook, onCook, onQuickSt
 }
 
 // ─── Main Page ───
-export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatus, onManage, onRecipe }) {
+export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatus, onManage, onRecipe, onStoreInFridge, onMarkEaten }) {
   const [tab, setTabRaw] = useState(() => sessionStorage.getItem('fd_dishTab') || 'planner');
   const [countryFilter, setCountryFilterRaw] = useState(() => { try { return JSON.parse(sessionStorage.getItem('fd_dishCountry')) || []; } catch { return []; } });
   const [typeFilter, setTypeFilterRaw] = useState(() => { try { return JSON.parse(sessionStorage.getItem('fd_dishType')) || []; } catch { return []; } });
@@ -178,9 +231,10 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
 
   // Counts
   const counts = useMemo(() => ({
-    planner: dishes.filter(d => d.status !== 'Cooked').length,
+    planner: dishes.filter(d => d.status !== 'Cooked' && d.status !== 'In Fridge').length,
     progress: dishes.filter(d => d.status === 'In Progress').length,
     cooked: dishes.filter(d => d.status === 'Cooked').length,
+    fridge: dishes.filter(d => d.status === 'In Fridge').length,
     all: dishes.length,
   }), [dishes]);
 
@@ -189,12 +243,13 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
     let list = dishes;
 
     // Tab filter
-    if (tab === 'planner') list = list.filter(d => d.status !== 'Cooked');
+    if (tab === 'planner') list = list.filter(d => d.status !== 'Cooked' && d.status !== 'In Fridge');
     else if (tab === 'progress') list = list.filter(d => d.status === 'In Progress');
     else if (tab === 'cooked') list = list.filter(d => d.status === 'Cooked');
+    else if (tab === 'fridge') list = list.filter(d => d.status === 'In Fridge');
 
     // Country & Type (skip on tabs where the filter UI is hidden)
-    if (tab !== 'progress' && tab !== 'cooked') {
+    if (tab !== 'progress' && tab !== 'cooked' && tab !== 'fridge') {
       if (countryFilter.length) list = list.filter(d => countryFilter.includes(d.country));
       if (typeFilter.length) list = list.filter(d => typeFilter.includes(d.dish_type));
     }
@@ -217,6 +272,9 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
       return list.sort((a, b) => a.priority - b.priority);
     } else if (tab === 'cooked') {
       return list.sort((a, b) => (b.last_cooked_on || '').localeCompare(a.last_cooked_on || ''));
+    } else if (tab === 'fridge') {
+      // Oldest stored first so stale items are at the top.
+      return list.sort((a, b) => (a.stored_at || '').localeCompare(b.stored_at || ''));
     }
     // All tab: status order then priority
     const order = { 'In Progress': 0, 'Planned': 1, 'Not planned': 2, 'Cooked': 3 };
@@ -235,6 +293,7 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
     { key: 'planner', label: '📖 Menu Planner', count: counts.planner },
     { key: 'progress', label: '🔥 In Progress', count: counts.progress },
     { key: 'cooked', label: '✅ Cooked', count: counts.cooked },
+    { key: 'fridge', label: '🧊 Fridge', count: counts.fridge },
     { key: 'all', label: '📋 All', count: counts.all },
   ];
 
@@ -300,13 +359,13 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
         )}
 
         {/* Country & Type filters (hidden on In Progress and Cooked tabs) */}
-        {tab !== 'progress' && tab !== 'cooked' && countryOptions.length > 0 && (
+        {tab !== 'progress' && tab !== 'cooked' && tab !== 'fridge' && countryOptions.length > 0 && (
           <FilterBar label="Country" filters={countryOptions} active={countryFilter} onToggle={toggleFilter(countryFilter, setCountryFilter)} />
         )}
-        {tab !== 'progress' && tab !== 'cooked' && typeOptions.length > 0 && (
+        {tab !== 'progress' && tab !== 'cooked' && tab !== 'fridge' && typeOptions.length > 0 && (
           <FilterBar label="Type" filters={typeOptions} active={typeFilter} onToggle={toggleFilter(typeFilter, setTypeFilter)} />
         )}
-        {tab !== 'progress' && tab !== 'cooked' && (countryFilter.length > 0 || typeFilter.length > 0) && (
+        {tab !== 'progress' && tab !== 'cooked' && tab !== 'fridge' && (countryFilter.length > 0 || typeFilter.length > 0) && (
           <button onClick={() => { setCountryFilter([]); setTypeFilter([]); }} className="text-xs text-terracotta font-medium mb-4 hover:underline">✕ Clear filters</button>
         )}
 
@@ -317,6 +376,7 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
               {tab === 'planner' && 'No dishes yet — add some!'}
               {tab === 'progress' && 'No dishes in progress. Use 📖 Menu Planner to start dishes.'}
               {tab === 'cooked' && 'No cooked dishes yet.'}
+              {tab === 'fridge' && 'Nothing in the fridge. Cook a dish and store it here.'}
               {tab === 'all' && 'No dishes.'}
             </p>
           </div>
@@ -328,11 +388,15 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
                 d={d}
                 showRing={tab === 'planner' || tab === 'all'}
                 showStatusDropdown={tab === 'all'}
-                showCook={tab === 'progress' || tab === 'cooked'}
+                showCook={tab === 'progress'}
+                showStoreInFridge={tab === 'cooked' || tab === 'all'}
+                showMarkEaten={tab === 'fridge' || tab === 'all'}
                 onCook={onCook}
                 onQuickStatus={onQuickStatus}
                 onEdit={onEdit}
-                onRecipe={onRecipe}  /* ▶ NEW */
+                onRecipe={onRecipe}
+                onStoreInFridge={onStoreInFridge}
+                onMarkEaten={onMarkEaten}
               />
             ))}
           </div>
