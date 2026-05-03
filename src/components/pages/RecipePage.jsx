@@ -1027,10 +1027,12 @@ function CheckItem({ text, checked, onChange, onTextChange, onDelete, editable }
   );
 }
 
-function BulletItem({ text, editable, onChange, onDelete, linked, linkedName, linkedStock, linkedUnit, stockIngredients, dishIngs = [], onUpdateStock, onUpdateDishLink, onLink, onUnlink, onCreateIngredient }) {
+function BulletItem({ text, editable, onChange, onDelete, linked, linkedName, linkedStock, linkedUnit, stockIngredients, dishIngs = [], onUpdateStock, onUpdateDishLink, onLink, onUnlink, onCreateIngredient, onCommitQty }) {
   const [editingStock, setEditingStock] = useState(false);
   const [tempQty, setTempQty] = useState('');
   const [tempUnit, setTempUnit] = useState('');
+  const [editingRecipeQty, setEditingRecipeQty] = useState(false);
+  const [tempRecipeQty, setTempRecipeQty] = useState('');
   const popRef = useRef(null);
   const UNITS = ['g', 'kg', 'ml', 'l', 'piece', 'pack', 'tsp', 'tbsp', 'cup', 'pinch', 'bunch', 'bulb', 'clove', 'slices', 'stick'];
 
@@ -1057,6 +1059,19 @@ function BulletItem({ text, editable, onChange, onDelete, linked, linkedName, li
     const val = parseFloat(tempQty);
     if (!isNaN(val) && val >= 0 && onUpdateStock && linked) onUpdateStock(linked, val, tempUnit || stockUnit);
     setEditingStock(false);
+  };
+
+  // Inline recipe-qty edit. Commits the new qty to both dish_ingredients
+  // (via onCommitQty's parent handler) and recipe_data JSONB. Only positive
+  // numbers are accepted; anything else silently cancels.
+  const commitRecipeQty = () => {
+    if (!editingRecipeQty) return;
+    const val = parseFloat(tempRecipeQty);
+    if (isFinite(val) && val > 0 && val !== neededQty && onCommitQty) {
+      onCommitQty(val, recipeUnit);
+    }
+    setEditingRecipeQty(false);
+    setTempRecipeQty('');
   };
 
   return (
@@ -1089,14 +1104,35 @@ function BulletItem({ text, editable, onChange, onDelete, linked, linkedName, li
         <>
           <span className="flex-1 text-base text-charcoal leading-normal">{text}</span>
           {linked && (
-            <div className="relative shrink-0" ref={popRef}>
-              <button onClick={openStockEdit}
-                className={'text-[10px] px-1.5 py-0.5 rounded-full font-medium inline-flex items-center gap-1 cursor-pointer hover:ring-2 hover:ring-offset-1 transition-all ' +
-                  (sufficient ? (runningLow ? 'bg-amber-100 text-amber-700 hover:ring-amber-300' : 'bg-emerald-100 text-emerald-700 hover:ring-emerald-300') : 'bg-red-100 text-red-600 hover:ring-red-300')}
-                title={`Need ${neededQty} ${recipeUnit} · Have ${stockQty} ${stockUnit} · Tap to update`}>
-                {neededQty > 0 && <span className="opacity-60">{neededQty} {recipeUnit}→</span>}
-                📦 {stockQty} {stockUnit}
-              </button>
+            <div className="flex items-center gap-1 shrink-0">
+              {/* Recipe qty pill — click to edit inline; commits on blur/Enter to dish_ingredients + recipe_data */}
+              {neededQty > 0 && (editingRecipeQty ? (
+                <input
+                  type="number" min="0" step="any" autoFocus
+                  value={tempRecipeQty}
+                  onChange={e => setTempRecipeQty(e.target.value)}
+                  onBlur={commitRecipeQty}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') { e.preventDefault(); commitRecipeQty(); }
+                    else if (e.key === 'Escape') { setEditingRecipeQty(false); setTempRecipeQty(''); }
+                  }}
+                  className="w-14 px-1.5 py-0.5 rounded-full border border-terracotta text-[10px] text-center bg-white outline-none"
+                />
+              ) : (
+                <button onClick={() => { setTempRecipeQty(String(neededQty)); setEditingRecipeQty(true); }}
+                  className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 hover:ring-2 hover:ring-blue-200 transition-all inline-flex items-center gap-0.5"
+                  title="Click to edit recipe qty">
+                  {neededQty} {recipeUnit}
+                  <span className="opacity-50 text-[8px]">✏️</span>
+                </button>
+              ))}
+              <div className="relative" ref={popRef}>
+                <button onClick={openStockEdit}
+                  className={'text-[10px] px-1.5 py-0.5 rounded-full font-medium inline-flex items-center gap-1 cursor-pointer hover:ring-2 hover:ring-offset-1 transition-all ' +
+                    (sufficient ? (runningLow ? 'bg-amber-100 text-amber-700 hover:ring-amber-300' : 'bg-emerald-100 text-emerald-700 hover:ring-emerald-300') : 'bg-red-100 text-red-600 hover:ring-red-300')}
+                  title={`Need ${neededQty} ${recipeUnit} · Have ${stockQty} ${stockUnit} · Tap to update`}>
+                  📦 {stockQty} {stockUnit}
+                </button>
               {editingStock && (
                 <div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-lg border z-30 p-3 w-52">
                   <p className="text-xs font-semibold text-charcoal mb-1.5 truncate">{liveStock?.name || linkedName}</p>
@@ -1118,6 +1154,7 @@ function BulletItem({ text, editable, onChange, onDelete, linked, linkedName, li
                   </div>
                 </div>
               )}
+              </div>
             </div>
           )}
         </>
@@ -1126,7 +1163,7 @@ function BulletItem({ text, editable, onChange, onDelete, linked, linkedName, li
   );
 }
 
-function IngredientGroup({ group, editable, onChange, onDelete, stockIngredients, dishIngs = [], onUpdateStock, onCreateIngredient, onUpdateDishLink }) {
+function IngredientGroup({ group, editable, onChange, onDelete, stockIngredients, dishIngs = [], onUpdateStock, onCreateIngredient, onUpdateDishLink, onCommitItemQty }) {
   const updateItem = (idx, val) => { const items = [...group.items]; items[idx] = { ...items[idx], text: val }; onChange({ ...group, items }); };
   const removeItem = (idx) => onChange({ ...group, items: group.items.filter((_, i) => i !== idx) });
   const addItem = () => onChange({ ...group, items: [...group.items, { id: uid(), text: '' }] });
@@ -1151,7 +1188,8 @@ function IngredientGroup({ group, editable, onChange, onDelete, stockIngredients
             linked={item.ingredientId} linkedName={item.linkedName} linkedStock={item.linkedStock} linkedUnit={item.linkedUnit}
             stockIngredients={stockIngredients} dishIngs={dishIngs} onUpdateStock={onUpdateStock} onCreateIngredient={onCreateIngredient} onUpdateDishLink={onUpdateDishLink}
             onLink={(id, name, unit, stock) => linkItem(i, id, name, unit, stock)}
-            onUnlink={() => unlinkItem(i)} />
+            onUnlink={() => unlinkItem(i)}
+            onCommitQty={item.ingredientId && onCommitItemQty ? (qty, recipeUnit) => onCommitItemQty(i, item.ingredientId, qty, recipeUnit) : null} />
         ))}
         {editable && <button onClick={addItem} className="text-sm text-terracotta/60 hover:text-terracotta pl-6 py-1">+ Add item</button>}
       </div>
@@ -1271,6 +1309,27 @@ export default function RecipePage({ dish, ingredients: stockIngredients = [], d
     setSaving(false);
   };
 
+  // Inline qty edit on a recipe ingredient. Persists to:
+  //   1. food_department_dish_ingredients (via onUpdateDishLink) — drives availability/cook
+  //   2. recipe_data.ingredientGroups[gi].items[ii].qty — kept as a snapshot in the JSONB
+  const handleCommitItemQty = (groupIdx, itemIdx, ingredientId, newQty, recipeUnit) => {
+    if (!isFinite(newQty) || newQty <= 0) return;
+    if (ingredientId && onUpdateDishLink) {
+      onUpdateDishLink(ingredientId, newQty, recipeUnit);
+    }
+    const next = {
+      ...recipe,
+      ingredientGroups: recipe.ingredientGroups.map((g, gi) =>
+        gi !== groupIdx ? g : {
+          ...g,
+          items: g.items.map((it, ii) => ii === itemIdx ? { ...it, qty: newQty } : it),
+        }
+      ),
+    };
+    setRecipe(next);
+    onSave(dish.id, next).catch(() => {});
+  };
+
   const togglePrepCheck = (idx) => {
     updatePrep(idx, 'checked', !r.preparation[idx].checked);
     onSave(dish.id, { ...recipe, preparation: recipe.preparation.map((p, i) => i === idx ? { ...p, checked: !p.checked } : p) }).catch(() => {});
@@ -1364,7 +1423,8 @@ export default function RecipePage({ dish, ingredients: stockIngredients = [], d
             rightSlot={editing ? <button onClick={(e) => { e.stopPropagation(); addGroup(); }} className="text-xs px-2.5 py-1 rounded-lg bg-terracotta/10 text-terracotta font-medium">+ Group</button> : null}>
             {r.ingredientGroups.length === 0 && !editing && <p className="text-sm text-gray-400 pl-4">No ingredients yet</p>}
             {r.ingredientGroups.map((g, i) => (
-              <IngredientGroup key={g.id} group={g} editable={editing} onChange={u => updateGroup(i, u)} onDelete={() => removeGroup(i)} stockIngredients={stockIngredients} dishIngs={dishIngs} onUpdateStock={onUpdateStock} onCreateIngredient={onCreateIngredient} onUpdateDishLink={onUpdateDishLink} />
+              <IngredientGroup key={g.id} group={g} editable={editing} onChange={u => updateGroup(i, u)} onDelete={() => removeGroup(i)} stockIngredients={stockIngredients} dishIngs={dishIngs} onUpdateStock={onUpdateStock} onCreateIngredient={onCreateIngredient} onUpdateDishLink={onUpdateDishLink}
+                onCommitItemQty={(itemIdx, ingId, qty, unit) => handleCommitItemQty(i, itemIdx, ingId, qty, unit)} />
             ))}
           </Toggle>
         )}

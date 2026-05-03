@@ -47,7 +47,7 @@ function CompletenessRing({ percent, size = 40, stroke = 4 }) {
 }
 
 // ─── Dish Card (shared across tabs) ───
-function DishCard({ d, showRing, showStatusDropdown, showCook, showStoreInFridge, showMarkEaten, onCook, onQuickStatus, onEdit, onRecipe, onStoreInFridge, onMarkEaten }) {
+function DishCard({ d, showRing, showStatusDropdown, showCook, showStoreInFridge, showMarkEaten, onCook, onQuickStatus, onEdit, onRecipe, onStoreInFridge, onMarkEaten, onMarkWasted }) {
   const [dropOpen, setDropOpen] = useState(false);
   const [eatenOpen, setEatenOpen] = useState(false);
   const [eatenNotes, setEatenNotes] = useState('');
@@ -173,7 +173,14 @@ function DishCard({ d, showRing, showStatusDropdown, showCook, showStoreInFridge
         {showMarkEaten && isInFridge && !eatenOpen && (
           <button onClick={() => setEatenOpen(true)}
             className="flex-1 py-1.5 rounded text-sm font-medium text-terracotta hover:bg-terracotta/10">
-            🍴 Mark as Eaten
+            ✅ Eaten
+          </button>
+        )}
+        {/* Fridge tab: Mark as Wasted (no notes, logs notes='wasted' server-side) */}
+        {showMarkEaten && isInFridge && !eatenOpen && (
+          <button onClick={() => onMarkWasted(d)}
+            className="flex-1 py-1.5 rounded text-sm font-medium text-tomato hover:bg-tomato/10">
+            🗑️ Wasted
           </button>
         )}
         {/* Quick action buttons for Menu Planner */}
@@ -204,7 +211,7 @@ function DishCard({ d, showRing, showStatusDropdown, showCook, showStoreInFridge
 }
 
 // ─── Main Page ───
-export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatus, onManage, onRecipe, onStoreInFridge, onMarkEaten }) {
+export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatus, onManage, onRecipe, onStoreInFridge, onMarkEaten, onMarkWasted }) {
   const [tab, setTabRaw] = useState(() => sessionStorage.getItem('fd_dishTab') || 'planner');
   const [countryFilter, setCountryFilterRaw] = useState(() => { try { return JSON.parse(sessionStorage.getItem('fd_dishCountry')) || []; } catch { return []; } });
   const [typeFilter, setTypeFilterRaw] = useState(() => { try { return JSON.parse(sessionStorage.getItem('fd_dishType')) || []; } catch { return []; } });
@@ -397,6 +404,7 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
                 onRecipe={onRecipe}
                 onStoreInFridge={onStoreInFridge}
                 onMarkEaten={onMarkEaten}
+                onMarkWasted={onMarkWasted}
               />
             ))}
           </div>

@@ -35,11 +35,28 @@ function CompletenessRing({ pct, size = 40 }) {
 export default function ExpiryAlertPage({ ingredients, dishes, dishIngs, onCook, onBuy }) {
   const [expandedDish, setExpandedDish] = useState(null);
 
-  // Find expiring / expired ingredients that are in stock
+  // Find expiring / expired ingredients that are in stock.
+  // Skip non-perishables (shelf_life_days is null) so salt/oil don't show up.
   const urgentItems = useMemo(() => {
     return ingredients
-      .filter(i => i.stock_qty > 0 && (i._spoilage?.status === 'Expired' || i._spoilage?.status === 'NearExpiry'))
+      .filter(i =>
+        i.shelf_life_days != null &&
+        i.stock_qty > 0 &&
+        (i._spoilage?.status === 'Expired' || i._spoilage?.status === 'NearExpiry')
+      )
       .sort((a, b) => (a._spoilage?.daysRemaining ?? 999) - (b._spoilage?.daysRemaining ?? 999));
+  }, [ingredients]);
+
+  // Staples flagged is_staple=true that have dipped below their min_stock_qty.
+  // Sorted by depletion ratio so the most depleted shows first.
+  const lowStockStaples = useMemo(() => {
+    return ingredients
+      .filter(i => i.is_staple && i.min_stock_qty != null && i.stock_qty < i.min_stock_qty)
+      .sort((a, b) => {
+        const ra = a.min_stock_qty > 0 ? a.stock_qty / a.min_stock_qty : 1;
+        const rb = b.min_stock_qty > 0 ? b.stock_qty / b.min_stock_qty : 1;
+        return ra - rb;
+      });
   }, [ingredients]);
 
   const urgentIds = useMemo(() => new Set(urgentItems.map(i => i.id)), [urgentItems]);
@@ -124,8 +141,8 @@ export default function ExpiryAlertPage({ ingredients, dishes, dishIngs, onCook,
 
       <main className="max-w-4xl mx-auto px-4 py-4">
 
-        {/* Nothing expiring — celebration */}
-        {urgentItems.length === 0 && (
+        {/* Nothing expiring AND staples are stocked — celebration */}
+        {urgentItems.length === 0 && lowStockStaples.length === 0 && (
           <div className="text-center py-16">
             <span className="text-5xl">🎉</span>
             <p className="text-base font-bold text-sage mt-4">All Fresh!</p>
@@ -156,6 +173,33 @@ export default function ExpiryAlertPage({ ingredients, dishes, dishIngs, onCook,
                   </div>
                 );
               })}
+            </div>
+          </section>
+        )}
+
+        {/* Low Stock Staples — restock-soon list for things you always need */}
+        {lowStockStaples.length > 0 && (
+          <section className="mb-6">
+            <h2 className="text-sm font-bold text-charcoal flex items-center gap-2 mb-1">
+              <span className="text-base">🧂</span> Low Stock Staples
+              <span className="text-[11px] text-warm-gray font-normal">— running low, restock soon</span>
+            </h2>
+            <div className="space-y-2 mt-3">
+              {lowStockStaples.map(ing => (
+                <div key={ing.id} className="bg-white rounded-xl border border-amber-300/60 p-3 flex items-center gap-3">
+                  <span className="text-xl">{getCatEmoji(ing.category)}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-bold text-charcoal truncate">{ing.name}</div>
+                    <div className="text-[11px] text-warm-gray">
+                      {ing.stock_qty} / {ing.min_stock_qty} {ing.unit}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => onBuy(ing)}
+                    className="px-3 py-1.5 rounded-lg bg-terracotta text-white text-xs font-bold flex-shrink-0"
+                  >🛒 Buy</button>
+                </div>
+              ))}
             </div>
           </section>
         )}

@@ -274,6 +274,14 @@ export default function App() {
     } catch (err) { notify(err.message); }
   };
 
+  const handleMarkWasted = async (dish) => {
+    try {
+      await runAtomicMarkEaten(supabase, dish.id, 'wasted');
+      await loadAll();
+      notify(`${dish.name} logged as wasted`, 'warn');
+    } catch (err) { notify(err.message); }
+  };
+
   const handleQuickStatus = async (dish, newStatus) => {
     try {
       await db.updateDish(dish.id, { status: newStatus });
@@ -495,6 +503,7 @@ export default function App() {
           onRecipe={(d) => setRecipeDish(d)}  /* ▶ NEW */
           onStoreInFridge={handleStoreInFridge}
           onMarkEaten={handleMarkEaten}
+          onMarkWasted={handleMarkWasted}
         />
       )}
       {page === 'shop' && (
