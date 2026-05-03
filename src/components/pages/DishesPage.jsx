@@ -207,10 +207,10 @@ function DishCard({ d, showRing, showStatusDropdown, showCook, showStoreInFridge
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onEdit(d); }}
-          className="p-2 rounded text-charcoal/70 hover:bg-light-gray/30 hover:text-charcoal"
+          className="px-2.5 py-1.5 rounded text-sm font-medium text-charcoal/70 hover:bg-light-gray/30 hover:text-charcoal flex items-center gap-1"
           title="Edit dish"
           aria-label="Edit dish"
-        ><EditIcon /></button>
+        ><EditIcon /> Edit</button>
       </div>
     </div>
   );
