@@ -204,7 +204,13 @@ function DishCard({ d, showRing, showStatusDropdown, showCook, showStoreInFridge
             <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
           </svg>
         </button>
-        <button onClick={() => onEdit(d)} className="p-1.5 rounded text-warm-gray hover:bg-light-gray/20"><EditIcon /></button>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); onEdit(d); }}
+          className="p-2 rounded text-charcoal/70 hover:bg-light-gray/30 hover:text-charcoal"
+          title="Edit dish"
+          aria-label="Edit dish"
+        ><EditIcon /></button>
       </div>
     </div>
   );
