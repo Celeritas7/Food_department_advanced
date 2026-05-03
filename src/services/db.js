@@ -43,6 +43,8 @@ export async function updateIngredient(id, updates) {
   if (updates.category !== undefined) mapped.category = updates.category;
   if (updates.country !== undefined) mapped.country = updates.country;
   if (updates.purchasedAt !== undefined) mapped.purchased_at = updates.purchasedAt;
+  if (updates.restockReminderDays !== undefined) mapped.restock_reminder_days = updates.restockReminderDays;
+  if (updates.lastReminderChecked !== undefined) mapped.last_reminder_checked = updates.lastReminderChecked;
   mapped.last_updated = new Date().toISOString();
 
   const { data, error } = await supabase

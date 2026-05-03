@@ -256,7 +256,7 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
     else if (tab === 'fridge') list = list.filter(d => d.status === 'In Fridge');
 
     // Country & Type (skip on tabs where the filter UI is hidden)
-    if (tab !== 'progress' && tab !== 'cooked') {
+    if (tab !== 'progress' && tab !== 'cooked' && tab !== 'fridge') {
       if (countryFilter.length) list = list.filter(d => countryFilter.includes(d.country));
       if (typeFilter.length) list = list.filter(d => typeFilter.includes(d.dish_type));
     }
@@ -366,13 +366,13 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
         )}
 
         {/* Country & Type filters (hidden on In Progress and Cooked tabs) */}
-        {tab !== 'progress' && tab !== 'cooked' && countryOptions.length > 0 && (
+        {tab !== 'progress' && tab !== 'cooked' && tab !== 'fridge' && countryOptions.length > 0 && (
           <FilterBar label="Country" filters={countryOptions} active={countryFilter} onToggle={toggleFilter(countryFilter, setCountryFilter)} />
         )}
-        {tab !== 'progress' && tab !== 'cooked' && typeOptions.length > 0 && (
+        {tab !== 'progress' && tab !== 'cooked' && tab !== 'fridge' && typeOptions.length > 0 && (
           <FilterBar label="Type" filters={typeOptions} active={typeFilter} onToggle={toggleFilter(typeFilter, setTypeFilter)} />
         )}
-        {tab !== 'progress' && tab !== 'cooked' && (countryFilter.length > 0 || typeFilter.length > 0) && (
+        {tab !== 'progress' && tab !== 'cooked' && tab !== 'fridge' && (countryFilter.length > 0 || typeFilter.length > 0) && (
           <button onClick={() => { setCountryFilter([]); setTypeFilter([]); }} className="text-xs text-terracotta font-medium mb-4 hover:underline">✕ Clear filters</button>
         )}
 

@@ -25,6 +25,7 @@ import ShopPage from './components/pages/ShopPage';
 import DataPage from './components/pages/DataPage';
 import CategoryManagerPage from './components/pages/CategoryManagerPage';
 import ExpiryAlertPage from './components/pages/ExpiryAlertPage';
+import StaplesPage from './components/pages/StaplesPage';
 import RecipePage from './components/pages/RecipePage'; // ▶ NEW
 
 // Forms
@@ -147,6 +148,18 @@ export default function App() {
     [enrichedIngredients]
   );
 
+  // Count of staples that are overdue or never checked — used for nav badge.
+  const staplesNeedAttentionCount = useMemo(() => {
+    const MS_PER_DAY = 86400000;
+    return enrichedIngredients.filter(i => {
+      if (!i.is_staple) return false;
+      if (!i.last_reminder_checked) return true;
+      const interval = i.restock_reminder_days || 7;
+      const days = Math.floor((Date.now() - new Date(i.last_reminder_checked).getTime()) / MS_PER_DAY);
+      return days >= interval;
+    }).length;
+  }, [enrichedIngredients]);
+
   // ─── Actions: Ingredients ────────────────────────────
   const handleAddIngredient = async (data) => {
     try {
@@ -173,6 +186,21 @@ export default function App() {
       setModal({});
       notify('Stock updated', 'success');
     } catch (err) { notify(err.message); }
+  };
+
+  const handleStapleSetInterval = async (ing, days) => {
+    try {
+      const updated = await db.updateIngredient(ing.id, { restockReminderDays: days });
+      setIngredients(prev => prev.map(i => i.id === ing.id ? updated : i));
+    } catch (err) { notify('Failed: ' + err.message); }
+  };
+
+  const handleStapleMarkChecked = async (ing) => {
+    try {
+      const updated = await db.updateIngredient(ing.id, { lastReminderChecked: new Date().toISOString() });
+      setIngredients(prev => prev.map(i => i.id === ing.id ? updated : i));
+      notify(`${ing.name} checked`, 'success');
+    } catch (err) { notify('Failed: ' + err.message); }
   };
 
   const handleDeleteIngredient = async (ing) => {
@@ -550,6 +578,14 @@ export default function App() {
           onBuy={(ig) => setModal({ type: 'buyIng', data: ig })}
         />
       )}
+      {page === 'staples' && (
+        <StaplesPage
+          ingredients={enrichedIngredients}
+          onChangeInterval={handleStapleSetInterval}
+          onMarkChecked={handleStapleMarkChecked}
+          onBuy={(ig) => setModal({ type: 'buyIng', data: ig })}
+        />
+      )}
 
       {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t z-20">
@@ -559,6 +595,7 @@ export default function App() {
             { key: 'ing', icon: PkgIcon, label: 'Ingredients', color: 'terracotta' },
             { key: 'dish', icon: DishIcon, label: 'Dishes', color: 'terracotta' },
             { key: 'shop', icon: CartIcon, label: 'Shop', color: 'terracotta', badge: shoppingList.toBuy },
+            { key: 'staples', icon: PkgIcon, label: 'Staples', color: 'terracotta', badge: staplesNeedAttentionCount },
             { key: 'int', icon: LayerIcon, label: 'Preps', color: 'purple' },
             { key: 'data', icon: DataIcon, label: 'Data', color: 'charcoal' },
           ].map(tab => (
