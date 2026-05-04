@@ -9,14 +9,15 @@ import { CartIcon } from '../ui/Icons';
 import { PriorityBadge } from '../ui/Badges';
 import { getCatEmoji } from '../../config/emoji.js';
 
-const GENERAL_CATEGORIES = ['Stationery', 'Cleaning', 'Personal', 'Household', 'Electronics', 'Other'];
+const GENERAL_CATEGORIES = ['Stationery', 'Cleaning', 'Personal', 'Household', 'Electronics', 'Daily Need', 'Other'];
 const GENERAL_CAT_STYLES = {
-  Stationery:  'bg-purple/10 text-purple',
-  Cleaning:    'bg-sage/15 text-sage',
-  Personal:    'bg-terracotta/10 text-terracotta',
-  Household:   'bg-amber-100 text-amber-700',
-  Electronics: 'bg-cyan-100 text-cyan-700',
-  Other:       'bg-light-gray/30 text-warm-gray',
+  Stationery:    'bg-purple/10 text-purple',
+  Cleaning:      'bg-sage/15 text-sage',
+  Personal:      'bg-terracotta/10 text-terracotta',
+  Household:     'bg-amber-100 text-amber-700',
+  Electronics:   'bg-cyan-100 text-cyan-700',
+  'Daily Need':  'bg-blue-100 text-blue-700',
+  Other:         'bg-light-gray/30 text-warm-gray',
 };
 
 export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, dishInts, intermediates, onBuy, onCook, generalShoppingItems = [], onAddGeneral, onToggleGeneral, onDeleteGeneral }) {

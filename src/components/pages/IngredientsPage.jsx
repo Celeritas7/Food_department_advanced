@@ -56,9 +56,16 @@ export default function IngredientsPage({ ingredients, onAdd, onEdit, onBuy, onD
       });
   }, [ingredients]);
 
+  // Daily need ingredients live in the General Shopping List (ShopPage),
+  // so we hide them from the main Ingredients list entirely.
+  const visibleIngredients = useMemo(
+    () => ingredients.filter(i => i.category !== 'Daily need'),
+    [ingredients]
+  );
+
   const catOptions = useMemo(() => {
-    return [...new Set(ingredients.map(i => i.category).filter(Boolean))].sort();
-  }, [ingredients]);
+    return [...new Set(visibleIngredients.map(i => i.category).filter(Boolean))].sort();
+  }, [visibleIngredients]);
 
   const toggle = (arr, setArr, val) => {
     setArr(prev => prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val]);
@@ -67,7 +74,7 @@ export default function IngredientsPage({ ingredients, onAdd, onEdit, onBuy, onD
   const anyActive = catFilter.length + stockFilter.length + spoilFilter.length;
 
   const filtered = useMemo(() => {
-    let list = ingredients;
+    let list = visibleIngredients;
     if (search) {
       const q = search.toLowerCase();
       list = list.filter(i => i.name.toLowerCase().includes(q) || (i.category || '').toLowerCase().includes(q));
@@ -82,7 +89,7 @@ export default function IngredientsPage({ ingredients, onAdd, onEdit, onBuy, onD
     }
     if (spoilFilter.length) list = list.filter(i => spoilFilter.includes(i._spoilage?.status));
     return list;
-  }, [ingredients, search, catFilter, stockFilter, spoilFilter]);
+  }, [visibleIngredients, search, catFilter, stockFilter, spoilFilter]);
 
   const grouped = useMemo(() => {
     // Within each category, push Expired and NearExpiry items to the top
@@ -120,7 +127,7 @@ export default function IngredientsPage({ ingredients, onAdd, onEdit, onBuy, onD
             <div className="w-10 h-10 rounded-xl bg-terracotta/10 flex items-center justify-center text-terracotta"><PkgIcon /></div>
             <div>
               <h1 className="font-semibold text-xl">📦 Ingredients</h1>
-              <p className="text-sm text-warm-gray">{ingredients.length} items · {filtered.length} shown</p>
+              <p className="text-sm text-warm-gray">{visibleIngredients.length} items · {filtered.length} shown</p>
             </div>
           </div>
           <button onClick={onAdd} className="p-2.5 rounded-lg bg-terracotta text-white"><PlusIcon /></button>
@@ -261,7 +268,7 @@ export default function IngredientsPage({ ingredients, onAdd, onEdit, onBuy, onD
 
         {/* Grouped list */}
         {!filtered.length ? (
-          <p className="text-center py-16 text-warm-gray">{ingredients.length ? 'No matches' : 'No ingredients yet'}</p>
+          <p className="text-center py-16 text-warm-gray">{visibleIngredients.length ? 'No matches' : 'No ingredients yet'}</p>
         ) : (
           <div className="space-y-6">
             {grouped.map(([cat, items]) => (
