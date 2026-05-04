@@ -1,7 +1,28 @@
 import { useState } from 'react';
 
+// Local YYYY-MM-DD for the <input type="date"> control.
+function todayStr() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
 export default function BuyDialog({ ingredient, suggestedQty, onBuy, onCancel }) {
   const [qty, setQty] = useState(suggestedQty || 1);
+  const today = todayStr();
+  const [purchaseDate, setPurchaseDate] = useState(today);
+
+  const handleBuy = () => {
+    if (qty <= 0) return;
+    // Backdate only if the user picked a date earlier than today; for today,
+    // pass null so the RPC's `now()` keeps its hour-level precision.
+    const purchasedAt = purchaseDate && purchaseDate !== today
+      ? new Date(purchaseDate + 'T00:00:00').toISOString()
+      : null;
+    onBuy(qty, purchasedAt);
+  };
 
   return (
     <div className="space-y-4">
@@ -14,6 +35,17 @@ export default function BuyDialog({ ingredient, suggestedQty, onBuy, onCancel })
         <label className="block text-sm font-medium mb-1">Qty ({ingredient.unit})</label>
         <input type="number" value={qty} onChange={e => setQty(+e.target.value || 0)} onFocus={e => e.target.select()} className="w-full px-4 py-2 rounded-lg border text-lg" autoFocus />
         {suggestedQty && <p className="text-xs text-sage mt-1">Suggested: {suggestedQty} {ingredient.unit}</p>}
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-1">Purchase Date <span className="text-warm-gray font-normal">(optional — backdate if needed)</span></label>
+        <input
+          type="date"
+          value={purchaseDate}
+          max={today}
+          onChange={e => setPurchaseDate(e.target.value)}
+          className="w-full px-4 py-2 rounded-lg border"
+        />
       </div>
 
       <div className="bg-sage/10 rounded-xl p-4 flex justify-between">
@@ -29,7 +61,7 @@ export default function BuyDialog({ ingredient, suggestedQty, onBuy, onCancel })
 
       <div className="flex gap-3">
         <button onClick={onCancel} className="flex-1 py-2 rounded-lg border">Cancel</button>
-        <button onClick={() => qty > 0 && onBuy(qty)} disabled={qty <= 0} className={`flex-1 py-2 rounded-lg text-white ${qty > 0 ? 'bg-terracotta' : 'bg-light-gray cursor-not-allowed'}`}>Buy</button>
+        <button onClick={handleBuy} disabled={qty <= 0} className={`flex-1 py-2 rounded-lg text-white ${qty > 0 ? 'bg-terracotta' : 'bg-light-gray cursor-not-allowed'}`}>Buy</button>
       </div>
     </div>
   );
