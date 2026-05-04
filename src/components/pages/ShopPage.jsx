@@ -165,7 +165,7 @@ export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, 
               <>
                 {/* ─── Dish cards horizontal scroll ─── */}
                 <div>
-                  <h3 className="text-xs font-bold text-charcoal/60 uppercase tracking-wide mb-2">📋 Planned Dishes ({plannedDishCards.length})</h3>
+                  <h3 className="text-xs font-bold text-charcoal/60 uppercase tracking-wide mb-2">🔥 In Progress Dishes ({plannedDishCards.length})</h3>
                   <div className="flex gap-2.5 overflow-x-auto pb-2" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
                     {plannedDishCards.map(dish => {
                       const total = dish.ingDetails.length || 1;
