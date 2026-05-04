@@ -232,19 +232,27 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
     setArr(prev => prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val]);
   };
 
+  // Source for filter options. The Planned tab restricts options to
+  // countries/types that actually appear among planned dishes.
+  const filterSource = useMemo(() => {
+    if (tab === 'planned') return dishes.filter(d => d.status === 'Planned');
+    return dishes;
+  }, [dishes, tab]);
+
   const countryOptions = useMemo(() => {
-    const countries = [...new Set(dishes.map(d => d.country).filter(Boolean))].sort();
+    const countries = [...new Set(filterSource.map(d => d.country).filter(Boolean))].sort();
     return countries.map(c => ({ value: c, label: c, emoji: getCountryFlag(c) }));
-  }, [dishes]);
+  }, [filterSource]);
 
   const typeOptions = useMemo(() => {
-    const types = [...new Set(dishes.map(d => d.dish_type).filter(Boolean))].sort();
+    const types = [...new Set(filterSource.map(d => d.dish_type).filter(Boolean))].sort();
     return types.map(t => ({ value: t, label: t, emoji: getDishTypeEmoji(t) }));
-  }, [dishes]);
+  }, [filterSource]);
 
   // Counts
   const counts = useMemo(() => ({
     planner: dishes.filter(d => d.status !== 'Cooked' && d.status !== 'In Fridge').length,
+    planned: dishes.filter(d => d.status === 'Planned').length,
     progress: dishes.filter(d => d.status === 'In Progress').length,
     cooked: dishes.filter(d => d.status === 'Cooked').length,
     fridge: dishes.filter(d => d.status === 'In Fridge').length,
@@ -257,6 +265,7 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
 
     // Tab filter
     if (tab === 'planner') list = list.filter(d => d.status !== 'Cooked' && d.status !== 'In Fridge');
+    else if (tab === 'planned') list = list.filter(d => d.status === 'Planned');
     else if (tab === 'progress') list = list.filter(d => d.status === 'In Progress');
     else if (tab === 'cooked') list = list.filter(d => d.status === 'Cooked');
     else if (tab === 'fridge') list = list.filter(d => d.status === 'In Fridge');
@@ -275,6 +284,14 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
     // Sort
     if (tab === 'planner') {
       // Sort by completeness desc, then priority asc
+      return list.sort((a, b) => {
+        const ca = a._availability?.completeness || 0;
+        const cb = b._availability?.completeness || 0;
+        if (cb !== ca) return cb - ca;
+        return a.priority - b.priority;
+      });
+    } else if (tab === 'planned') {
+      // Mirror Menu Planner: completeness desc, priority asc.
       return list.sort((a, b) => {
         const ca = a._availability?.completeness || 0;
         const cb = b._availability?.completeness || 0;
@@ -304,6 +321,7 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
 
   const tabs = [
     { key: 'planner', label: '📖 Menu Planner', count: counts.planner },
+    { key: 'planned', label: '📋 Planned', count: counts.planned },
     { key: 'progress', label: '🔥 In Progress', count: counts.progress },
     { key: 'cooked', label: '✅ Cooked', count: counts.cooked },
     { key: 'fridge', label: '🧊 Fridge', count: counts.fridge },
@@ -387,6 +405,7 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
           <div className="text-center py-16">
             <p className="text-warm-gray">
               {tab === 'planner' && 'No dishes yet — add some!'}
+              {tab === 'planned' && 'No planned dishes. Set a dish to Planned to see it here.'}
               {tab === 'progress' && 'No dishes in progress. Use 📖 Menu Planner to start dishes.'}
               {tab === 'cooked' && 'No cooked dishes yet.'}
               {tab === 'fridge' && 'Nothing in the fridge. Cook a dish and store it here.'}
@@ -399,7 +418,7 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
               <DishCard
                 key={d.id}
                 d={d}
-                showRing={tab === 'planner' || tab === 'all'}
+                showRing={tab === 'planner' || tab === 'planned' || tab === 'all'}
                 showStatusDropdown={tab === 'all'}
                 showCook={tab === 'progress'}
                 showStoreInFridge={tab === 'cooked' || tab === 'all'}
