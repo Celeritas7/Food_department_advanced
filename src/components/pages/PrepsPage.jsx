@@ -80,11 +80,11 @@ export default function PrepsPage({ intermediates, ingredients, intIngredients, 
                       <p className={`text-sm ${t.stock_qty > 0 ? '' : 'text-tomato'}`}>{t.stock_qty} {t.unit}</p>
                     </div>
                     {t._availability?.unlinked ? (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">Unlinked</span>
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">Unlinked</span>
                     ) : t._availability?.canPrepare ? (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-sage/20 text-sage">Ready</span>
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-600">Ready</span>
                     ) : (
-                      <span className="text-xs px-2 py-0.5 rounded-full bg-tomato/10 text-tomato">Missing</span>
+                      <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-600">Missing</span>
                     )}
                   </div>
                   {t.category && <p className="text-xs text-warm-gray mt-1">{getCatEmoji(t.category)} {t.category}</p>}
