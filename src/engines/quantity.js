@@ -1,15 +1,13 @@
 /**
  * Quantity Aggregation Engine
- * Aggregates ingredient needs across PLANNED dishes only (Planned / In Progress)
+ * Aggregates ingredient needs across In Progress dishes only.
  * Handles direct + indirect (through intermediates) requirements
  * Tests: TEST-QA-001 through TEST-QA-008
  */
 
 export function aggregateRequirements(dishes, dishIngs, dishInts, intIngs, ingredients, intermediates) {
-  // Only include dishes the user actively intends to cook
-  const activeDishes = dishes.filter(d =>
-    d.status === 'Planned' || d.status === 'In Progress'
-  );
+  // Only include dishes the user is actively cooking right now.
+  const activeDishes = dishes.filter(d => d.status === 'In Progress');
 
   const ingReq = new Map();   // ingredientId → { total, priority, dishes[] }
   const intReq = new Map();   // intermediateId → { total, priority }

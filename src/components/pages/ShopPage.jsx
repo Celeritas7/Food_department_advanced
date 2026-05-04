@@ -55,7 +55,7 @@ export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, 
 
   // Build planned dish cards with ingredient details
   const plannedDishCards = useMemo(() => {
-    const active = dishes.filter(d => d.status === 'Planned' || d.status === 'In Progress');
+    const active = dishes.filter(d => d.status === 'In Progress');
     return active.map(d => {
       const myIngs = dishIngs.filter(di => di.dish_id === d.id);
       const ingDetails = myIngs.map(di => {
@@ -134,7 +134,7 @@ export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, 
             <div className="w-10 h-10 rounded-xl bg-terracotta/10 flex items-center justify-center text-terracotta"><CartIcon /></div>
             <div>
               <h1 className="font-semibold text-xl">🛒 Shopping</h1>
-              <p className="text-sm text-warm-gray">Planned &amp; In Progress dishes</p>
+              <p className="text-sm text-warm-gray">In Progress dishes only</p>
             </div>
           </div>
           <div className="flex gap-2">
