@@ -45,6 +45,7 @@ export async function updateIngredient(id, updates) {
   if (updates.purchasedAt !== undefined) mapped.purchased_at = updates.purchasedAt;
   if (updates.restockReminderDays !== undefined) mapped.restock_reminder_days = updates.restockReminderDays;
   if (updates.lastReminderChecked !== undefined) mapped.last_reminder_checked = updates.lastReminderChecked;
+  if (updates.hasReminder !== undefined) mapped.has_reminder = updates.hasReminder;
   mapped.last_updated = new Date().toISOString();
 
   const { data, error } = await supabase
@@ -60,6 +61,24 @@ export async function updateIngredient(id, updates) {
 export async function deleteIngredient(id) {
   const { error } = await supabase.from('food_department_ingredients').delete().eq('id', id);
   if (error) throw error;
+}
+
+export async function updateIngredientReminder(id, hasReminder, reminderDays) {
+  const mapped = {
+    has_reminder: !!hasReminder,
+    last_updated: new Date().toISOString(),
+  };
+  if (reminderDays !== undefined && reminderDays !== null) {
+    mapped.restock_reminder_days = reminderDays;
+  }
+  const { data, error } = await supabase
+    .from('food_department_ingredients')
+    .update(mapped)
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
 }
 
 export async function buyIngredient(id, qty) {
