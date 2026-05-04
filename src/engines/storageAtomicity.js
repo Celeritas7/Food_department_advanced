@@ -33,10 +33,11 @@ export async function runAtomicPrepare(supabase, intermediateId, unitsToPrepare)
   return data;
 }
 
-export async function runAtomicBuy(supabase, ingredientId, purchasedQty) {
+export async function runAtomicBuy(supabase, ingredientId, purchasedQty, purchasedAt = null) {
   const { data, error } = await supabase.rpc('fd_buy_ingredient', {
     p_ingredient_id: ingredientId,
     p_qty: purchasedQty,
+    p_purchased_at: purchasedAt,
   });
   if (error) throw new Error(error.message || 'Buy failed');
   return data;

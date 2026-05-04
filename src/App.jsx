@@ -184,12 +184,8 @@ export default function App() {
 
   const handleBuyIngredient = async (qty, purchasedAt) => {
     try {
-      const { updatedIngredient } = await runAtomicBuy(supabase, modal.data.id, qty);
-      // RPC sets purchased_at = now(); if the user backdated, override.
-      const finalIng = purchasedAt
-        ? await db.updateIngredient(modal.data.id, { purchasedAt })
-        : updatedIngredient;
-      setIngredients(prev => prev.map(i => i.id === modal.data.id ? finalIng : i));
+      const { updatedIngredient } = await runAtomicBuy(supabase, modal.data.id, qty, purchasedAt);
+      setIngredients(prev => prev.map(i => i.id === modal.data.id ? updatedIngredient : i));
       setModal({});
       notify(purchasedAt ? 'Stock updated (backdated)' : 'Stock updated', 'success');
     } catch (err) { notify(err.message); }

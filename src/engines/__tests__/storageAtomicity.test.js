@@ -117,11 +117,14 @@ function makeMockSupabase(initial) {
     if (args.p_qty == null || args.p_qty <= 0) {
       throw new Error(`Invalid quantity: ${args.p_qty}`);
     }
+    if (args.p_purchased_at && new Date(args.p_purchased_at) > new Date()) {
+      throw new Error(`p_purchased_at cannot be in the future: ${args.p_purchased_at}`);
+    }
     const ig = state.ingredients.find(i => i.id === args.p_ingredient_id);
     if (!ig) throw new Error(`Ingredient not found: ${args.p_ingredient_id}`);
 
     ig.stock_qty += args.p_qty;
-    ig.purchased_at = new Date().toISOString();
+    ig.purchased_at = args.p_purchased_at ?? new Date().toISOString();
     if (failHook) failHook('buy', 'after_update');
 
     return { success: true, updatedIngredient: { ...ig } };
