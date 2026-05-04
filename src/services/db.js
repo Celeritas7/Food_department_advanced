@@ -27,6 +27,7 @@ export async function addIngredient(ing) {
       category: ing.category || '',
       country: ing.country || '',
       purchased_at: ing.purchasedAt || null,
+      emoji: ing.emoji || null,
     }])
     .select()
     .single();
@@ -46,6 +47,7 @@ export async function updateIngredient(id, updates) {
   if (updates.restockReminderDays !== undefined) mapped.restock_reminder_days = updates.restockReminderDays;
   if (updates.lastReminderChecked !== undefined) mapped.last_reminder_checked = updates.lastReminderChecked;
   if (updates.hasReminder !== undefined) mapped.has_reminder = updates.hasReminder;
+  if (updates.emoji !== undefined) mapped.emoji = updates.emoji || null;
   mapped.last_updated = new Date().toISOString();
 
   const { data, error } = await supabase

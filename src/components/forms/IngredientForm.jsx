@@ -10,11 +10,12 @@ export default function IngredientForm({ initial, onSave, onCancel }) {
   const [stock, setStock] = useState(initial?.stock_qty || 0);
   const [shelfLife, setShelfLife] = useState(initial?.shelf_life_days || 7);
   const [category, setCategory] = useState(initial?.category || '');
+  const [emoji, setEmoji] = useState(initial?.emoji || '');
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!name.trim()) return;
-    onSave({ name: name.trim(), unit, stockQty: stock, shelfLifeDays: shelfLife, category });
+    onSave({ name: name.trim(), unit, stockQty: stock, shelfLifeDays: shelfLife, category, emoji: emoji.trim() });
   };
 
   return (
@@ -45,6 +46,16 @@ export default function IngredientForm({ initial, onSave, onCancel }) {
           <option value="">— Select —</option>
           {ALL_CATEGORIES.map(c => <option key={c} value={c}>{getCatEmoji(c)} {c}</option>)}
         </select>
+      </div>
+      <div>
+        <label className="block text-sm font-medium mb-1">Emoji (optional)</label>
+        <input
+          value={emoji}
+          onChange={e => setEmoji(e.target.value)}
+          placeholder="e.g. 🧄"
+          maxLength={4}
+          className="w-full px-4 py-2 rounded-lg border text-lg"
+        />
       </div>
       <div className="flex gap-3 pt-4 border-t">
         <button type="button" onClick={onCancel} className="flex-1 py-2 rounded-lg border">Cancel</button>

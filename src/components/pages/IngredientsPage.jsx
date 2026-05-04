@@ -5,7 +5,7 @@
 import { useState, useMemo } from 'react';
 import { PkgIcon, PlusIcon, EditIcon, DelIcon } from '../ui/Icons';
 import { SpoilageBadge, InheritedPriorityBadge } from '../ui/Badges';
-import { getCatEmoji } from '../../config/emoji.js';
+import { getCatEmoji, getIngredientEmoji } from '../../config/emoji.js';
 
 const REMINDER_OPTIONS = [3, 7, 14, 30];
 const DEFAULT_REMINDER_DAYS = 7;
@@ -235,7 +235,7 @@ export default function IngredientsPage({ ingredients, onAdd, onEdit, onBuy, onD
                   const interval = i.restock_reminder_days || DEFAULT_REMINDER_DAYS;
                   return (
                     <div key={i.id} className="px-4 py-3 flex items-center gap-3 flex-wrap">
-                      <span className="text-lg">{getCatEmoji(i.category)}</span>
+                      <span className="text-lg">{getIngredientEmoji(i)}</span>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="font-semibold text-sm truncate">{i.name}</span>
@@ -284,7 +284,7 @@ export default function IngredientsPage({ ingredients, onAdd, onEdit, onBuy, onD
                       <div className="flex justify-between">
                         <div>
                           <h3 className="font-semibold text-sm flex items-center gap-1.5">
-                            <span>{getCatEmoji(i.category)} {i.name}</span>
+                            <span>{getIngredientEmoji(i)} {i.name}</span>
                             <InheritedPriorityBadge priority={i._inheritedPriority} />
                           </h3>
                           <p className={`text-sm ${i.stock_qty > 0 ? '' : 'text-tomato'}`}>{i.stock_qty} {i.unit}</p>

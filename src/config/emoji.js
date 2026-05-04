@@ -61,5 +61,10 @@ export const getCatEmoji = (cat) => CATEGORY_EMOJI[cat] || '📦';
 export const getDishTypeEmoji = (type) => DISH_TYPE_EMOJI[type] || '🍽️';
 export const getCountryFlag = (country) => COUNTRY_FLAG[country] || '🌍';
 
+export function getIngredientEmoji(ingredient) {
+  if (ingredient?.emoji) return ingredient.emoji;
+  return getCatEmoji(ingredient?.category);
+}
+
 /** All known categories for dropdowns */
 export const ALL_CATEGORIES = Object.keys(CATEGORY_EMOJI).sort();

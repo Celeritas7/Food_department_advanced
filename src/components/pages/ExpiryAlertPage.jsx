@@ -4,7 +4,7 @@
  * Addresses the universal problem of food waste
  */
 import { useState, useMemo } from 'react';
-import { getCatEmoji, getDishTypeEmoji, getCountryFlag } from '../../config/emoji.js';
+import { getDishTypeEmoji, getCountryFlag, getIngredientEmoji } from '../../config/emoji.js';
 
 function UrgencyBadge({ days }) {
   if (days === null || days === undefined) return null;
@@ -152,7 +152,7 @@ export default function ExpiryAlertPage({ ingredients, dishes, dishIngs, onCook,
                   <div key={item.id} className={`flex-shrink-0 w-32 p-3 rounded-xl border-2 ${
                     isExpired ? 'bg-tomato/5 border-tomato/30' : 'bg-butter/20 border-yellow-300/50'
                   }`}>
-                    <div className="text-xl mb-1">{getCatEmoji(item.category)}</div>
+                    <div className="text-xl mb-1">{getIngredientEmoji(item)}</div>
                     <div className="text-xs font-bold text-charcoal leading-tight line-clamp-2">{item.name}</div>
                     <div className="text-[11px] text-warm-gray mt-1">{item.stock_qty} {item.unit}</div>
                     <div className="mt-2">
@@ -219,7 +219,7 @@ export default function ExpiryAlertPage({ ingredients, dishes, dishIngs, onCook,
                               ? 'bg-tomato/5 text-tomato border-tomato/20'
                               : 'bg-butter/30 text-yellow-700 border-yellow-200'
                           }`}>
-                            {getCatEmoji(ing.category)} {ing.name.split('(')[0].trim()} — {
+                            {getIngredientEmoji(ing)} {ing.name.split('(')[0].trim()} — {
                               ing._spoilage?.daysRemaining < 0
                                 ? `${Math.abs(ing._spoilage.daysRemaining)}d overdue`
                                 : `${ing._spoilage?.daysRemaining}d left`
@@ -248,7 +248,7 @@ export default function ExpiryAlertPage({ ingredients, dishes, dishIngs, onCook,
                               }`}>
                                 <span>{!hasIt ? '❌' : isUrgent ? '⚠️' : '✅'}</span>
                                 <span className="font-semibold text-charcoal flex-1">
-                                  {ing ? `${getCatEmoji(ing.category)} ${ing.name}` : 'Unknown'}
+                                  {ing ? `${getIngredientEmoji(ing)} ${ing.name}` : 'Unknown'}
                                 </span>
                                 <span className="text-warm-gray">
                                   {ing ? `${ing.stock_qty} ${ing.unit}` : '—'}

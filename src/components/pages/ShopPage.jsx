@@ -7,7 +7,7 @@
 import { useState, useMemo } from 'react';
 import { CartIcon } from '../ui/Icons';
 import { PriorityBadge } from '../ui/Badges';
-import { getCatEmoji } from '../../config/emoji.js';
+import { getCatEmoji, getIngredientEmoji } from '../../config/emoji.js';
 
 const GENERAL_CATEGORIES = ['Stationery', 'Cleaning', 'Personal', 'Household', 'Electronics', 'Daily Need', 'Other'];
 const GENERAL_CAT_STYLES = {
@@ -28,6 +28,10 @@ export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, 
   const [genName, setGenName] = useState('');
   const [genQty, setGenQty] = useState('');
   const [genCat, setGenCat] = useState('Other');
+
+  // id → full ingredient row, used so shopping-list entries (which don't carry
+  // the emoji column) can still resolve a per-ingredient emoji.
+  const ingById = useMemo(() => new Map(ingredients.map(i => [i.id, i])), [ingredients]);
 
   const generalSorted = useMemo(() => {
     // Unchecked first (newest at top); checked items fall to the bottom.
@@ -213,7 +217,7 @@ export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, 
                               ig.missing ? 'bg-tomato/5' : 'bg-sage/5'
                             }`}>
                               <span>{ig.missing ? '❌' : '✅'}</span>
-                              <span className="flex-1 truncate">{getCatEmoji(ig.category)} {ig.name}</span>
+                              <span className="flex-1 truncate">{getIngredientEmoji(ig)} {ig.name}</span>
                               <span className="text-warm-gray whitespace-nowrap">need {ig.qty} {ig.unit}</span>
                               <span className={`font-medium whitespace-nowrap ${ig.missing ? 'text-tomato' : 'text-sage'}`}>
                                 have {ig.have}
@@ -239,7 +243,7 @@ export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, 
                           <div className="flex items-center gap-3">
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-2">
-                                <h4 className="font-semibold text-sm truncate">{getCatEmoji(item.category)} {item.name}</h4>
+                                <h4 className="font-semibold text-sm truncate">{getIngredientEmoji(ingById.get(item.id) || item)} {item.name}</h4>
                                 <PriorityBadge priority={item.priority} />
                               </div>
                               <div className="flex gap-3 text-xs mt-1 text-warm-gray">
@@ -324,7 +328,7 @@ export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, 
                     <div className="flex items-center gap-3">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <h3 className="font-semibold text-sm truncate">{getCatEmoji(item.category)} {item.name}</h3>
+                          <h3 className="font-semibold text-sm truncate">{getIngredientEmoji(ingById.get(item.id) || item)} {item.name}</h3>
                           <PriorityBadge priority={item.priority} />
                         </div>
                         <div className="flex gap-3 text-xs mt-1 text-warm-gray">
@@ -365,7 +369,7 @@ export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, 
                         <div key={ig.id} className={`shrink-0 w-28 p-3 rounded-xl border text-center ${
                           isExpired ? 'bg-tomato/5 border-tomato/30' : 'bg-amber-50 border-amber-300/50'
                         }`}>
-                          <span className="text-xl">{getCatEmoji(ig.category)}</span>
+                          <span className="text-xl">{getIngredientEmoji(ig)}</span>
                           <p className="text-xs font-semibold mt-1.5 truncate">{ig.name}</p>
                           <p className={`text-[10px] font-bold mt-1 ${isExpired ? 'text-tomato' : 'text-amber-600'}`}>
                             {isExpired ? `Expired ${Math.abs(sp.daysRemaining)}d ago` : `${sp.daysRemaining}d left`}
