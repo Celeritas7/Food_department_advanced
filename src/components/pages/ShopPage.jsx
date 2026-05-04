@@ -9,10 +9,46 @@ import { CartIcon } from '../ui/Icons';
 import { PriorityBadge } from '../ui/Badges';
 import { getCatEmoji } from '../../config/emoji.js';
 
-export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, dishInts, intermediates, onBuy, onCook }) {
+const GENERAL_CATEGORIES = ['Stationery', 'Cleaning', 'Personal', 'Household', 'Electronics', 'Other'];
+const GENERAL_CAT_STYLES = {
+  Stationery:  'bg-purple/10 text-purple',
+  Cleaning:    'bg-sage/15 text-sage',
+  Personal:    'bg-terracotta/10 text-terracotta',
+  Household:   'bg-amber-100 text-amber-700',
+  Electronics: 'bg-cyan-100 text-cyan-700',
+  Other:       'bg-light-gray/30 text-warm-gray',
+};
+
+export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, dishInts, intermediates, onBuy, onCook, generalShoppingItems = [], onAddGeneral, onToggleGeneral, onDeleteGeneral }) {
   const [tab, setTab] = useState('buy');
   const [expandedDishId, setExpandedDishId] = useState(null);
   const [catFilter, setCatFilter] = useState([]);
+  const [generalAddOpen, setGeneralAddOpen] = useState(false);
+  const [genName, setGenName] = useState('');
+  const [genQty, setGenQty] = useState('');
+  const [genCat, setGenCat] = useState('Other');
+
+  const generalSorted = useMemo(() => {
+    // Unchecked first (newest at top); checked items fall to the bottom.
+    const unchecked = generalShoppingItems.filter(i => !i.checked);
+    const checked = generalShoppingItems.filter(i => i.checked);
+    return [...unchecked, ...checked];
+  }, [generalShoppingItems]);
+  const checkedCount = generalShoppingItems.filter(i => i.checked).length;
+
+  const submitGeneral = () => {
+    const name = genName.trim();
+    if (!name) return;
+    onAddGeneral?.(name, genCat, genQty.trim());
+    setGenName('');
+    setGenQty('');
+    setGenCat('Other');
+    setGeneralAddOpen(false);
+  };
+
+  const clearChecked = () => {
+    generalShoppingItems.filter(i => i.checked).forEach(i => onDeleteGeneral?.(i.id));
+  };
 
   const toBuyItems = useMemo(() => shoppingList.list.filter(i => i.toBuy), [shoppingList]);
   const inStockItems = useMemo(() => shoppingList.list.filter(i => !i.toBuy), [shoppingList]);
@@ -384,6 +420,99 @@ export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, 
             )}
           </>
         )}
+
+        {/* ═══════════ GENERAL LIST (non-food, persists across tabs) ═══════════ */}
+        <section className="mt-8 pt-6 border-t border-light-gray/40">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-xs font-bold text-purple uppercase tracking-wide flex items-center gap-2">
+              📦 General List
+              <span className="text-warm-gray font-normal normal-case">{generalShoppingItems.length} item{generalShoppingItems.length === 1 ? '' : 's'}</span>
+            </h3>
+            <div className="flex gap-2">
+              {checkedCount > 0 && (
+                <button
+                  onClick={clearChecked}
+                  className="text-xs text-terracotta font-semibold hover:underline"
+                >Clear checked ({checkedCount})</button>
+              )}
+              <button
+                onClick={() => setGeneralAddOpen(o => !o)}
+                className="text-xs px-3 py-1.5 rounded-lg bg-purple/10 text-purple font-semibold hover:bg-purple/20"
+              >{generalAddOpen ? '✕ Close' : '+ Add item'}</button>
+            </div>
+          </div>
+
+          {generalAddOpen && (
+            <div className="bg-white rounded-xl border border-purple/20 p-3 mb-3 space-y-2">
+              <input
+                value={genName}
+                onChange={e => setGenName(e.target.value)}
+                placeholder="Item name *"
+                className="w-full px-3 py-2 rounded-lg border text-sm"
+                autoFocus
+              />
+              <div className="flex gap-2">
+                <input
+                  value={genQty}
+                  onChange={e => setGenQty(e.target.value)}
+                  placeholder='Quantity (e.g. "2 packs")'
+                  className="flex-1 px-3 py-2 rounded-lg border text-sm"
+                />
+                <select
+                  value={genCat}
+                  onChange={e => setGenCat(e.target.value)}
+                  className="px-3 py-2 rounded-lg border text-sm bg-white"
+                >
+                  {GENERAL_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <button
+                onClick={submitGeneral}
+                disabled={!genName.trim()}
+                className={`w-full py-2 rounded-lg text-white text-sm font-semibold ${
+                  genName.trim() ? 'bg-terracotta hover:bg-terracotta/90' : 'bg-light-gray cursor-not-allowed'
+                }`}
+              >Add</button>
+            </div>
+          )}
+
+          {generalShoppingItems.length === 0 ? (
+            <p className="text-xs text-warm-gray text-center py-6">No general items yet — add stationery, cleaning supplies, etc.</p>
+          ) : (
+            <div className="space-y-1.5">
+              {generalSorted.map(item => (
+                <div
+                  key={item.id}
+                  className={`bg-white rounded-xl border p-3 flex items-center gap-3 ${
+                    item.checked ? 'border-light-gray/40 opacity-60' : 'border-purple/15'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={item.checked}
+                    onChange={() => onToggleGeneral?.(item.id, !item.checked)}
+                    className="w-4 h-4 accent-terracotta cursor-pointer flex-shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className={`text-sm font-medium truncate ${item.checked ? 'line-through text-warm-gray' : 'text-charcoal'}`}>
+                      {item.name}
+                      {item.quantity && <span className="text-warm-gray font-normal"> · {item.quantity}</span>}
+                    </div>
+                  </div>
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${GENERAL_CAT_STYLES[item.category] || GENERAL_CAT_STYLES.Other}`}>
+                    {item.category || 'Other'}
+                  </span>
+                  <button
+                    onClick={() => onDeleteGeneral?.(item.id)}
+                    className="p-1 rounded text-warm-gray hover:text-tomato flex-shrink-0"
+                    title="Delete"
+                    aria-label="Delete item"
+                  >🗑</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
       </main>
     </div>
   );

@@ -66,19 +66,21 @@ export default function App() {
   const [dishIngs, setDishIngs] = useState([]);
   const [dishInts, setDishInts] = useState([]);
   const [intIngs, setIntIngs] = useState([]);
+  const [generalShoppingItems, setGeneralShoppingItems] = useState([]);
 
   const notify = useCallback((msg, type = 'error') => setToast({ msg, type, key: Date.now() }), []);
 
   // ─── Data Loading ────────────────────────────────────
   const loadAll = useCallback(async () => {
     try {
-      const [ings, ints, dsh, di, dint, ii] = await Promise.all([
+      const [ings, ints, dsh, di, dint, ii, gen] = await Promise.all([
         db.fetchIngredients(),
         db.fetchIntermediates(),
         db.fetchDishes(),
         db.fetchDishIngredients(),
         db.fetchDishIntermediates(),
         db.fetchIntermediateIngredients(),
+        db.getGeneralShoppingItems(),
       ]);
       setIngredients(ings);
       setIntermediates(ints);
@@ -86,6 +88,7 @@ export default function App() {
       setDishIngs(di);
       setDishInts(dint);
       setIntIngs(ii);
+      setGeneralShoppingItems(gen);
 
       // Restore recipeDish from saved ID after data loads
       if (pendingRecipeDishId && !recipeDish) {
@@ -346,6 +349,28 @@ export default function App() {
     await loadAll(); // Reload so availability % updates
   };
 
+  // ─── Actions: General Shopping List ──────────────────
+  const handleAddGeneralItem = async (name, category, quantity) => {
+    try {
+      const created = await db.addGeneralShoppingItem(name, category, quantity);
+      setGeneralShoppingItems(prev => [created, ...prev]);
+    } catch (err) { notify('Failed: ' + err.message); }
+  };
+
+  const handleToggleGeneralItem = async (id, checked) => {
+    try {
+      const updated = await db.toggleGeneralShoppingItem(id, checked);
+      setGeneralShoppingItems(prev => prev.map(it => it.id === id ? updated : it));
+    } catch (err) { notify('Failed: ' + err.message); }
+  };
+
+  const handleDeleteGeneralItem = async (id) => {
+    try {
+      await db.deleteGeneralShoppingItem(id);
+      setGeneralShoppingItems(prev => prev.filter(it => it.id !== id));
+    } catch (err) { notify('Failed: ' + err.message); }
+  };
+
   // ─── Actions: Categories ───────────────────────────────
   const handleBulkRename = async (oldCat, newCat) => {
     try {
@@ -548,6 +573,10 @@ export default function App() {
           intermediates={enrichedIntermediates}
           onBuy={(ig, sugQty) => setModal({ type: 'buyIng', data: ig, suggestedQty: sugQty })}
           onCook={(dish) => handleCookDish(dish)}
+          generalShoppingItems={generalShoppingItems}
+          onAddGeneral={handleAddGeneralItem}
+          onToggleGeneral={handleToggleGeneralItem}
+          onDeleteGeneral={handleDeleteGeneralItem}
         />
       )}
       {page === 'data' && (

@@ -453,6 +453,46 @@ export async function prepareIntermediate(intermediateId, units, inputIngredient
   if (error) throw error;
 }
 
+// ─── GENERAL SHOPPING LIST (non-food items) ──────────────
+
+export async function getGeneralShoppingItems() {
+  const { data, error } = await supabase
+    .from('food_department_general_shopping')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
+export async function addGeneralShoppingItem(name, category, quantity) {
+  const { data, error } = await supabase
+    .from('food_department_general_shopping')
+    .insert([{ name, category: category || 'Other', quantity: quantity || '', checked: false }])
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function toggleGeneralShoppingItem(id, checked) {
+  const { data, error } = await supabase
+    .from('food_department_general_shopping')
+    .update({ checked, updated_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteGeneralShoppingItem(id) {
+  const { error } = await supabase
+    .from('food_department_general_shopping')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+}
+
 // ─── EXPORT / IMPORT ─────────────────────────────────────
 
 // ─── CATEGORY MANAGEMENT ─────────────────────────────────
