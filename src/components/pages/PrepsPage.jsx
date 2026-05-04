@@ -74,8 +74,8 @@ export default function PrepsPage({ intermediates, ingredients, intIngredients, 
               }).filter(Boolean).join(', ');
               return (
                 <div key={t.id} className="bg-white rounded-xl border border-purple/30 p-4 fade">
-                  <div className="flex justify-between">
-                    <div>
+                  <div className="flex justify-between items-start gap-2">
+                    <div className="min-w-0">
                       <h3 className="font-semibold">{t.name}</h3>
                       <p className={`text-sm ${t.stock_qty > 0 ? '' : 'text-tomato'}`}>{t.stock_qty} {t.unit}</p>
                     </div>
