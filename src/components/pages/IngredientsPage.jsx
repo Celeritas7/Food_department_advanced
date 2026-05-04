@@ -246,6 +246,11 @@ export default function IngredientsPage({ ingredients, onAdd, onEdit, onBuy, onD
                         onClick={() => onBuy(i)}
                         className="text-xs font-medium text-terracotta hover:bg-terracotta/10 px-2 py-1 rounded"
                       >🛒 Buy</button>
+                      <button
+                        onClick={() => onToggleReminder?.(i, false)}
+                        title="Remove reminder"
+                        className="text-xs font-medium text-warm-gray hover:text-tomato hover:bg-tomato/10 px-2 py-1 rounded"
+                      >✕ Remove</button>
                     </div>
                   );
                 })}
