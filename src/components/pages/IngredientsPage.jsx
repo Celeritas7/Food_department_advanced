@@ -281,8 +281,8 @@ export default function IngredientsPage({ ingredients, onAdd, onEdit, onBuy, onD
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                   {items.map(i => (
                     <div key={i.id} className="bg-white rounded-xl border p-4 fade relative">
-                      <div className="flex justify-between">
-                        <div>
+                      <div className="flex justify-between items-start gap-2">
+                        <div className="min-w-0">
                           <h3 className="font-semibold text-sm flex items-center gap-1.5">
                             <span>{getIngredientEmoji(i)} {i.name}</span>
                             <InheritedPriorityBadge priority={i._inheritedPriority} />
