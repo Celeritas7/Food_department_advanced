@@ -50,14 +50,26 @@ export async function updateIngredient(id, updates) {
   if (updates.emoji !== undefined) mapped.emoji = updates.emoji || null;
   mapped.last_updated = new Date().toISOString();
 
-  const { data, error } = await supabase
-    .from('food_department_ingredients')
-    .update(mapped)
-    .eq('id', id)
-    .select()
-    .single();
-  if (error) throw error;
-  return data;
+  try {
+    const { data, error } = await supabase
+      .from('food_department_ingredients')
+      .update(mapped)
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) {
+      console.error('Update ingredient error:', error);
+      console.error('Update payload:', mapped);
+      console.error('Update id:', id);
+      throw error;
+    }
+    return data;
+  } catch (err) {
+    console.error('Update ingredient threw:', err);
+    console.error('Update payload:', mapped);
+    console.error('Update id:', id);
+    throw err;
+  }
 }
 
 export async function deleteIngredient(id) {
