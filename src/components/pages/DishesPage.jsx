@@ -7,7 +7,6 @@
  */
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { DishIcon, PlusIcon, EditIcon } from '../ui/Icons';
-import { PriorityBadge } from '../ui/Badges';
 import FilterBar from '../ui/FilterBar';
 import { getDishTypeEmoji, getCountryFlag } from '../../config/emoji.js';
 
@@ -19,6 +18,19 @@ const STATUS_STYLES = {
   'Cooked': 'bg-emerald-100 text-emerald-700',
   'In Fridge': 'bg-cyan-100 text-cyan-700',
 };
+
+// Priority-as-color tokens (priority 1/2 = high, 3 = normal, 4/5 = low).
+const PRIORITY_COLORS = {
+  high:   { bg: '#FFF1EA', border: '#D97757', text: '#B05A38', label: 'High' },
+  normal: { bg: '#FAF4E8', border: '#C4B697', text: '#8A7A53', label: 'Normal' },
+  low:    { bg: '#F0F7F1', border: '#7AAD89', text: '#4A7C58', label: 'Low' },
+};
+function priorityVariant(p) {
+  if (p == null) return 'normal';
+  if (p <= 2) return 'high';
+  if (p === 3) return 'normal';
+  return 'low';
+}
 
 // Days between an ISO timestamp and now, floored.
 function daysSince(iso) {
@@ -47,7 +59,7 @@ function CompletenessRing({ percent, size = 40, stroke = 4 }) {
 }
 
 // ─── Dish Card (shared across tabs) ───
-function DishCard({ d, showRing, showStatusDropdown, showCook, showStoreInFridge, showMarkEaten, onCook, onQuickStatus, onEdit, onRecipe, onStoreInFridge, onMarkEaten, onMarkWasted }) {
+function DishCard({ d, tab, layout = 'grid', showRing, showStatusChip, showStatusDropdown, showCook, showStoreInFridge, showMarkEaten, onCook, onQuickStatus, onEdit, onRecipe, onStoreInFridge, onMarkEaten, onMarkWasted }) {
   const [dropOpen, setDropOpen] = useState(false);
   const [eatenOpen, setEatenOpen] = useState(false);
   const [eatenNotes, setEatenNotes] = useState('');
@@ -57,6 +69,9 @@ function DishCard({ d, showRing, showStatusDropdown, showCook, showStoreInFridge
   const isInFridge = d.status === 'In Fridge';
   const fridgeDays = isInFridge ? daysSince(d.stored_at) : null;
   const fridgeStale = fridgeDays != null && fridgeDays > 3;
+  const isGrid = layout === 'grid';
+  const pc = PRIORITY_COLORS[priorityVariant(d.priority)];
+  const cardStyle = { backgroundColor: pc.bg, borderLeft: `4px solid ${pc.border}` };
 
   useEffect(() => {
     if (!dropOpen) return;
@@ -74,15 +89,21 @@ function DishCard({ d, showRing, showStatusDropdown, showCook, showStoreInFridge
   );
 
   return (
-    <div className={`bg-white rounded-xl border p-4 fade ${isCooked ? 'opacity-60' : ''} ${isInFridge && fridgeStale ? 'border-tomato/40' : ''}`}>
-      <div className="flex gap-3">
+    <div
+      style={cardStyle}
+      className={`rounded-xl border border-l-0 ${isGrid ? 'p-3' : 'p-4'} fade ${isCooked ? 'opacity-60' : ''} ${isInFridge && fridgeStale ? 'ring-1 ring-tomato/40' : ''}`}
+    >
+      <div className={`flex ${isGrid ? 'gap-2' : 'gap-3'}`}>
         {showRing && !isCooked && !isInFridge && !av.unlinked && (
           <div className="shrink-0 pt-0.5">
-            <CompletenessRing percent={av.completeness || 0} />
+            <CompletenessRing percent={av.completeness || 0} size={isGrid ? 34 : 40} stroke={isGrid ? 3 : 4} />
           </div>
         )}
         <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-sm leading-tight">
+          <h3
+            className={`font-semibold leading-tight ${isGrid ? 'text-[14px] line-clamp-2' : 'text-sm'}`}
+            title={d.name}
+          >
             {d.dish_type ? getDishTypeEmoji(d.dish_type) : '🍽️'} {d.name}
           </h3>
           {/* Fridge-tab specific: days stored + stale warning */}
@@ -95,12 +116,12 @@ function DishCard({ d, showRing, showStatusDropdown, showCook, showStoreInFridge
               </span>
             </div>
           )}
-          <div className="flex flex-wrap gap-1.5 mt-1.5">
-            {/* Status badge (clickable dropdown) */}
-            {showStatusDropdown && !isCooked && !isInFridge ? (
+          <div className={`flex flex-wrap ${isGrid ? 'gap-1 mt-1' : 'gap-1.5 mt-1.5'}`}>
+            {/* Status badge (clickable dropdown) — hidden on tabs where the tab itself signals status */}
+            {showStatusChip && showStatusDropdown && !isCooked && !isInFridge ? (
               <div className="relative" ref={dropOpen ? dropRef : null}>
                 <button onClick={() => setDropOpen(!dropOpen)}
-                  className={`text-xs px-2 py-0.5 rounded-full font-medium cursor-pointer hover:ring-2 hover:ring-terracotta/30 ${STATUS_STYLES[d.status] || 'bg-gray-100 text-gray-500'}`}>
+                  className={`${isGrid ? 'text-[11px] px-1.5 py-0.5' : 'text-xs px-2 py-0.5'} rounded-full font-medium cursor-pointer hover:ring-2 hover:ring-terracotta/30 ${STATUS_STYLES[d.status] || 'bg-gray-100 text-gray-500'}`}>
                   {d.status} ▾
                 </button>
                 {dropOpen && (
@@ -114,26 +135,27 @@ function DishCard({ d, showRing, showStatusDropdown, showCook, showStoreInFridge
                   </div>
                 )}
               </div>
-            ) : (
-              <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_STYLES[d.status] || 'bg-gray-100 text-gray-500'}`}>{d.status}</span>
-            )}
-            <PriorityBadge priority={d.priority} />
+            ) : showStatusChip ? (
+              <span className={`${isGrid ? 'text-[11px] px-1.5 py-0.5' : 'text-xs px-2 py-0.5'} rounded-full font-medium ${STATUS_STYLES[d.status] || 'bg-gray-100 text-gray-500'}`}>{d.status}</span>
+            ) : null}
             {!isCooked && !isInFridge && !av.unlinked && (
               av.canCook
-                ? <span className="text-xs px-2 py-0.5 rounded-full bg-sage/15 text-sage font-medium">🟢 Ready</span>
-                : <span className="text-xs px-2 py-0.5 rounded-full bg-tomato/10 text-tomato font-medium">
+                ? <span className={`${isGrid ? 'text-[11px] px-1.5 py-0.5' : 'text-xs px-2 py-0.5'} rounded-full bg-sage/15 text-sage font-medium`}>🟢 Ready</span>
+                : <span className={`${isGrid ? 'text-[11px] px-1.5 py-0.5' : 'text-xs px-2 py-0.5'} rounded-full bg-tomato/10 text-tomato font-medium`}>
                     🔴 Missing {(av.missing?.length || 0) + (av.missingInts?.length || 0)}
                   </span>
             )}
-            {d.country && <span className="text-xs px-2 py-0.5 rounded-full bg-light-gray/30">{getCountryFlag(d.country)} {d.country}</span>}
-            {d.dish_type && <span className="text-xs px-2 py-0.5 rounded-full bg-light-gray/30">{getDishTypeEmoji(d.dish_type)} {d.dish_type}</span>}
+            {d.country && <span className={`${isGrid ? 'text-[11px] px-1.5 py-0.5' : 'text-xs px-2 py-0.5'} rounded-full bg-light-gray/30`}>{getCountryFlag(d.country)} {d.country}</span>}
+            {!isGrid && d.dish_type && <span className="text-xs px-2 py-0.5 rounded-full bg-light-gray/30">{getDishTypeEmoji(d.dish_type)} {d.dish_type}</span>}
           </div>
-          {/* Availability info */}
+          {/* Availability info (compact in grid; only "missing names" hidden in grid to save space) */}
           {!isCooked && !isInFridge && (
-            <div className="text-xs mt-2">
+            <div className={`${isGrid ? 'text-[11px] mt-1.5' : 'text-xs mt-2'}`}>
               {av.unlinked ? <span className="text-amber-600">⚠️ Unlinked — add ingredients</span>
                 : av.canCook ? <span className="text-sage font-medium">✓ Ready to cook</span>
-                : <span className="text-warm-gray">{av.haveIngs ?? 0}/{av.totalIngs ?? 0} ingredients · Missing: <span className="text-tomato">{[...av.missing?.map(m => m.name) || [], ...av.missingInts?.map(m => m.name) || []].join(', ')}</span></span>}
+                : isGrid
+                  ? <span className="text-warm-gray">{av.haveIngs ?? 0}/{av.totalIngs ?? 0} ingredients</span>
+                  : <span className="text-warm-gray">{av.haveIngs ?? 0}/{av.totalIngs ?? 0} ingredients · Missing: <span className="text-tomato">{[...av.missing?.map(m => m.name) || [], ...av.missingInts?.map(m => m.name) || []].join(', ')}</span></span>}
             </div>
           )}
         </div>
@@ -154,52 +176,70 @@ function DishCard({ d, showRing, showStatusDropdown, showCook, showStoreInFridge
         </div>
       )}
 
-      {/* Actions */}
-      <div className="flex gap-1 mt-3 pt-3 border-t items-center">
+      {/* Actions — icon-only pills in grid mode, labeled buttons in list mode */}
+      <div className={`flex ${isGrid ? 'gap-1 flex-wrap' : 'gap-1'} mt-3 pt-3 border-t border-charcoal/10 items-center`}>
         {showCook && !isCooked && !isInFridge && (
-          <button onClick={() => onCook(d)} disabled={!av.canCook}
-            className={`flex-1 py-1.5 rounded text-sm font-medium ${av.canCook ? 'text-sage hover:bg-sage/10' : 'text-light-gray cursor-not-allowed'}`}>
-            {av.canCook ? '✅ Cook' : 'Cook'}
-          </button>
+          isGrid
+            ? <button onClick={() => onCook(d)} disabled={!av.canCook} title="Cook" aria-label="Cook"
+                className={`px-2 py-1 rounded-full text-sm bg-white/60 ${av.canCook ? 'text-sage hover:bg-sage/10' : 'text-light-gray cursor-not-allowed'}`}>✅</button>
+            : <button onClick={() => onCook(d)} disabled={!av.canCook}
+                className={`flex-1 py-1.5 rounded text-sm font-medium ${av.canCook ? 'text-sage hover:bg-sage/10' : 'text-light-gray cursor-not-allowed'}`}>
+                {av.canCook ? '✅ Cook' : 'Cook'}
+              </button>
         )}
         {/* Cooked tab: Store in Fridge */}
         {showStoreInFridge && isCooked && (
-          <button onClick={() => onStoreInFridge(d)}
-            className="flex-1 py-1.5 rounded text-sm font-medium text-cyan-700 hover:bg-cyan-50">
-            🧊 Store in Fridge
-          </button>
+          isGrid
+            ? <button onClick={() => onStoreInFridge(d)} title="Store in fridge" aria-label="Store in fridge"
+                className="px-2 py-1 rounded-full text-sm bg-white/60 text-cyan-700 hover:bg-cyan-50">🧊</button>
+            : <button onClick={() => onStoreInFridge(d)}
+                className="flex-1 py-1.5 rounded text-sm font-medium text-cyan-700 hover:bg-cyan-50">
+                🧊 Store in Fridge
+              </button>
         )}
         {/* Fridge tab: Mark as Eaten (toggles inline notes input) */}
         {showMarkEaten && isInFridge && !eatenOpen && (
-          <button onClick={() => setEatenOpen(true)}
-            className="flex-1 py-1.5 rounded text-sm font-medium text-terracotta hover:bg-terracotta/10">
-            ✅ Eaten
-          </button>
+          isGrid
+            ? <button onClick={() => setEatenOpen(true)} title="Eaten" aria-label="Eaten"
+                className="px-2 py-1 rounded-full text-sm bg-white/60 text-terracotta hover:bg-terracotta/10">✅</button>
+            : <button onClick={() => setEatenOpen(true)}
+                className="flex-1 py-1.5 rounded text-sm font-medium text-terracotta hover:bg-terracotta/10">
+                ✅ Eaten
+              </button>
         )}
         {/* Fridge tab: Mark as Wasted (no notes, logs notes='wasted' server-side) */}
         {showMarkEaten && isInFridge && !eatenOpen && (
-          <button onClick={() => onMarkWasted(d)}
-            className="flex-1 py-1.5 rounded text-sm font-medium text-tomato hover:bg-tomato/10">
-            🗑️ Wasted
-          </button>
+          isGrid
+            ? <button onClick={() => onMarkWasted(d)} title="Wasted" aria-label="Wasted"
+                className="px-2 py-1 rounded-full text-sm bg-white/60 text-tomato hover:bg-tomato/10">🗑️</button>
+            : <button onClick={() => onMarkWasted(d)}
+                className="flex-1 py-1.5 rounded text-sm font-medium text-tomato hover:bg-tomato/10">
+                🗑️ Wasted
+              </button>
         )}
-        {/* Quick action buttons for Menu Planner */}
+        {/* Quick action buttons for Menu Planner / All */}
         {!showCook && !showStoreInFridge && !showMarkEaten && !isCooked && !isInFridge && d.status !== 'In Progress' && (
-          <button onClick={() => onQuickStatus(d, 'In Progress')}
-            className="flex-1 py-1.5 rounded text-sm font-medium text-amber-600 hover:bg-amber-50">
-            🔥 Start
-          </button>
+          isGrid
+            ? <button onClick={() => onQuickStatus(d, 'In Progress')} title="Start cooking" aria-label="Start cooking"
+                className="px-2 py-1 rounded-full text-sm bg-white/60 text-amber-600 hover:bg-amber-50">🍳</button>
+            : <button onClick={() => onQuickStatus(d, 'In Progress')}
+                className="flex-1 py-1.5 rounded text-sm font-medium text-amber-600 hover:bg-amber-50">
+                🔥 Start
+              </button>
         )}
         {!showCook && !showStoreInFridge && !showMarkEaten && !isCooked && !isInFridge && d.status === 'In Progress' && (
-          <button onClick={() => onCook(d)} disabled={!av.canCook}
-            className={`flex-1 py-1.5 rounded text-sm font-medium ${av.canCook ? 'text-sage hover:bg-sage/10' : 'text-light-gray cursor-not-allowed'}`}>
-            ✅ Cook
-          </button>
+          isGrid
+            ? <button onClick={() => onCook(d)} disabled={!av.canCook} title="Mark cooked" aria-label="Mark cooked"
+                className={`px-2 py-1 rounded-full text-sm bg-white/60 ${av.canCook ? 'text-sage hover:bg-sage/10' : 'text-light-gray cursor-not-allowed'}`}>✓</button>
+            : <button onClick={() => onCook(d)} disabled={!av.canCook}
+                className={`flex-1 py-1.5 rounded text-sm font-medium ${av.canCook ? 'text-sage hover:bg-sage/10' : 'text-light-gray cursor-not-allowed'}`}>
+                ✅ Cook
+              </button>
         )}
-        {/* ▶ NEW: Recipe button */}
+        {/* Recipe button */}
         <button onClick={() => onRecipe(d)}
-          className={`p-1.5 rounded hover:bg-terracotta/10 ${hasRecipe ? 'text-terracotta' : 'text-warm-gray'}`}
-          title={hasRecipe ? 'View recipe' : 'Add recipe'}>
+          className={`${isGrid ? 'px-2 py-1 rounded-full bg-white/60' : 'p-1.5 rounded'} hover:bg-terracotta/10 ${hasRecipe ? 'text-terracotta' : 'text-warm-gray'}`}
+          title={hasRecipe ? 'View recipe' : 'Add recipe'} aria-label="Recipe">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
           </svg>
@@ -207,10 +247,10 @@ function DishCard({ d, showRing, showStatusDropdown, showCook, showStoreInFridge
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onEdit(d); }}
-          className="px-2.5 py-1.5 rounded text-sm font-medium text-charcoal/70 hover:bg-light-gray/30 hover:text-charcoal flex items-center gap-1"
+          className={`${isGrid ? 'px-2 py-1 rounded-full bg-white/60' : 'px-2.5 py-1.5 rounded'} text-sm font-medium text-charcoal/70 hover:bg-light-gray/30 hover:text-charcoal flex items-center gap-1`}
           title="Edit dish"
           aria-label="Edit dish"
-        ><EditIcon /> Edit</button>
+        ><EditIcon />{!isGrid && ' Edit'}</button>
       </div>
     </div>
   );
@@ -222,6 +262,10 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
   const [countryFilter, setCountryFilterRaw] = useState(() => { try { return JSON.parse(sessionStorage.getItem('fd_dishCountry')) || []; } catch { return []; } });
   const [typeFilter, setTypeFilterRaw] = useState(() => { try { return JSON.parse(sessionStorage.getItem('fd_dishType')) || []; } catch { return []; } });
   const [minCompleteness, setMinCompletenessRaw] = useState(() => parseInt(sessionStorage.getItem('fd_dishMin')) || 0);
+  const [layout, setLayoutRaw] = useState(() => {
+    try { return localStorage.getItem('fd_dishes_layout') === 'list' ? 'list' : 'grid'; } catch { return 'grid'; }
+  });
+  const setLayout = (v) => { setLayoutRaw(v); try { localStorage.setItem('fd_dishes_layout', v); } catch {} };
 
   const setTab = (v) => { setTabRaw(v); sessionStorage.setItem('fd_dishTab', v); };
   const setCountryFilter = (v) => { const val = typeof v === 'function' ? v(countryFilter) : v; setCountryFilterRaw(val); sessionStorage.setItem('fd_dishCountry', JSON.stringify(val)); };
@@ -339,7 +383,19 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
               <p className="text-sm text-warm-gray">{filtered.length} shown</p>
             </div>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
+            <div className="flex rounded-lg border overflow-hidden" role="group" aria-label="Layout">
+              <button
+                onClick={() => setLayout('grid')}
+                className={`px-2.5 py-2 text-sm font-medium ${layout === 'grid' ? 'bg-terracotta text-white' : 'bg-white text-warm-gray hover:bg-cream'}`}
+                title="Grid view" aria-label="Grid view" aria-pressed={layout === 'grid'}
+              >⊞</button>
+              <button
+                onClick={() => setLayout('list')}
+                className={`px-2.5 py-2 text-sm font-medium border-l ${layout === 'list' ? 'bg-terracotta text-white' : 'bg-white text-warm-gray hover:bg-cream'}`}
+                title="List view" aria-label="List view" aria-pressed={layout === 'list'}
+              >≡</button>
+            </div>
             <button onClick={onManage} className="px-3 py-2 rounded-lg border text-sm font-medium text-warm-gray hover:bg-cream">📋 Manage</button>
             <button onClick={onAdd} className="p-2.5 rounded-lg bg-terracotta text-white"><PlusIcon /></button>
           </div>
@@ -348,7 +404,7 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
 
       <main className="max-w-4xl mx-auto px-4 py-4">
         {/* Tab bar */}
-        <div className="flex gap-1.5 mb-4 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
+        <div className="flex gap-1.5 mb-3 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
           {tabs.map(t => (
             <button key={t.key} onClick={() => { setTab(t.key); setMinCompleteness(0); }}
               className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap flex items-center gap-1.5 ${
@@ -357,6 +413,16 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
               {t.label}
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${tab === t.key ? 'bg-white/20' : 'bg-cream'}`}>{t.count}</span>
             </button>
+          ))}
+        </div>
+
+        {/* Priority legend */}
+        <div className="flex gap-3 mb-4 text-[11px] text-warm-gray items-center" aria-label="Priority color legend">
+          {(['high', 'normal', 'low']).map(v => (
+            <span key={v} className="inline-flex items-center gap-1.5">
+              <span className="inline-block w-3 h-3 rounded-sm" style={{ backgroundColor: PRIORITY_COLORS[v].border }} />
+              {PRIORITY_COLORS[v].label}
+            </span>
           ))}
         </div>
 
@@ -413,12 +479,18 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div
+            className={layout === 'grid' ? 'grid gap-2.5' : 'flex flex-col gap-3'}
+            style={layout === 'grid' ? { gridTemplateColumns: '1fr 1fr' } : undefined}
+          >
             {filtered.map(d => (
               <DishCard
                 key={d.id}
                 d={d}
+                tab={tab}
+                layout={layout}
                 showRing={tab === 'planner' || tab === 'planned' || tab === 'all'}
+                showStatusChip={tab === 'planner' || tab === 'all'}
                 showStatusDropdown={tab === 'all'}
                 showCook={tab === 'progress'}
                 showStoreInFridge={tab === 'cooked' || tab === 'all'}

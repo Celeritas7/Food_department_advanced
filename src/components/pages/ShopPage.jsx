@@ -20,7 +20,28 @@ const GENERAL_CAT_STYLES = {
   Other:         'bg-light-gray/30 text-warm-gray',
 };
 
+// Mirror DishesPage priority-as-color (kept inline to avoid touching other files).
+const PRIORITY_COLORS = {
+  high:   { bg: '#FFF1EA', border: '#D97757' },
+  normal: { bg: '#FAF4E8', border: '#C4B697' },
+  low:    { bg: '#F0F7F1', border: '#7AAD89' },
+};
+function priorityVariant(p) {
+  if (p == null) return 'normal';
+  if (p <= 2) return 'high';
+  if (p === 3) return 'normal';
+  return 'low';
+}
+function priorityCardStyle(p) {
+  const v = PRIORITY_COLORS[priorityVariant(p)];
+  return { backgroundColor: v.bg, borderLeft: `4px solid ${v.border}` };
+}
+
 export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, dishInts, intermediates, onBuy, onCook, generalShoppingItems = [], onAddGeneral, onToggleGeneral, onDeleteGeneral }) {
+  const [topTab, setTopTabRaw] = useState(() => {
+    try { return localStorage.getItem('fd_shop_top_tab') === 'general' ? 'general' : 'groceries'; } catch { return 'groceries'; }
+  });
+  const setTopTab = (v) => { setTopTabRaw(v); try { localStorage.setItem('fd_shop_top_tab', v); } catch {} };
   const [tab, setTab] = useState('buy');
   const [expandedDishId, setExpandedDishId] = useState(null);
   const [catFilter, setCatFilter] = useState([]);
@@ -139,27 +160,47 @@ export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, 
             <div className="w-10 h-10 rounded-xl bg-terracotta/10 flex items-center justify-center text-terracotta"><CartIcon /></div>
             <div>
               <h1 className="font-semibold text-xl">🛒 Shopping</h1>
-              <p className="text-sm text-warm-gray">In Progress dishes only</p>
+              <p className="text-sm text-warm-gray">{topTab === 'groceries' ? 'In Progress dishes only' : 'Non-food items'}</p>
             </div>
           </div>
-          <div className="flex gap-2">
-            {tabs.map(t => (
-              <button key={t.key} onClick={() => { setTab(t.key); setCatFilter([]); setExpandedDishId(null); }}
-                className={`flex-1 py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-1.5 transition-all ${
-                  tab === t.key ? 'bg-terracotta text-white shadow-md' : 'bg-white text-warm-gray border'
-                }`}>
-                {t.label}
-                <span className={`text-xs min-w-[20px] h-5 flex items-center justify-center rounded-full px-1.5 ${
-                  tab === t.key ? 'bg-white/20' : 'bg-cream'
-                }`}>{t.count}</span>
-              </button>
-            ))}
+          {/* Top-level Groceries | General toggle */}
+          <div className="flex gap-2 mb-3">
+            <button
+              onClick={() => setTopTab('groceries')}
+              className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all ${
+                topTab === 'groceries' ? 'bg-terracotta text-white shadow-md' : 'bg-white text-warm-gray border'
+              }`}
+              aria-pressed={topTab === 'groceries'}
+            >🥕 Groceries</button>
+            <button
+              onClick={() => setTopTab('general')}
+              className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all ${
+                topTab === 'general' ? 'bg-terracotta text-white shadow-md' : 'bg-white text-warm-gray border'
+              }`}
+              aria-pressed={topTab === 'general'}
+            >🧴 General</button>
           </div>
+          {topTab === 'groceries' && (
+            <div className="flex gap-2">
+              {tabs.map(t => (
+                <button key={t.key} onClick={() => { setTab(t.key); setCatFilter([]); setExpandedDishId(null); }}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-1.5 transition-all ${
+                    tab === t.key ? 'bg-terracotta text-white shadow-md' : 'bg-white text-warm-gray border'
+                  }`}>
+                  {t.label}
+                  <span className={`text-xs min-w-[20px] h-5 flex items-center justify-center rounded-full px-1.5 ${
+                    tab === t.key ? 'bg-white/20' : 'bg-cream'
+                  }`}>{t.count}</span>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-4">
 
+        {topTab === 'groceries' && <>
         {/* ═══════════ TO BUY TAB — Layout B ═══════════ */}
         {tab === 'buy' && (
           <div className="space-y-5">
@@ -387,7 +428,7 @@ export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, 
                     <h3 className="text-sm font-semibold text-charcoal mb-2">🍳 Cook These to Avoid Waste</h3>
                     <div className="space-y-2.5">
                       {expiryRecipes.map(d => (
-                        <div key={d.id} className="bg-white rounded-xl border p-4">
+                        <div key={d.id} style={priorityCardStyle(d.priority)} className="rounded-xl border border-l-0 p-4">
                           <div className="flex items-start gap-3">
                             <div className="flex-1 min-w-0">
                               <h4 className="font-semibold text-sm truncate">{d.name}</h4>
@@ -426,8 +467,11 @@ export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, 
           </>
         )}
 
-        {/* ═══════════ GENERAL LIST (non-food, persists across tabs) ═══════════ */}
-        <section className="mt-8 pt-6 border-t border-light-gray/40">
+        </>}
+
+        {/* ═══════════ GENERAL LIST (non-food, shown when topTab=general) ═══════════ */}
+        {topTab === 'general' && (
+        <section className="mt-2">
           <div className="flex items-center justify-between mb-3">
             <h3 className="text-xs font-bold text-purple uppercase tracking-wide flex items-center gap-2">
               📦 General List
@@ -518,6 +562,7 @@ export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, 
             </div>
           )}
         </section>
+        )}
       </main>
     </div>
   );
