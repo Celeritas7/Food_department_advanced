@@ -59,7 +59,7 @@ function CompletenessRing({ percent, size = 40, stroke = 4 }) {
 }
 
 // ─── Dish Card (shared across tabs) ───
-function DishCard({ d, tab, layout = 'grid', showRing, showStatusChip, showStatusDropdown, showCook, showStoreInFridge, showMarkEaten, onCook, onQuickStatus, onEdit, onRecipe, onStoreInFridge, onMarkEaten, onMarkWasted }) {
+function DishCard({ d, tab, layout = 'grid', showRing, showStatusChip, showStatusDropdown, hideCountryChip, showCook, showStoreInFridge, showMarkEaten, onCook, onQuickStatus, onEdit, onRecipe, onStoreInFridge, onMarkEaten, onMarkWasted }) {
   const [dropOpen, setDropOpen] = useState(false);
   const [eatenOpen, setEatenOpen] = useState(false);
   const [eatenNotes, setEatenNotes] = useState('');
@@ -138,26 +138,8 @@ function DishCard({ d, tab, layout = 'grid', showRing, showStatusChip, showStatu
             ) : showStatusChip ? (
               <span className={`${isGrid ? 'text-[11px] px-1.5 py-0.5' : 'text-xs px-2 py-0.5'} rounded-full font-medium ${STATUS_STYLES[d.status] || 'bg-gray-100 text-gray-500'}`}>{d.status}</span>
             ) : null}
-            {!isCooked && !isInFridge && !av.unlinked && (
-              av.canCook
-                ? <span className={`${isGrid ? 'text-[11px] px-1.5 py-0.5' : 'text-xs px-2 py-0.5'} rounded-full bg-sage/15 text-sage font-medium`}>🟢 Ready</span>
-                : <span className={`${isGrid ? 'text-[11px] px-1.5 py-0.5' : 'text-xs px-2 py-0.5'} rounded-full bg-tomato/10 text-tomato font-medium`}>
-                    🔴 Missing {(av.missing?.length || 0) + (av.missingInts?.length || 0)}
-                  </span>
-            )}
-            {d.country && <span className={`${isGrid ? 'text-[11px] px-1.5 py-0.5' : 'text-xs px-2 py-0.5'} rounded-full bg-light-gray/30`}>{getCountryFlag(d.country)} {d.country}</span>}
-            {!isGrid && d.dish_type && <span className="text-xs px-2 py-0.5 rounded-full bg-light-gray/30">{getDishTypeEmoji(d.dish_type)} {d.dish_type}</span>}
+            {d.country && !hideCountryChip && <span className={`${isGrid ? 'text-[11px] px-1.5 py-0.5' : 'text-xs px-2 py-0.5'} rounded-full bg-light-gray/30`}>{getCountryFlag(d.country)} {d.country}</span>}
           </div>
-          {/* Availability info (compact in grid; only "missing names" hidden in grid to save space) */}
-          {!isCooked && !isInFridge && (
-            <div className={`${isGrid ? 'text-[11px] mt-1.5' : 'text-xs mt-2'}`}>
-              {av.unlinked ? <span className="text-amber-600">⚠️ Unlinked — add ingredients</span>
-                : av.canCook ? <span className="text-sage font-medium">✓ Ready to cook</span>
-                : isGrid
-                  ? <span className="text-warm-gray">{av.haveIngs ?? 0}/{av.totalIngs ?? 0} ingredients</span>
-                  : <span className="text-warm-gray">{av.haveIngs ?? 0}/{av.totalIngs ?? 0} ingredients · Missing: <span className="text-tomato">{[...av.missing?.map(m => m.name) || [], ...av.missingInts?.map(m => m.name) || []].join(', ')}</span></span>}
-            </div>
-          )}
         </div>
       </div>
 
@@ -492,6 +474,7 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
                 showRing={tab === 'planner' || tab === 'planned' || tab === 'all'}
                 showStatusChip={tab === 'planner' || tab === 'all'}
                 showStatusDropdown={tab === 'all'}
+                hideCountryChip={countryFilter.length === 1}
                 showCook={tab === 'progress'}
                 showStoreInFridge={tab === 'cooked' || tab === 'all'}
                 showMarkEaten={tab === 'fridge' || tab === 'all'}
