@@ -169,10 +169,19 @@ export default function App() {
     } catch (err) { notify('Failed: ' + err.message); }
   };
 
-  const handleBuyIngredient = async (qty, purchasedAt) => {
+  const handleBuyIngredient = async (qty, purchasedAt, remindInDays) => {
     try {
       const { updatedIngredient } = await runAtomicBuy(supabase, modal.data.id, qty, purchasedAt);
-      setIngredients(prev => prev.map(i => i.id === modal.data.id ? updatedIngredient : i));
+      let finalIng = updatedIngredient;
+      // Optional: a "Remind me in N days" entry on the Buy dialog sets the
+      // reminder's next due date relative to this purchase. Blank → untouched.
+      if (remindInDays > 0) {
+        const due = new Date();
+        due.setDate(due.getDate() + remindInDays);
+        const nextDue = `${due.getFullYear()}-${String(due.getMonth() + 1).padStart(2, '0')}-${String(due.getDate()).padStart(2, '0')}`;
+        finalIng = await db.updateIngredient(modal.data.id, { hasReminder: true, reminderNextDue: nextDue });
+      }
+      setIngredients(prev => prev.map(i => i.id === modal.data.id ? finalIng : i));
       setModal({});
       notify(purchasedAt ? 'Stock updated (backdated)' : 'Stock updated', 'success');
     } catch (err) { notify(err.message); }

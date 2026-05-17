@@ -76,6 +76,20 @@ export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, 
     generalShoppingItems.filter(i => i.checked).forEach(i => onDeleteGeneral?.(i.id));
   };
 
+  // Reminders that have come due (reminder_next_due is a DATE string
+  // 'YYYY-MM-DD' from Postgres; lexical compare against today is correct).
+  const dueReminders = useMemo(() => {
+    const today = new Date();
+    const todayStr = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    return ingredients
+      .filter(i => i.has_reminder && i.reminder_next_due && i.reminder_next_due <= todayStr)
+      .map(i => {
+        const overdue = Math.floor((new Date(todayStr) - new Date(i.reminder_next_due)) / 86400000);
+        return { i, overdue };
+      })
+      .sort((a, b) => b.overdue - a.overdue);
+  }, [ingredients]);
+
   const toBuyItems = useMemo(() => shoppingList.list.filter(i => i.toBuy), [shoppingList]);
   const inStockItems = useMemo(() => shoppingList.list.filter(i => !i.toBuy), [shoppingList]);
 
@@ -204,6 +218,35 @@ export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, 
         {/* ═══════════ TO BUY TAB — Layout B ═══════════ */}
         {tab === 'buy' && (
           <div className="space-y-5">
+            {/* ─── Reminders due (restock prompts from past purchases) ─── */}
+            {dueReminders.length > 0 && (
+              <div>
+                <h3 className="text-xs font-bold text-charcoal/60 uppercase tracking-wide mb-2">🔔 Reminders Due ({dueReminders.length})</h3>
+                <div className="space-y-2">
+                  {dueReminders.map(({ i, overdue }) => (
+                    <div key={i.id} className="bg-white rounded-xl border border-amber-300/50 p-3.5">
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-semibold text-sm truncate">{getIngredientEmoji(i)} {i.name}</h4>
+                          <div className="flex gap-3 text-xs mt-1 text-warm-gray">
+                            <span>Have: <b className={i.stock_qty > 0 ? 'text-sage' : 'text-tomato'}>{i.stock_qty}</b> {i.unit}</span>
+                            <span className={overdue > 0 ? 'text-tomato font-semibold' : 'text-amber-600 font-semibold'}>
+                              {overdue <= 0 ? 'Due today' : `${overdue}d overdue`}
+                            </span>
+                            {i.purchased_at && (
+                              <span>Bought {Math.floor((Date.now() - new Date(i.purchased_at).getTime()) / 86400000)}d ago</span>
+                            )}
+                          </div>
+                        </div>
+                        <button onClick={() => onBuy(i)} className="px-3.5 py-2 rounded-xl bg-terracotta text-white text-xs font-semibold shrink-0">
+                          Buy
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             {/* No planned dishes */}
             {!plannedDishCards.length ? (
               <p className="text-center py-16 text-warm-gray">Plan some dishes first to see your shopping list</p>

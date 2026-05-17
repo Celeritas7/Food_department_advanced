@@ -46,6 +46,7 @@ export async function updateIngredient(id, updates) {
   if (updates.purchasedAt !== undefined) mapped.purchased_at = updates.purchasedAt;
   if (updates.restockReminderDays !== undefined) mapped.restock_reminder_days = updates.restockReminderDays;
   if (updates.lastReminderChecked !== undefined) mapped.last_reminder_checked = updates.lastReminderChecked;
+  if (updates.reminderNextDue !== undefined) mapped.reminder_next_due = updates.reminderNextDue;
   if (updates.hasReminder !== undefined) mapped.has_reminder = updates.hasReminder;
   if (updates.emoji !== undefined) mapped.emoji = updates.emoji || null;
   mapped.last_updated = new Date().toISOString();
