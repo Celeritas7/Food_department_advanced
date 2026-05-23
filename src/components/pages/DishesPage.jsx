@@ -9,6 +9,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { DishIcon, PlusIcon, EditIcon } from '../ui/Icons';
 import FilterBar from '../ui/FilterBar';
 import { getDishTypeEmoji, getCountryFlag } from '../../config/emoji.js';
+import RevertPopup, { canRevert } from '../ui/RevertPopup.jsx';
 
 const STATUSES = ['Not planned', 'Planned', 'In Progress'];
 const STATUS_STYLES = {
@@ -59,7 +60,7 @@ function CompletenessRing({ percent, size = 40, stroke = 4 }) {
 }
 
 // ─── Dish Card (shared across tabs) ───
-function DishCard({ d, tab, layout = 'grid', showRing, showStatusChip, showStatusDropdown, hideCountryChip, showCook, showStoreInFridge, showMarkEaten, onCook, onQuickStatus, onEdit, onRecipe, onStoreInFridge, onMarkEaten, onMarkWasted }) {
+function DishCard({ d, tab, layout = 'grid', showRing, showStatusChip, showStatusDropdown, hideCountryChip, showCook, showStoreInFridge, showMarkEaten, onCook, onQuickStatus, onEdit, onRecipe, onStoreInFridge, onMarkEaten, onMarkWasted, onRevert }) {
   const [dropOpen, setDropOpen] = useState(false);
   const [eatenOpen, setEatenOpen] = useState(false);
   const [eatenNotes, setEatenNotes] = useState('');
@@ -233,13 +234,37 @@ function DishCard({ d, tab, layout = 'grid', showRing, showStatusChip, showStatu
           title="Edit dish"
           aria-label="Edit dish"
         ><EditIcon />{!isGrid && ' Edit'}</button>
+        {/* ▶ Phase C1: one-step Revert (Cooked / In Fridge / Eaten only) */}
+        {canRevert(d.status) && onRevert && (
+          isGrid
+            ? <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onRevert(d); }}
+                title="Revert one step back" aria-label="Revert"
+                className="px-2 py-1 rounded-full bg-white/60 text-xs font-semibold text-charcoal/70 hover:bg-light-gray/30 hover:text-charcoal"
+              >↩</button>
+            : <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onRevert(d); }}
+                title="Revert one step back" aria-label="Revert"
+                className="px-2.5 py-1.5 rounded text-xs font-semibold text-charcoal/70 hover:bg-light-gray/30 hover:text-charcoal flex items-center gap-1"
+              >↩ Revert</button>
+        )}
       </div>
     </div>
   );
 }
 
 // ─── Main Page ───
-export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatus, onManage, onRecipe, onStoreInFridge, onMarkEaten, onMarkWasted }) {
+export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatus, onManage, onRecipe, onStoreInFridge, onMarkEaten, onMarkWasted, onRevert }) {
+  // ▶ Phase C1: dish currently pending a Revert confirmation (or null).
+  const [reverting, setReverting] = useState(null);
+  const handleConfirmRevert = (restoreStock) => {
+    const d = reverting;
+    setReverting(null);
+    if (d && onRevert) onRevert(d, restoreStock);
+  };
+
   const [tab, setTabRaw] = useState(() => sessionStorage.getItem('fd_dishTab') || 'planner');
   const [countryFilter, setCountryFilterRaw] = useState(() => { try { return JSON.parse(sessionStorage.getItem('fd_dishCountry')) || []; } catch { return []; } });
   const [typeFilter, setTypeFilterRaw] = useState(() => { try { return JSON.parse(sessionStorage.getItem('fd_dishType')) || []; } catch { return []; } });
@@ -485,11 +510,20 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
                 onStoreInFridge={onStoreInFridge}
                 onMarkEaten={onMarkEaten}
                 onMarkWasted={onMarkWasted}
+                onRevert={onRevert ? (dish) => setReverting(dish) : undefined}
               />
             ))}
           </div>
         )}
       </main>
+
+      {reverting && (
+        <RevertPopup
+          dish={reverting}
+          onConfirm={handleConfirmRevert}
+          onCancel={() => setReverting(null)}
+        />
+      )}
     </div>
   );
 }

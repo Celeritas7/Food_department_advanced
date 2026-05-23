@@ -12,7 +12,7 @@
  *     leak out.
  *   - The same row-level CHECK (stock_qty >= 0) safety net is enforced.
  */
-import { runAtomicCook, runAtomicPrepare, runAtomicBuy } from '../storageAtomicity.js';
+import { runAtomicCook, runAtomicPrepare, runAtomicBuy, runAtomicCookWithOverrides } from '../storageAtomicity.js';
 import { checkDishAvailability } from '../availability.js';
 
 // ─── Mock Supabase RPC client ────────────────────────────
@@ -113,6 +113,63 @@ function makeMockSupabase(initial) {
     };
   };
 
+  // Phase E1 — mirrors fd_cook_dish_with_overrides. Two-pass: validate
+  // every override (qty > 0 and qty <= stock) before any deduction so the
+  // rollback path stays simple.
+  const cookWithOverrides = (args) => {
+    const dish = state.dishes.find(d => d.id === args.p_dish_id);
+    if (!dish) throw new Error(`Dish not found: ${args.p_dish_id}`);
+    if (!['Planned', 'In Progress'].includes(dish.status)) {
+      throw new Error(`Cannot cook from status ${dish.status} (must be Planned or In Progress)`);
+    }
+
+    const ingOvr = Array.isArray(args.p_ingredient_overrides) ? args.p_ingredient_overrides : [];
+    const intOvr = Array.isArray(args.p_intermediate_overrides) ? args.p_intermediate_overrides : [];
+
+    for (const o of ingOvr) {
+      if (o.qty == null || o.qty <= 0) throw new Error(`Ingredient qty must be > 0 (got ${o.qty})`);
+      const ig = state.ingredients.find(i => i.id === o.ingredient_id);
+      if (!ig) throw new Error(`Ingredient not found: ${o.ingredient_id}`);
+      if (ig.stock_qty < o.qty) {
+        throw new Error(`Insufficient ${ig.name}: need ${o.qty}, have ${ig.stock_qty}`);
+      }
+    }
+    for (const o of intOvr) {
+      if (o.qty == null || o.qty <= 0) throw new Error(`Intermediate qty must be > 0 (got ${o.qty})`);
+      const it = state.intermediates.find(i => i.id === o.intermediate_id);
+      if (!it) throw new Error(`Intermediate not found: ${o.intermediate_id}`);
+      if (it.stock_qty < o.qty) {
+        throw new Error(`Insufficient ${it.name}: need ${o.qty}, have ${it.stock_qty}`);
+      }
+    }
+
+    const deductedIngredients = [];
+    for (const o of ingOvr) {
+      const ig = state.ingredients.find(i => i.id === o.ingredient_id);
+      ig.stock_qty -= o.qty;
+      if (ig.stock_qty < 0) throw new Error(`stock_qty CHECK violation on ${ig.name}`);
+      deductedIngredients.push({ ingredient_id: o.ingredient_id, qty_deducted: o.qty, row: { ...ig } });
+    }
+    const deductedIntermediates = [];
+    for (const o of intOvr) {
+      const it = state.intermediates.find(i => i.id === o.intermediate_id);
+      it.stock_qty -= o.qty;
+      if (it.stock_qty < 0) throw new Error(`stock_qty CHECK violation on ${it.name}`);
+      deductedIntermediates.push({ intermediate_id: o.intermediate_id, qty_deducted: o.qty, row: { ...it } });
+    }
+
+    dish.status = 'Cooked';
+    dish.cooked = true;
+    dish.last_cooked_on = new Date().toISOString();
+
+    return {
+      dish_id: args.p_dish_id,
+      to_status: 'Cooked',
+      deducted_ingredients: deductedIngredients,
+      deducted_intermediates: deductedIntermediates,
+    };
+  };
+
   const buy = (args) => {
     if (args.p_qty == null || args.p_qty <= 0) {
       throw new Error(`Invalid quantity: ${args.p_qty}`);
@@ -142,6 +199,7 @@ function makeMockSupabase(initial) {
         if (fn === 'fd_cook_dish') data = cook(args);
         else if (fn === 'fd_prepare_intermediate') data = prepare(args);
         else if (fn === 'fd_buy_ingredient') data = buy(args);
+        else if (fn === 'fd_cook_dish_with_overrides') data = cookWithOverrides(args);
         else throw new Error(`Unknown RPC: ${fn}`);
         return { data, error: null };
       } catch (err) {
@@ -349,5 +407,65 @@ describe('Phase 7 Storage Atomicity', () => {
     for (const o of originals) {
       expect(stockOf(sb.state, o.id)).toBe(o.stock_qty);
     }
+  });
+
+  // ─── Phase E1: cook-with-overrides ─────────────────────────
+  test('TEST-SA-007: cook-with-overrides deducts the override qty (not the recipe qty)', async () => {
+    const sb = makeMockSupabase(seedState());
+    // Recipe wants 200g Flour + 2 Eggs + 1 Tomato Sauce; user actually used
+    // 350g Flour and 3 Eggs. Sauce was on-recipe.
+    const r = await runAtomicCookWithOverrides(sb, 'd-pasta',
+      [
+        { ingredient_id: 'i-flour', qty: 350 },
+        { ingredient_id: 'i-egg',   qty: 3 },
+      ],
+      [
+        { intermediate_id: 't-sauce', qty: 1 },
+      ],
+    );
+
+    expect(r.to_status).toBe('Cooked');
+    expect(stockOf(sb.state, 'i-flour')).toBe(500 - 350);
+    expect(stockOf(sb.state, 'i-egg')).toBe(12 - 3);
+    expect(interStockOf(sb.state, 't-sauce')).toBe(5 - 1);
+    expect(sb.state.dishes.find(d => d.id === 'd-pasta').status).toBe('Cooked');
+  });
+
+  test('TEST-SA-008: override over stock is rejected and rolls back every prior deduction', async () => {
+    const sb = makeMockSupabase(seedState());
+    // First override is fine (350g of 500g Flour). Second asks for 50 eggs
+    // when only 12 exist — the whole call must fail and Flour must be
+    // restored.
+    await expect(runAtomicCookWithOverrides(sb, 'd-pasta',
+      [
+        { ingredient_id: 'i-flour', qty: 350 },
+        { ingredient_id: 'i-egg',   qty: 50 },
+      ],
+      [],
+    )).rejects.toThrow(/Insufficient Egg/);
+
+    expect(stockOf(sb.state, 'i-flour')).toBe(500);
+    expect(stockOf(sb.state, 'i-egg')).toBe(12);
+    expect(sb.state.dishes.find(d => d.id === 'd-pasta').status).toBe('Planned');
+  });
+
+  test('TEST-SA-009: cook-with-overrides refuses to run from non-Planned/In-Progress status', async () => {
+    const sb = makeMockSupabase(seedState());
+    // Cook the dish first via overrides so its status becomes Cooked.
+    await runAtomicCookWithOverrides(sb, 'd-pasta',
+      [
+        { ingredient_id: 'i-flour', qty: 200 },
+        { ingredient_id: 'i-egg',   qty: 2 },
+      ],
+      [{ intermediate_id: 't-sauce', qty: 1 }],
+    );
+
+    // A second cook from the now-Cooked dish must fail without touching stock.
+    await expect(runAtomicCookWithOverrides(sb, 'd-pasta',
+      [{ ingredient_id: 'i-flour', qty: 10 }],
+      [],
+    )).rejects.toThrow(/Cannot cook from status Cooked/);
+
+    expect(stockOf(sb.state, 'i-flour')).toBe(500 - 200);
   });
 });

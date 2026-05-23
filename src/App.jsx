@@ -9,7 +9,7 @@ import { computeSpoilage } from './engines/spoilage.js';
 import { checkDishAvailability, checkIntermediateAvailability } from './engines/availability.js';
 import { aggregateRequirements } from './engines/quantity.js';
 import { computePriorityPropagation } from './engines/priorityPropagation.js';
-import { runAtomicCook, runAtomicPrepare, runAtomicBuy, runAtomicStoreInFridge, runAtomicMarkEaten } from './engines/storageAtomicity.js';
+import { runAtomicPrepare, runAtomicBuy, runAtomicStoreInFridge, runAtomicMarkEaten } from './engines/storageAtomicity.js';
 
 // UI Components
 import Toast from './components/ui/Toast';
@@ -33,6 +33,7 @@ import BuyDialog from './components/forms/BuyDialog';
 import IntermediateForm from './components/forms/IntermediateForm';
 import PrepareDialog from './components/forms/PrepareDialog';
 import DishForm from './components/forms/DishForm';
+import CookDialog from './components/forms/CookDialog';
 
 export default function App() {
   // ─── State (persisted in sessionStorage) ───────────────
@@ -219,6 +220,32 @@ export default function App() {
     } catch (err) { notify('Failed: ' + err.message); }
   };
 
+  // ─── Actions: Used Up (Phase C2) ─────────────────────
+  // Zeroes an expiring ingredient's stock and logs the reason. Returns the
+  // undo payload (logId + prevStockQty) so the calling page can offer a
+  // 5-second Undo before the action becomes permanent.
+  const handleClearIngredient = useCallback(async (ingredient, reason) => {
+    try {
+      const log = await db.logUsage(ingredient.id, ingredient.stock_qty, ingredient.unit, reason);
+      const updated = await db.updateIngredient(ingredient.id, { stockQty: 0 });
+      setIngredients(prev => prev.map(i => i.id === ingredient.id ? updated : i));
+      return { logId: log.id, prevStockQty: ingredient.stock_qty };
+    } catch (err) {
+      notify('Failed: ' + err.message);
+      return null;
+    }
+  }, [notify]);
+
+  const handleUndoClearIngredient = useCallback(async (ingredient, logId, prevStockQty) => {
+    try {
+      const updated = await db.updateIngredient(ingredient.id, { stockQty: prevStockQty });
+      await db.deleteUsageLog(logId);
+      setIngredients(prev => prev.map(i => i.id === ingredient.id ? updated : i));
+    } catch (err) {
+      notify('Undo failed: ' + err.message);
+    }
+  }, [notify]);
+
   // ─── Actions: Intermediates ──────────────────────────
   const handleAddIntermediate = async (data) => {
     try {
@@ -276,7 +303,10 @@ export default function App() {
     } catch (err) { notify('Failed: ' + err.message); }
   };
 
-  const handleCookDish = async (dish) => {
+  // Phase E1 — route Cook taps through the override dialog so the user
+  // can correct "recipe says 200g, I used 400g" at the source instead of
+  // leaving phantom stock behind.
+  const handleCookDish = (dish) => {
     if (dish.status === 'Cooked') return notify('Dish is already cooked');
     if (dish._availability && !dish._availability.canCook) {
       const missing = [
@@ -285,12 +315,18 @@ export default function App() {
       ].join(', ');
       return notify(missing ? `Missing: ${missing}` : `Cannot cook ${dish.name}`);
     }
+    setModal({ type: 'cookDish', data: dish });
+  };
+
+  const handleConfirmCook = async (ingredientOverrides, intermediateOverrides) => {
+    const dish = modal.data;
+    if (!dish) return;
     try {
-      await runAtomicCook(supabase, dish.id);
+      await db.cookDishWithOverrides(dish.id, ingredientOverrides, intermediateOverrides);
       await loadAll();
       setModal({});
       notify(`${dish.name} cooked!`, 'success');
-    } catch (err) { notify(err.message); }
+    } catch (err) { notify(err.message || 'Cook failed'); }
   };
 
   const handleStoreInFridge = async (dish) => {
@@ -315,6 +351,17 @@ export default function App() {
       await loadAll();
       notify(`${dish.name} logged as wasted`, 'warn');
     } catch (err) { notify(err.message); }
+  };
+
+  // Phase C1 — one-step revert: Eaten → In Fridge → Cooked → Planned.
+  // The atomic work (status flip, optional stock restore, times_cooked
+  // decrement, cook_history cleanup) lives in fd_revert_dish.
+  const handleRevertDish = async (dish, restoreStock) => {
+    try {
+      const result = await db.revertDish(dish.id, restoreStock);
+      await loadAll();
+      notify(`${dish.name}: ${result?.from_status} → ${result?.to_status}`, 'success');
+    } catch (err) { notify('Revert failed: ' + err.message); }
   };
 
   const handleQuickStatus = async (dish, newStatus) => {
@@ -564,6 +611,7 @@ export default function App() {
           onStoreInFridge={handleStoreInFridge}
           onMarkEaten={handleMarkEaten}
           onMarkWasted={handleMarkWasted}
+          onRevert={handleRevertDish}
         />
       )}
       {page === 'shop' && (
@@ -580,6 +628,8 @@ export default function App() {
           onAddGeneral={handleAddGeneralItem}
           onToggleGeneral={handleToggleGeneralItem}
           onDeleteGeneral={handleDeleteGeneralItem}
+          onClearIngredient={handleClearIngredient}
+          onUndoClearIngredient={handleUndoClearIngredient}
         />
       )}
       {page === 'data' && (
@@ -612,6 +662,8 @@ export default function App() {
           dishIngs={dishIngs}
           onCook={(d) => handleCookDish(d)}
           onBuy={(ig) => setModal({ type: 'buyIng', data: ig })}
+          onClearIngredient={handleClearIngredient}
+          onUndoClearIngredient={handleUndoClearIngredient}
         />
       )}
       {/* Bottom Navigation */}
@@ -675,6 +727,19 @@ export default function App() {
           dishes={enrichedDishes}
           onQuickStatus={handleQuickStatus}
           onClose={() => setModal({})}
+        />
+      )}
+
+      {/* ▶ Phase E1: cook-with-overrides confirmation dialog */}
+      {modal.type === 'cookDish' && modal.data && (
+        <CookDialog
+          dish={modal.data}
+          recipeIngs={dishIngs.filter(di => di.dish_id === modal.data.id)}
+          recipeInts={dishInts.filter(di => di.dish_id === modal.data.id)}
+          ingredients={ingredients}
+          intermediates={intermediates}
+          onConfirm={handleConfirmCook}
+          onCancel={() => setModal({})}
         />
       )}
     </div>

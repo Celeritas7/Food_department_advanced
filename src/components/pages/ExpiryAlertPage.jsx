@@ -5,6 +5,8 @@
  */
 import { useState, useMemo } from 'react';
 import { getDishTypeEmoji, getCountryFlag, getIngredientEmoji } from '../../config/emoji.js';
+import UsedUpPopup from '../ui/UsedUpPopup.jsx';
+import UndoToast from '../ui/UndoToast.jsx';
 
 function UrgencyBadge({ days }) {
   if (days === null || days === undefined) return null;
@@ -32,8 +34,28 @@ function CompletenessRing({ pct, size = 40 }) {
   );
 }
 
-export default function ExpiryAlertPage({ ingredients, dishes, dishIngs, onCook, onBuy }) {
+export default function ExpiryAlertPage({ ingredients, dishes, dishIngs, onCook, onBuy, onClearIngredient, onUndoClearIngredient }) {
   const [expandedDish, setExpandedDish] = useState(null);
+  const [confirming, setConfirming] = useState(null); // ingredient pending confirmation
+  const [undoState, setUndoState] = useState(null);   // { ingredient, logId, prevStockQty, reason }
+
+  const handleConfirm = async (reason) => {
+    const ing = confirming;
+    setConfirming(null);
+    if (!ing || !onClearIngredient) return;
+    const result = await onClearIngredient(ing, reason);
+    if (result) {
+      setUndoState({ ingredient: ing, logId: result.logId, prevStockQty: result.prevStockQty, reason });
+    }
+  };
+
+  const handleUndo = async () => {
+    const s = undoState;
+    setUndoState(null);
+    if (s && onUndoClearIngredient) {
+      await onUndoClearIngredient(s.ingredient, s.logId, s.prevStockQty);
+    }
+  };
 
   // Find expiring / expired ingredients that are in stock.
   // Skip non-perishables (shelf_life_days is null) so salt/oil don't show up.
@@ -158,6 +180,10 @@ export default function ExpiryAlertPage({ ingredients, dishes, dishIngs, onCook,
                     <div className="mt-2">
                       <UrgencyBadge days={days} />
                     </div>
+                    <button
+                      onClick={() => setConfirming(item)}
+                      className="mt-2 w-full text-[10px] font-semibold px-2 py-1 rounded-md bg-white/70 hover:bg-white text-charcoal border border-charcoal/10"
+                    >✓ Used Up</button>
                   </div>
                 );
               })}
@@ -291,6 +317,23 @@ export default function ExpiryAlertPage({ ingredients, dishes, dishIngs, onCook,
           </div>
         )}
       </main>
+
+      {/* ▶ Phase C2: confirmation popup + 5s inline undo toast */}
+      {confirming && (
+        <UsedUpPopup
+          ingredient={confirming}
+          onConfirm={handleConfirm}
+          onCancel={() => setConfirming(null)}
+        />
+      )}
+      {undoState && (
+        <UndoToast
+          key={undoState.logId}
+          message={`${undoState.ingredient.name} marked as ${undoState.reason === 'used' ? 'used up' : 'wasted'}`}
+          onUndo={handleUndo}
+          onDismiss={() => setUndoState(null)}
+        />
+      )}
     </div>
   );
 }

@@ -96,6 +96,35 @@ export async function updateIngredientReminder(id, hasReminder, reminderDays) {
   return data;
 }
 
+// ─── INGREDIENT USAGE LOG (Phase C2) ─────────────────────
+// Records a "✓ Used Up" action from the Expiry / Use It Up surfaces.
+// The frontend zeroes stock_qty regardless of reason; this table preserves
+// the qty cleared and whether it was used vs wasted for later analytics.
+// Returns the inserted row so callers can `deleteUsageLog(row.id)` on undo.
+
+export async function logUsage(ingredientId, qtyCleared, unit, reason) {
+  const { data, error } = await supabase
+    .from('food_department_ingredient_usage_log')
+    .insert([{
+      ingredient_id: ingredientId,
+      qty_cleared: qtyCleared,
+      unit: unit || null,
+      reason, // 'used' | 'wasted' — DB CHECK constraint enforces this
+    }])
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function deleteUsageLog(id) {
+  const { error } = await supabase
+    .from('food_department_ingredient_usage_log')
+    .delete()
+    .eq('id', id);
+  if (error) throw error;
+}
+
 export async function buyIngredient(id, qty) {
   // Fetch current, increment atomically via RPC or read+write
   const { data: current, error: fetchErr } = await supabase
@@ -115,6 +144,37 @@ export async function buyIngredient(id, qty) {
     .eq('id', id)
     .select()
     .single();
+  if (error) throw error;
+  return data;
+}
+
+// ─── DISH LIFECYCLE: Cook with overrides (Phase E1) ──────
+// Replaces the UI's call path to fd_cook_dish. Accepts per-row qty
+// overrides supplied by the Cook dialog so what the user actually used
+// is what gets deducted.
+//   ingredientOverrides:   [{ ingredient_id, qty }]
+//   intermediateOverrides: [{ intermediate_id, qty }]
+
+export async function cookDishWithOverrides(dishId, ingredientOverrides, intermediateOverrides) {
+  const { data, error } = await supabase.rpc('fd_cook_dish_with_overrides', {
+    p_dish_id: dishId,
+    p_ingredient_overrides: ingredientOverrides || [],
+    p_intermediate_overrides: intermediateOverrides || [],
+  });
+  if (error) throw error;
+  return data;
+}
+
+// ─── DISH LIFECYCLE: Revert (Phase C1) ───────────────────
+// Walks a dish one step backwards through the cook lifecycle
+// (Eaten → In Fridge → Cooked → Planned). Stock restoration is opt-in
+// per call. The atomic work happens in fd_revert_dish (013_fd_revert_dish.sql).
+
+export async function revertDish(dishId, restoreStock) {
+  const { data, error } = await supabase.rpc('fd_revert_dish', {
+    p_dish_id: dishId,
+    p_restore_stock: !!restoreStock,
+  });
   if (error) throw error;
   return data;
 }

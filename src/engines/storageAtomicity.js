@@ -57,3 +57,26 @@ export async function runAtomicMarkEaten(supabase, dishId, notes) {
   if (error) throw new Error(error.message || 'Mark eaten failed');
   return data;
 }
+
+// Phase E1 — cook a dish with per-row qty overrides from the Cook dialog.
+// The legacy fd_cook_dish stays available (unchanged) for rollback, but
+// the UI now routes through this one so phantom stock from "recipe says
+// 200g, I used 400g" mismatches is eliminated at the source.
+export async function runAtomicCookWithOverrides(supabase, dishId, ingredientOverrides, intermediateOverrides) {
+  const { data, error } = await supabase.rpc('fd_cook_dish_with_overrides', {
+    p_dish_id: dishId,
+    p_ingredient_overrides: ingredientOverrides || [],
+    p_intermediate_overrides: intermediateOverrides || [],
+  });
+  if (error) throw new Error(error.message || 'Cook failed');
+  return data;
+}
+
+export async function runAtomicRevertDish(supabase, dishId, restoreStock) {
+  const { data, error } = await supabase.rpc('fd_revert_dish', {
+    p_dish_id: dishId,
+    p_restore_stock: !!restoreStock,
+  });
+  if (error) throw new Error(error.message || 'Revert failed');
+  return data;
+}

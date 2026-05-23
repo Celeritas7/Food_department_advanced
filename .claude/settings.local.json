@@ -20,7 +20,16 @@
       "Bash(git commit -m ' *)",
       "Bash(git push *)",
       "Bash(gh run *)",
-      "PowerShell(gh run *)"
+      "PowerShell(gh run *)",
+      "Bash(git rm *)",
+      "Bash(grep -q \"^dist/$\" .gitignore)",
+      "Bash(git commit *)",
+      "mcp__claude_ai_Supabase__list_projects",
+      "mcp__claude_ai_Supabase__execute_sql",
+      "PowerShell(npm run *)",
+      "Bash(git -C \"D:\\\\Coding\\\\App_generation\\\\General_purpose\\\\Food_department_advanced\" ls-files)",
+      "Bash(findstr /i \"migrat .sql\")",
+      "mcp__claude_ai_Supabase__list_tables"
     ]
   }
 }
