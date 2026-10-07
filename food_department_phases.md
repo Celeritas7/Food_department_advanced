@@ -158,15 +158,9 @@ Decide details with live prototypes from Phase A + B in hand.
 
 ---
 
-## Build + deploy reminder
+## Build + deploy
 
-GitHub Pages serves from `docs/`. Every ship requires:
-
-```
-npm run build
-git add docs/
-git commit -m "build: <phase name>"
-git push
-```
-
-The src/ commit is necessary but not sufficient for live deployment. Always run the build + commit `docs/` separately.
+GitHub Actions builds and deploys on every push to `main` (see
+`.github/workflows/deploy.yml`). Do **not** run `npm run build` and commit
+output: `dist/` is git-ignored and `docs/` no longer exists. A src/ commit
+merged to `main` is all a ship needs.

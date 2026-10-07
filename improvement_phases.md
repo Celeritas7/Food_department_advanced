@@ -9,7 +9,7 @@ Legend: **Effort** is for one developer. **Risk** is to the live site.
 
 ---
 
-## Phase 1 — Repo hygiene & one deploy path ⏳ NEXT
+## Phase 1 — Repo hygiene & one deploy path ✅ DONE (pending merge + Pages switch)
 
 **Goal:** a fresh clone installs, tests, builds, and deploys from CI with no
 manual `docs/` commit.
@@ -41,7 +41,18 @@ manual `docs/` commit.
 - Add `.claude/settings.local.json` to `.gitignore` and `git rm --cached` it
   (it holds machine-specific Windows paths).
 - Refresh `README.md`: add `ExpiryAlertPage`, `RecipePage`, `CookDialog`,
-  `__tests__/`, migrations 005–014, remove `Launch_app.bat`.
+  `__tests__/`, migrations 008–014, remove `Launch_app.bat`.
+
+### Phase 1 notes
+- `@vitejs/plugin-react` bumped to `^5.2.0` (supports Vite 8); `gh-pages`
+  dependency and `deploy` script removed.
+- Workflow now runs `npm ci` → `npm test` → `npm run build` on PRs and
+  pushes; deploys only from `main`; refuses to deploy if the Supabase URL
+  secret is missing; manual `workflow_dispatch` added.
+- Found during this phase: migrations **005–007 are missing** from
+  `supabase/` (general list table, reminder columns, emoji column were
+  applied directly to the live DB). Export them from the live DB; tracked as
+  a prerequisite for Phase 2's RLS migration.
 
 **Ship criteria:** CI green on a push to `main`, site live from the Actions
 artifact, `git status` clean after `npm run build`.
@@ -71,6 +82,8 @@ artifact, `git status` clean after `npm run build`.
   `003_rls_policies.sql` with `USING (auth.uid() IS NOT NULL)` and the same
   `WITH CHECK`. Apply to tables added in later migrations too
   (`general_shopping_items`, `ingredient_usage_log`, `cook_history`).
+  Recover the missing 005–007 migrations first so the policy list is
+  complete.
 - `src/config/supabase.js`: turn `persistSession` / `autoRefreshToken` /
   `detectSessionInUrl` back on.
 - Add a minimal `LoginPage.jsx` (email input → "check your inbox") shown

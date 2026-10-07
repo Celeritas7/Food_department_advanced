@@ -3,3 +3,6 @@ documents/
 .env
 .env.local
 dist/
+
+# Personal Claude Code settings (machine-specific)
+.claude/settings.local.json

@@ -1,32 +1,40 @@
 name: Deploy to GitHub Pages
 
+# Single deploy path: CI tests, builds dist/ and publishes it to Pages.
+# Nothing build-related is committed to the repo.
+#
+# One-time setup (repo Settings):
+#   - Pages → Build and deployment → Source: "GitHub Actions"
+#   - Secrets → Actions: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY,
+#     VITE_ANTHROPIC_API_KEY (the last one moves server-side in Phase 2)
+
 on:
   push:
     branches: [main]
+  pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
-  group: "pages"
+  group: pages-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  build-and-deploy:
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
 
-      - run: npm install
+      - run: npm ci
+
+      - run: npm test
 
       - name: Build
         env:
@@ -35,13 +43,29 @@ jobs:
           VITE_ANTHROPIC_API_KEY: ${{ secrets.VITE_ANTHROPIC_API_KEY }}
         run: npm run build
 
-      - uses: actions/configure-pages@v4
-        with:
-          enablement: true
+      - name: Check Supabase secrets reached the build
+        if: github.event_name != 'pull_request'
+        run: |
+          if grep -q "YOUR_PROJECT.supabase.co" dist/assets/*.js; then
+            echo "::error::VITE_SUPABASE_URL secret is missing; refusing to deploy a build with placeholder config."
+            exit 1
+          fi
 
       - uses: actions/upload-pages-artifact@v3
+        if: github.event_name != 'pull_request'
         with:
           path: dist
 
+  deploy:
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - id: deployment
         uses: actions/deploy-pages@v4

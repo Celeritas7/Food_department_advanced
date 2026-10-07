@@ -1,114 +1,103 @@
-# 🍳 Cooking App v2 — Supabase + Multi-File Architecture
+# 🍳 Food Department — Cooking App
 
-## Architecture
+Personal kitchen manager: ingredients, preparations, dishes, shopping and
+expiry tracking. React + Vite + Tailwind front end, Supabase (Postgres)
+back end, deployed to GitHub Pages by GitHub Actions.
 
-```
-cooking-app/
-├── index.html                    # Entry point
-├── package.json                  # Dependencies
-├── vite.config.js                # Build config
-├── tailwind.config.js            # Styling
-├── postcss.config.js             # PostCSS config
-├── .env.example                  # Supabase credentials template
-├── Launch_app.bat                # Windows launcher
-│
-├── .github/workflows/
-│   └── deploy.yml                # Auto-deploy to GitHub Pages
-│
-├── supabase/
-│   ├── 001_schema.sql            # Database tables + indexes
-│   ├── 002_seed.sql              # Seed data from Notion CSVs
-│   ├── 003_rls_policies.sql      # Row Level Security (public access)
-│   └── 004_basic_category.sql    # Recategorize common staples as "Basic"
-│
-└── src/
-    ├── main.jsx                  # React entry
-    ├── index.css                 # Tailwind CSS
-    ├── App.jsx                   # Main app (state, routing, actions)
-    │
-    ├── config/
-    │   ├── supabase.js           # Supabase client
-    │   └── emoji.js              # Central emoji maps (categories, types, flags)
-    │
-    ├── services/
-    │   └── db.js                 # All CRUD operations
-    │
-    ├── engines/
-    │   ├── availability.js       # Per-dish cookability check
-    │   ├── quantity.js           # Aggregate shopping list
-    │   ├── priority.js           # Priority propagation
-    │   └── spoilage.js           # Expiry calculation
-    │
-    └── components/
-        ├── ui/
-        │   ├── Icons.jsx         # SVG icons
-        │   ├── Modal.jsx         # Modal dialog
-        │   ├── Toast.jsx         # Toast notifications
-        │   ├── Badges.jsx        # Spoilage + Priority badges
-        │   ├── FilterBar.jsx     # Reusable filter chips
-        │   └── IngredientPicker.jsx # Category-tabbed ingredient picker
-        ├── forms/
-        │   ├── IngredientForm.jsx
-        │   ├── IntermediateForm.jsx
-        │   ├── DishForm.jsx
-        │   ├── BuyDialog.jsx
-        │   └── PrepareDialog.jsx
-        └── pages/
-            ├── IngredientsPage.jsx     # With emoji, search, multi-filters
-            ├── PrepsPage.jsx           # With category/status filters
-            ├── DishesPage.jsx          # With country/type filters
-            ├── ShopPage.jsx            # With category filter
-            ├── DataPage.jsx            # Import/export + category manager link
-            └── CategoryManagerPage.jsx # Rename, merge, move categories
-```
+Live: <https://celeritas7.github.io/Food_department_advanced/>
+
+Roadmaps: [`food_department_phases.md`](food_department_phases.md) (product) ·
+[`improvement_phases.md`](improvement_phases.md) (repo health, security, UX).
 
 ## Features
 
-- 📦 **Ingredients** — Search, filter by category/stock/freshness, emoji grouping
-- 🧑‍🍳 **Preparations** — Dough, sauces with category/status filters
-- 🍽️ **Dishes** — Plan & cook with country flags and type filters
-- 🛒 **Shopping** — Auto-generated list with category filters
-- 🏷️ **Category Manager** — Rename, merge, delete, move items between categories
-- 🥘 **Ingredient Picker** — Category-tabbed modal for selecting ingredients
+- 🚨 **Expiry** — Expiring ingredients matched to dishes you can cook now; "Used up / Wasted" with undo
+- 📦 **Ingredients** — Search, filter by category / stock / freshness, emoji grouping, inherited priority
+- 🍽️ **Dishes** — Menu Planner ranked by completeness; Planned → In Progress → Cooked → In Fridge → Eaten lifecycle with one-step revert; grid / list layout
+- 📖 **Recipes** — Collapsible recipe view and editor, AI import (Claude) or offline quick-parse
+- 🍳 **Cook dialog** — Override recipe quantities at cook time so stock stays accurate
+- 🛒 **Shop** — Groceries (To Buy / In Stock / Use It Up, due reminders) and a General non-food list
+- 🧑‍🍳 **Preps** — Intermediate preparations (dough, sauces) with their own stock
+- 🏷️ **Data** — JSON export / import, Category Manager (rename, merge, move)
 
-## Engines
+## Project structure
 
-- **Availability** → Can this dish be cooked right now?
-- **Quantity** → How much of each ingredient do I need total?
-- **Priority** → Which ingredients are most urgent to buy?
-- **Spoilage** → Is this ingredient expired or expiring soon?
-
-All 52 test scenarios from the spec remain covered.
-
-## Setup
-
-### 1. Supabase Database
-
-1. Go to [supabase.com](https://supabase.com) → your project → **SQL Editor**
-2. Run `supabase/001_schema.sql` — creates all tables
-3. Run `supabase/003_rls_policies.sql` — enables public access
-4. Run `supabase/002_seed.sql` — loads your Notion data
-5. Run `supabase/004_basic_category.sql` — recategorizes common staples
-6. Copy your **Project URL** and **anon key** from Settings → API
-
-### 2. App Setup
-
-```bash
-cd Food_department_advanced
-cp .env.example .env
-# Edit .env with your actual Supabase URL and key
-npm install
-npm run dev
+```
+├── index.html
+├── package.json / package-lock.json
+├── vite.config.js · tailwind.config.js · postcss.config.js
+├── .env.example                  # Supabase + Anthropic env template
+├── .github/workflows/deploy.yml  # Test → build → deploy to Pages
+├── supabase/                     # SQL migrations, run in order
+└── src/
+    ├── main.jsx · App.jsx · index.css
+    ├── config/      supabase.js · anthropic.js · emoji.js
+    ├── services/    db.js                    # All Supabase CRUD + RPC calls
+    ├── engines/                              # Pure logic, unit-tested
+    │   ├── availability.js                   # Can this dish be cooked now?
+    │   ├── quantity.js · quantityAggregation.js  # Shopping list totals
+    │   ├── priority.js · priorityPropagation.js  # Dish → ingredient priority
+    │   ├── spoilage.js                       # Expired / near expiry
+    │   ├── storageAtomicity.js · workflowActions.js  # Atomic RPC wrappers
+    │   ├── importSync.js                     # JSON import reconciliation
+    │   └── __tests__/                        # Jest suites
+    └── components/
+        ├── ui/      Modal · Toast · UndoToast · Badges · FilterBar · Icons ·
+        │            IngredientPicker · RevertPopup · UsedUpPopup
+        ├── forms/   IngredientForm · BuyDialog · IntermediateForm ·
+        │            PrepareDialog · DishForm · CookDialog
+        └── pages/   ExpiryAlertPage · IngredientsPage · DishesPage ·
+                     DishManagerPanel · RecipePage · ShopPage · PrepsPage ·
+                     DataPage · CategoryManagerPage
 ```
 
-### 3. Deploy to GitHub Pages
-
-Set GitHub Secrets: `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`
+## Local development
 
 ```bash
-git add .
-git commit -m "deploy"
-git push
+cp .env.example .env     # fill in your Supabase URL + anon key
+npm ci
+npm run dev              # http://localhost:5173/Food_department_advanced/
+npm test                 # engine unit tests
+npm run build            # production build into dist/
 ```
 
-GitHub Actions auto-builds and deploys to Pages.
+## Database setup (Supabase)
+
+In the Supabase **SQL Editor**, run the files in `supabase/` in numeric order:
+
+| File | Purpose |
+|---|---|
+| `001_schema.sql` | Core tables and indexes |
+| `002_seed.sql` | Seed data |
+| `003_rls_policies.sql` | Row Level Security (currently open access, tightened in improvement Phase 2) |
+| `004_basic_category.sql` | Recategorise common staples as "Basic" |
+| `008_recipe_data.sql` | `recipe_data` JSONB on dishes |
+| `009_atomic_workflow.sql` | Atomic prepare / buy / cook / store / eat RPCs |
+| `010_buy_with_purchase_date.sql` | Backdated purchases |
+| `011_reminder_rework.sql` | `reminder_next_due` + backfill |
+| `012_ingredient_usage_log.sql` | Used-up / wasted log |
+| `013_fd_revert_dish.sql` | One-step dish revert RPC |
+| `014_fd_cook_dish_with_overrides.sql` | Cook with quantity overrides |
+
+> ⚠️ Migrations **005–007 are not in the repo**. They were applied directly
+> to the live database and added at least the general shopping list table,
+> the reminder columns (`has_reminder`, `restock_reminder_days`,
+> `last_reminder_checked`) and the ingredient `emoji` column. A fresh project
+> built only from these files will be missing them; export them from the live
+> database before relying on this for a rebuild.
+
+## Deployment
+
+Every push to `main` runs `.github/workflows/deploy.yml`: `npm ci` →
+`npm test` → `npm run build` → publish `dist/` to GitHub Pages. Pull
+requests run the same test and build steps without deploying. Nothing
+build-related is committed.
+
+One-time repository settings:
+
+1. **Settings → Pages → Build and deployment → Source:** `GitHub Actions`
+2. **Settings → Secrets and variables → Actions:** `VITE_SUPABASE_URL`,
+   `VITE_SUPABASE_ANON_KEY`, `VITE_ANTHROPIC_API_KEY`
+
+The workflow refuses to deploy if the Supabase URL secret is missing. It can
+also be run by hand from the **Actions** tab (`workflow_dispatch`).
