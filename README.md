@@ -79,12 +79,15 @@ In the Supabase **SQL Editor**, run the files in `supabase/` in numeric order:
 | `013_fd_revert_dish.sql` | One-step dish revert RPC |
 | `014_fd_cook_dish_with_overrides.sql` | Cook with quantity overrides |
 
-> ⚠️ Migrations **005–007 are not in the repo**. They were applied directly
-> to the live database and added at least the general shopping list table,
-> the reminder columns (`has_reminder`, `restock_reminder_days`,
-> `last_reminder_checked`) and the ingredient `emoji` column. A fresh project
-> built only from these files will be missing them; export them from the live
-> database before relying on this for a rebuild.
+> ⚠️ Migrations **005–007 are not in the repo**, and no file here creates
+> several things the app relies on: the `food_department_general_shopping_items`
+> table, the `food_department_cook_history` table, the ingredient columns
+> `emoji`, `has_reminder`, `restock_reminder_days`, `last_reminder_checked`,
+> and the dish columns `stored_at` and `times_cooked`. They exist only in the
+> live database. A fresh project built from these files alone will not run.
+> Export the live schema (Supabase CLI `supabase db dump --schema public`)
+> and commit it as the missing migrations before relying on this for a
+> rebuild. Tracked as the first step of improvement Phase 2.
 
 ## Deployment
 

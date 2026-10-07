@@ -50,12 +50,13 @@ manual `docs/` commit.
   pushes; deploys only from `main`; refuses to deploy if the Supabase URL
   secret is missing; manual `workflow_dispatch` added.
 - Found during this phase: migrations **005–007 are missing** from
-  `supabase/` (general list table, reminder columns, emoji column were
-  applied directly to the live DB). Export them from the live DB; tracked as
-  a prerequisite for Phase 2's RLS migration.
-
-**Ship criteria:** CI green on a push to `main`, site live from the Actions
-artifact, `git status` clean after `npm run build`.
+  `supabase/`. Nothing in the repo creates `general_shopping_items`,
+  `cook_history`, the ingredient columns `emoji` / `has_reminder` /
+  `restock_reminder_days` / `last_reminder_checked`, or the dish columns
+  `stored_at` / `times_cooked`. They exist only in the live DB. Dump the
+  live schema and commit it; prerequisite for Phase 2's RLS migration.
+- Workflow pins Node 22 and `package.json` declares `engines` (Vite 8
+  needs Node ^20.19 or >=22.12).
 
 ---
 
