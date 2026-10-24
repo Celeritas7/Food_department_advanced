@@ -610,6 +610,10 @@ export default function App() {
       {page === 'dish' && (
         <DishesPage
           dishes={enrichedDishes}
+          dishIngs={dishIngs}
+          dishInts={dishInts}
+          ingredients={enrichedIngredients}
+          intermediates={intermediates}
           onAdd={() => setModal({ type: 'addDish' })}
           onEdit={(d) => setModal({ type: 'editDish', data: d })}
           onCook={(d) => handleCookDish(d)}
