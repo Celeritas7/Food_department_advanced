@@ -16,8 +16,8 @@ DO $$
 DECLARE
   v_owner uuid;
   t text;
-  p record;
-  f record;
+  pol record;
+  fn record;
   tables text[] := ARRAY[
     'food_department_ingredients',
     'food_department_intermediates',
@@ -42,8 +42,8 @@ BEGIN
     EXECUTE format('ALTER TABLE %I ALTER COLUMN user_id SET NOT NULL', t);
     EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', t);
 
-    FOR p IN SELECT policyname FROM pg_policies WHERE schemaname = 'public' AND tablename = t LOOP
-      EXECUTE format('DROP POLICY %I ON %I', p.policyname, t);
+    FOR pol IN SELECT policyname FROM pg_policies WHERE schemaname = 'public' AND tablename = t LOOP
+      EXECUTE format('DROP POLICY %I ON %I', pol.policyname, t);
     END LOOP;
     EXECUTE format(
       'CREATE POLICY %I ON %I FOR ALL TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid())',
@@ -54,12 +54,12 @@ BEGIN
 
   REVOKE ALL ON food_department_dish_insights FROM anon;
 
-  FOR f IN
-    SELECT p.oid::regprocedure AS sig
-    FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
-    WHERE n.nspname = 'public' AND p.proname LIKE 'fd\_%'
+  FOR fn IN
+    SELECT pr.oid::regprocedure AS sig
+    FROM pg_proc pr JOIN pg_namespace ns ON ns.oid = pr.pronamespace
+    WHERE ns.nspname = 'public' AND pr.proname LIKE 'fd\_%'
   LOOP
-    EXECUTE format('REVOKE EXECUTE ON FUNCTION %s FROM anon, PUBLIC', f.sig);
-    EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO authenticated', f.sig);
+    EXECUTE format('REVOKE EXECUTE ON FUNCTION %s FROM anon, PUBLIC', fn.sig);
+    EXECUTE format('GRANT EXECUTE ON FUNCTION %s TO authenticated', fn.sig);
   END LOOP;
 END $$;
