@@ -165,6 +165,23 @@ function DishCard({ d, tab, layout = 'grid', stockRows, showRing, showStatusChip
               <span className={`${isGrid ? 'text-[11px] px-1.5 py-0.5' : 'text-xs px-2 py-0.5'} rounded-full font-medium ${STATUS_STYLES[d.status] || 'bg-gray-100 text-gray-500'}`}>{d.status}</span>
             ) : null}
             {d.country && !hideCountryChip && <span className={`${isGrid ? 'text-[11px] px-1.5 py-0.5' : 'text-xs px-2 py-0.5'} rounded-full bg-light-gray/30`}>{getCountryFlag(d.country)} {d.country}</span>}
+            {/* Phase D: why this dish was raised, and expired items to check */}
+            {!isCooked && !isInFridge && d._priorityBoost?.length > 0 && (() => {
+              const b = d._priorityBoost[0];
+              const more = d._priorityBoost.length - 1;
+              return (
+                <span
+                  className={`${isGrid ? 'text-[11px] px-1.5 py-0.5' : 'text-xs px-2 py-0.5'} rounded-full bg-tomato/10 text-tomato font-medium max-w-full truncate`}
+                  title={`Priority raised from ${PRIORITY_COLORS[priorityVariant(d._manualPriority)].label} — ${d._priorityBoost.map(x => `${x.name}: ${x.daysRemaining === 0 ? 'today' : x.daysRemaining + 'd left'}`).join(', ')}`}
+                >⬆ {b.name} · {b.daysRemaining === 0 ? 'today' : b.daysRemaining === 1 ? '1 day left' : `${b.daysRemaining} days left`}{more > 0 ? ` +${more}` : ''}</span>
+              );
+            })()}
+            {!isCooked && !isInFridge && d._expiredIngredients?.length > 0 && (
+              <span
+                className={`${isGrid ? 'text-[11px] px-1.5 py-0.5' : 'text-xs px-2 py-0.5'} rounded-full bg-butter/40 text-yellow-800 font-medium max-w-full truncate`}
+                title={`Expired: ${d._expiredIngredients.map(x => x.name).join(', ')} — check before cooking`}
+              >⚠️ {d._expiredIngredients[0].name} expired{d._expiredIngredients.length > 1 ? ` +${d._expiredIngredients.length - 1}` : ''}</span>
+            )}
           </div>
         </div>
       </div>
