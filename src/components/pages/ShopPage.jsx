@@ -121,21 +121,37 @@ export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, 
   const plannedDishCards = useMemo(() => {
     const active = dishes.filter(d => d.status === 'In Progress');
     return active.map(d => {
-      const myIngs = dishIngs.filter(di => di.dish_id === d.id);
-      const ingDetails = myIngs.map(di => {
-        const ig = ingredients.find(i => i.id === di.ingredient_id);
-        if (!ig) return null;
-        return {
-          name: ig.name, category: ig.category, qty: di.qty,
-          unit: di.unit_override || ig.unit || 'g',
-          have: ig.stock_qty, missing: ig.stock_qty < di.qty,
-        };
-      }).filter(Boolean);
-      const missingCount = ingDetails.filter(i => i.missing).length;
-      const canCook = d._availability?.canCook || false;
-      return { ...d, ingDetails, missingCount, haveCount: ingDetails.length - missingCount, canCook };
+      // Rows and counts come from the shared availability engine (includes
+      // preps), so the card, its detail list and the Dishes/Expiry pages agree.
+      const av = d._availability || {};
+      const missingIngIds = new Set((av.missing || []).map(m => m.ingredientId));
+      const missingIntIds = new Set((av.missingInts || []).map(m => m.intermediateId));
+      const ingDetails = [
+        ...dishIngs.filter(di => di.dish_id === d.id).map(di => {
+          const ig = ingredients.find(i => i.id === di.ingredient_id);
+          if (!ig) return null;
+          return {
+            name: ig.name, category: ig.category, emoji: ig.emoji, qty: di.qty,
+            unit: di.recipe_unit || ig.unit || 'g',
+            have: ig.stock_qty, missing: missingIngIds.has(di.ingredient_id),
+          };
+        }),
+        ...(dishInts || []).filter(di => di.dish_id === d.id).map(di => {
+          const it = (intermediates || []).find(i => i.id === di.intermediate_id);
+          if (!it) return null;
+          return {
+            name: it.name, category: it.category, emoji: '🧑‍🍳', isPrep: true, qty: di.qty,
+            unit: it.unit || 'portions',
+            have: it.stock_qty, missing: missingIntIds.has(di.intermediate_id),
+          };
+        }),
+      ].filter(Boolean);
+      const missingCount = (av.missing?.length || 0) + (av.missingInts?.length || 0);
+      const totalCount = (av.totalIngs || 0) + (av.totalInts || 0);
+      const canCook = av.canCook || false;
+      return { ...d, ingDetails, missingCount, totalCount, pct: av.completeness || 0, canCook };
     }).sort((a, b) => a.canCook !== b.canCook ? (a.canCook ? -1 : 1) : a.priority - b.priority);
-  }, [dishes, dishIngs, ingredients]);
+  }, [dishes, dishIngs, dishInts, ingredients, intermediates]);
 
   const readyDishes = useMemo(() => plannedDishCards.filter(d => d.canCook), [plannedDishCards]);
   const needBuyDishes = useMemo(() => plannedDishCards.filter(d => !d.canCook), [plannedDishCards]);
@@ -281,8 +297,7 @@ export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, 
                   <h3 className="text-xs font-bold text-charcoal/60 uppercase tracking-wide mb-2">🔥 In Progress Dishes ({plannedDishCards.length})</h3>
                   <div className="flex gap-2.5 overflow-x-auto pb-2" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
                     {plannedDishCards.map(dish => {
-                      const total = dish.ingDetails.length || 1;
-                      const pct = Math.round((dish.haveCount / total) * 100);
+                      const { pct, totalCount: total } = dish;
                       const isSelected = expandedDishId === dish.id;
                       return (
                         <div key={dish.id} onClick={() => setExpandedDishId(isSelected ? null : dish.id)}
@@ -301,7 +316,7 @@ export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, 
                               <p className={`text-[10px] font-bold ${dish.canCook ? 'text-sage' : 'text-terracotta'}`}>
                                 {dish.canCook ? 'Ready!' : `${dish.missingCount} missing`}
                               </p>
-                              <p className="text-[9px] text-warm-gray">{total} ingredients</p>
+                              <p className="text-[9px] text-warm-gray">{total} item{total !== 1 ? 's' : ''}</p>
                             </div>
                           </div>
                         </div>
@@ -343,7 +358,7 @@ export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, 
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="text-xs font-bold text-tomato uppercase tracking-wide">🛒 Shopping List</h3>
-                      <span className="text-xs text-warm-gray">{toBuyItems.length} items</span>
+                      <span className="text-xs text-warm-gray">{toBuyItems.length} item{toBuyItems.length !== 1 ? 's' : ''}</span>
                     </div>
                     <div className="space-y-2">
                       {toBuyItems.map(item => (
@@ -386,7 +401,7 @@ export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, 
                             <h4 className="font-semibold text-sm truncate">{dish.name}</h4>
                             <div className="flex gap-1.5 mt-1">
                               {dish.country && <span className="text-[10px] px-2 py-0.5 rounded-full bg-cream text-warm-gray">{dish.country}</span>}
-                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-sage/10 text-sage">All {dish.ingDetails.length} ingredients ✓</span>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-sage/10 text-sage">All {dish.ingDetails.length} item{dish.ingDetails.length !== 1 ? 's' : ''} ✓</span>
                             </div>
                           </div>
                           {onCook && (

@@ -660,6 +660,8 @@ export default function App() {
           ingredients={enrichedIngredients}
           dishes={enrichedDishes}
           dishIngs={dishIngs}
+          dishInts={dishInts}
+          intermediates={enrichedIntermediates}
           onCook={(d) => handleCookDish(d)}
           onBuy={(ig) => setModal({ type: 'buyIng', data: ig })}
           onClearIngredient={handleClearIngredient}
