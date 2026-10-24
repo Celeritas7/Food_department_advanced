@@ -128,7 +128,7 @@ export default function ExpiryAlertPage({ ingredients, dishes, dishIngs, dishInt
             <div>
               <h1 className="text-xl font-bold text-white">Expiry Alert</h1>
               <p className="text-xs text-white/80">
-                {urgentItems.length} item{urgentItems.length !== 1 ? 's' : ''} expiring · {readyCount} dish{readyCount !== 1 ? 'es' : ''} ready
+                {expiredCount} expired · {urgentItems.length - expiredCount} expiring soon · {readyCount} dish{readyCount !== 1 ? 'es' : ''} ready
               </p>
             </div>
           </div>
