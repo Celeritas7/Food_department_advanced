@@ -12,8 +12,6 @@ cooking-app/
 ├── .env.example                  # Supabase credentials template
 ├── Launch_app.bat                # Windows launcher
 │
-├── .github/workflows/
-│   └── deploy.yml                # Auto-deploy to GitHub Pages
 │
 ├── supabase/
 │   ├── 001_schema.sql            # Database tables + indexes
@@ -103,12 +101,15 @@ npm run dev
 
 ### 3. Deploy to GitHub Pages
 
-Set GitHub Secrets: `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`
+GitHub Pages serves the `docs/` folder on `main` (Settings → Pages →
+"Deploy from a branch", `main` / `docs`). Build locally with your `.env`
+in place, then commit the build:
 
 ```bash
-git add .
-git commit -m "deploy"
+npm run build          # writes docs/
+git add docs
+git commit -m "build: ..."
 git push
 ```
 
-GitHub Actions auto-builds and deploys to Pages.
+GitHub's "pages build and deployment" run publishes it within a minute.
