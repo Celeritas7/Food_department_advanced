@@ -34,7 +34,7 @@ function CompletenessRing({ pct, size = 40 }) {
   );
 }
 
-export default function ExpiryAlertPage({ ingredients, dishes, dishIngs, onCook, onBuy, onClearIngredient, onUndoClearIngredient }) {
+export default function ExpiryAlertPage({ ingredients, dishes, dishIngs, dishInts = [], intermediates = [], onCook, onBuy, onClearIngredient, onUndoClearIngredient }) {
   const [expandedDish, setExpandedDish] = useState(null);
   const [confirming, setConfirming] = useState(null); // ingredient pending confirmation
   const [undoState, setUndoState] = useState(null);   // { ingredient, logId, prevStockQty, reason }
@@ -71,6 +71,7 @@ export default function ExpiryAlertPage({ ingredients, dishes, dishIngs, onCook,
 
   const urgentIds = useMemo(() => new Set(urgentItems.map(i => i.id)), [urgentItems]);
   const ingMap = useMemo(() => new Map(ingredients.map(i => [i.id, i])), [ingredients]);
+  const intMap = useMemo(() => new Map(intermediates.map(i => [i.id, i])), [intermediates]);
 
   // Match dishes to urgent ingredients. Readiness comes from the shared
   // availability engine (d._availability) so it matches the Dishes and Shop
@@ -90,6 +91,9 @@ export default function ExpiryAlertPage({ ingredients, dishes, dishIngs, onCook,
         return {
           ...d,
           myIngs,
+          myInts: dishInts.filter(di => di.dish_id === d.id),
+          missingIngIds: new Set((av.missing || []).map(m => m.ingredientId)),
+          missingIntIds: new Set((av.missingInts || []).map(m => m.intermediateId)),
           urgentIngs: usesUrgent,
           completeness: (av.completeness || 0) / 100,
           canCook: !!av.canCook,
@@ -106,7 +110,7 @@ export default function ExpiryAlertPage({ ingredients, dishes, dishIngs, onCook,
         if (a.urgentCount !== b.urgentCount) return b.urgentCount - a.urgentCount;
         return b.completeness - a.completeness;
       });
-  }, [dishes, dishIngs, urgentIds, ingMap]);
+  }, [dishes, dishIngs, dishInts, urgentIds, ingMap]);
 
   const expiredCount = urgentItems.filter(i => i._spoilage?.daysRemaining < 0).length;
   const todayTmrCount = urgentItems.filter(i => i._spoilage?.daysRemaining >= 0 && i._spoilage?.daysRemaining <= 1).length;
@@ -269,7 +273,8 @@ export default function ExpiryAlertPage({ ingredients, dishes, dishIngs, onCook,
                         <div className="space-y-1">
                           {dish.myIngs.map(di => {
                             const ing = ingMap.get(di.ingredient_id);
-                            const hasIt = ing && ing.stock_qty >= (di.qty || 0) && ing.stock_qty > 0;
+                            // Same verdict as the engine that set canCook / the % ring
+                            const hasIt = ing && !dish.missingIngIds.has(di.ingredient_id);
                             const isUrgent = ing && urgentIds.has(ing.id);
                             return (
                               <div key={di.ingredient_id} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs ${
@@ -286,6 +291,22 @@ export default function ExpiryAlertPage({ ingredients, dishes, dishIngs, onCook,
                                 <span className="text-warm-gray">
                                   {ing ? `${ing.stock_qty} ${ing.unit}` : '—'}
                                   {di.qty ? ` / need ${di.qty} ${di.recipe_unit || ing?.unit || ''}` : ''}
+                                </span>
+                              </div>
+                            );
+                          })}
+                          {dish.myInts.map(di => {
+                            const it = intMap.get(di.intermediate_id);
+                            const hasIt = it && !dish.missingIntIds.has(di.intermediate_id);
+                            return (
+                              <div key={di.intermediate_id} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs ${hasIt ? 'bg-sage/5' : 'bg-tomato/5'}`}>
+                                <span>{hasIt ? '✅' : '❌'}</span>
+                                <span className="font-semibold text-charcoal flex-1">
+                                  🧑‍🍳 {it ? it.name : 'Unknown prep'} <span className="text-warm-gray font-normal">(prep)</span>
+                                </span>
+                                <span className="text-warm-gray">
+                                  {it ? `${it.stock_qty} ${it.unit}` : '—'}
+                                  {di.qty ? ` / need ${di.qty}` : ''}
                                 </span>
                               </div>
                             );

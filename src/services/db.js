@@ -6,12 +6,20 @@
 import supabase from '../config/supabase.js';
 
 // ─── LINK REPLACEMENT ───────────────────────────────────
-// Replace all junction rows of one parent without a window where they are
-// gone: upsert the new set first (on the table's UNIQUE pair), then delete
-// only the rows no longer in it. Any error throws, so the caller can tell
-// the user instead of reporting "Updated" over a lost recipe.
+// Replace all junction rows of one parent: upsert the new set first (on the
+// table's UNIQUE pair), then delete only the rows no longer in it. The two
+// requests are not one transaction — if the delete fails, the old rows stay
+// alongside the new ones (the caller reports the error and reloads) — but
+// the recipe is never left empty, which the old delete-then-insert allowed.
+// Duplicate child ids are summed, matching linkDishIngredientsFromRecipe.
 async function replaceLinks(table, parentCol, parentId, childCol, rows) {
-  const byChild = new Map(rows.map(r => [r[childCol], { ...r, [parentCol]: parentId }]));
+  const qtyCol = table === 'food_department_intermediate_ingredients' ? 'qty_per_unit' : 'qty';
+  const byChild = new Map();
+  for (const r of rows) {
+    const prev = byChild.get(r[childCol]);
+    if (prev) prev[qtyCol] = (prev[qtyCol] || 0) + (r[qtyCol] || 0);
+    else byChild.set(r[childCol], { ...r, [parentCol]: parentId });
+  }
   const keep = [...byChild.keys()];
   if (keep.length) {
     const { error } = await supabase
@@ -300,27 +308,27 @@ export async function addDish(dish) {
     .single();
   if (error) throw error;
 
-  // Link ingredients
-  if (dish.recipeIngredients?.length) {
-    const links = dish.recipeIngredients.map(e => ({
-      dish_id: data.id,
-      ingredient_id: e.ingredientId,
-      qty: e.qty || 1,
-      recipe_unit: e.unitOverride || null,
-    }));
-    const { error: linkErr } = await supabase.from('food_department_dish_ingredients').insert(links);
-    if (linkErr) throw linkErr;
-  }
-
-  // Link intermediates
-  if (dish.recipeIntermediates?.length) {
-    const links = dish.recipeIntermediates.map(e => ({
-      dish_id: data.id,
-      intermediate_id: e.intermediateId,
-      qty: e.qty || 1,
-    }));
-    const { error: linkErr } = await supabase.from('food_department_dish_intermediates').insert(links);
-    if (linkErr) throw linkErr;
+  // Link ingredients + intermediates. If either fails, remove the dish row
+  // again so a retry does not create a duplicate, unlinked dish.
+  try {
+    if (dish.recipeIngredients?.length) {
+      await replaceLinks('food_department_dish_ingredients', 'dish_id', data.id, 'ingredient_id',
+        dish.recipeIngredients.map(e => ({
+          ingredient_id: e.ingredientId,
+          qty: e.qty || 1,
+          recipe_unit: e.unitOverride || null,
+        })));
+    }
+    if (dish.recipeIntermediates?.length) {
+      await replaceLinks('food_department_dish_intermediates', 'dish_id', data.id, 'intermediate_id',
+        dish.recipeIntermediates.map(e => ({
+          intermediate_id: e.intermediateId,
+          qty: e.qty || 1,
+        })));
+    }
+  } catch (linkErr) {
+    await supabase.from('food_department_dishes').delete().eq('id', data.id);
+    throw linkErr;
   }
 
   return data;
