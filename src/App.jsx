@@ -2,7 +2,7 @@
  * App.jsx — Main Application Component
  * Orchestrates state, engines, and page routing
  */
-import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
+import { useState, useEffect, useMemo, useCallback, useRef, lazy, Suspense } from 'react';
 import * as db from './services/db.js';
 import supabase from './config/supabase.js';
 import { computeSpoilage } from './engines/spoilage.js';
@@ -49,7 +49,9 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [modal, setModal] = useState({});
   const [recipeDish, setRecipeDishRaw] = useState(null);
-  const [pendingRecipeDishId] = useState(() => sessionStorage.getItem('fd_recipeDishId') || null);
+  // Recipe open before a page reload — restored once on the first load, then
+  // cleared so later reloads (after cooking, editing…) never reopen it.
+  const pendingRecipeDishIdRef = useRef(sessionStorage.getItem('fd_recipeDishId') || null);
 
   // Wrap setters to persist
   const setPage = (p) => { setPageRaw(p); sessionStorage.setItem('fd_page', p); };
@@ -97,9 +99,11 @@ export default function App() {
       setIntIngs(ii);
       setGeneralShoppingItems(gen);
 
-      // Restore recipeDish from saved ID after data loads
-      if (pendingRecipeDishId && !recipeDish) {
-        const found = dsh.find(d => d.id === pendingRecipeDishId);
+      // Restore recipeDish from saved ID after the first load only
+      const pendingId = pendingRecipeDishIdRef.current;
+      if (pendingId) {
+        pendingRecipeDishIdRef.current = null;
+        const found = dsh.find(d => d.id === pendingId);
         if (found) setRecipeDishRaw(found);
       }
     } catch (err) {

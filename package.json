@@ -26,6 +26,9 @@
     "vite": "^8.0.10"
   },
   "jest": {
-    "modulePathIgnorePatterns": ["<rootDir>/Temp/"]
+    "modulePathIgnorePatterns": [
+      "<rootDir>/Temp/"
+    ],
+    "globalSetup": "<rootDir>/jest.globalSetup.cjs"
   }
 }

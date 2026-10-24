@@ -25,15 +25,18 @@ export function checkSpoilage(ingredient, today = new Date()) {
     return { expiryDate: undefined, daysRemaining: undefined, spoilageStatus: 'Unknown' };
   }
 
-  const expiryDate = new Date(purchased_at);
+  const purchased = new Date(purchased_at);
+  const expiryDate = new Date(purchased);
   expiryDate.setUTCDate(expiryDate.getUTCDate() + shelf_life_days);
 
-  // Normalize both ends to UTC midnight so daysRemaining is a clean integer
-  // regardless of the time-of-day on `today` (e.g. when `new Date()` is used).
-  const expiryMidnight = new Date(expiryDate);
-  expiryMidnight.setUTCHours(0, 0, 0, 0);
-  const todayMidnight = new Date(today);
-  todayMidnight.setUTCHours(0, 0, 0, 0);
+  // Count whole days on the LOCAL calendar (the user's own "today"), not in
+  // UTC: in Japan (UTC+9) a purchase between 00:00 and 09:00, or a backdated
+  // purchase stored as local midnight, falls on the previous UTC day and
+  // used to expire one day early; "today" also rolled over at 09:00.
+  // Math.round absorbs DST hour shifts between the two local midnights.
+  const t = new Date(today);
+  const expiryMidnight = new Date(purchased.getFullYear(), purchased.getMonth(), purchased.getDate() + shelf_life_days);
+  const todayMidnight = new Date(t.getFullYear(), t.getMonth(), t.getDate());
 
   const daysRemaining = Math.round((expiryMidnight - todayMidnight) / MS_PER_DAY);
 
