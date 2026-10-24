@@ -426,17 +426,13 @@ export default function DishesPage({ dishes, dishIngs = [], dishInts = [], ingre
     }
 
     // Sort
-    if (tab === 'planner') {
-      // Sort by completeness desc, then priority asc
+    if (tab === 'planner' || tab === 'planned') {
+      // Phase D: dishes raised by a soon-expiring ingredient first (soonest
+      // expiry first), then completeness desc, then priority asc.
+      const boostDays = d => d._priorityBoost?.length ? d._priorityBoost[0].daysRemaining : Infinity;
       return list.sort((a, b) => {
-        const ca = a._availability?.completeness || 0;
-        const cb = b._availability?.completeness || 0;
-        if (cb !== ca) return cb - ca;
-        return a.priority - b.priority;
-      });
-    } else if (tab === 'planned') {
-      // Mirror Menu Planner: completeness desc, priority asc.
-      return list.sort((a, b) => {
+        const ba = boostDays(a), bb = boostDays(b);
+        if (ba !== bb) return ba - bb;
         const ca = a._availability?.completeness || 0;
         const cb = b._availability?.completeness || 0;
         if (cb !== ca) return cb - ca;
