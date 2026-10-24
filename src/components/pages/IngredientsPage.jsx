@@ -10,6 +10,14 @@ import { getCatEmoji, getIngredientEmoji } from '../../config/emoji.js';
 const REMINDER_OPTIONS = [3, 7, 14, 30];
 const DEFAULT_REMINDER_DAYS = 7;
 
+// "Buy" shows on the row only when the item actually needs buying:
+// out of stock, below its minimum, or expired.
+function needsBuy(i) {
+  if (!(i.stock_qty > 0)) return true;
+  if (i.min_stock_qty != null && i.stock_qty < i.min_stock_qty) return true;
+  return i._spoilage?.status === 'Expired';
+}
+
 export default function IngredientsPage({ ingredients, onAdd, onEdit, onBuy, onDelete, onToggleReminder, onChangeReminderDays }) {
   const [activeFilterType, setActiveFilterType] = useState(null);
   const [catFilter, setCatFilter] = useState([]);
@@ -17,6 +25,7 @@ export default function IngredientsPage({ ingredients, onAdd, onEdit, onBuy, onD
   const [spoilFilter, setSpoilFilter] = useState([]);
   const [search, setSearch] = useState('');
   const [openDaysPickerId, setOpenDaysPickerId] = useState(null);
+  const [expandedId, setExpandedId] = useState(null);
 
   // Daily need ingredients live in the General Shopping List (ShopPage),
   // so we hide them from the main Ingredients list entirely.
@@ -180,65 +189,98 @@ export default function IngredientsPage({ ingredients, onAdd, onEdit, onBuy, onD
         {!filtered.length ? (
           <p className="text-center py-16 text-warm-gray">{visibleIngredients.length ? 'No matches' : 'No ingredients yet'}</p>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-5">
             {grouped.map(([cat, items]) => (
               <div key={cat}>
-                <div className="flex items-center gap-2 mb-3">
+                <div className="flex items-center gap-2 mb-2">
                   <span className="text-lg">{getCatEmoji(cat)}</span>
                   <h2 className="text-sm font-bold text-charcoal uppercase tracking-wider">{cat}</h2>
                   <span className="text-xs text-warm-gray">({items.length})</span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {items.map(i => (
-                    <div key={i.id} className="bg-white rounded-xl border p-4 fade relative">
-                      <div className="flex justify-between items-start gap-2">
-                        <div className="min-w-0">
-                          <h3 className="font-semibold text-sm flex items-center gap-1.5">
-                            <span>{getIngredientEmoji(i)} {i.name}</span>
-                            <InheritedPriorityBadge priority={i._inheritedPriority} />
-                          </h3>
-                          <p className={`text-sm ${i.stock_qty > 0 ? '' : 'text-tomato'}`}>{i.stock_qty} {i.unit}</p>
+                <div className="bg-white rounded-xl border divide-y overflow-hidden">
+                  {items.map(i => {
+                    const open = expandedId === i.id;
+                    const out = !(i.stock_qty > 0);
+                    return (
+                      <div key={i.id} className="fade">
+                        {/* Compact row — tap to show actions */}
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          aria-expanded={open}
+                          onClick={() => { setExpandedId(open ? null : i.id); setOpenDaysPickerId(null); }}
+                          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpandedId(open ? null : i.id); } }}
+                          className={`flex items-center gap-2 px-3 py-2.5 cursor-pointer select-none ${open ? 'bg-cream/60' : 'hover:bg-cream/40'}`}
+                        >
+                          <span className="text-lg shrink-0">{getIngredientEmoji(i)}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <span className="font-semibold text-sm truncate">{i.name}</span>
+                              <InheritedPriorityBadge priority={i._inheritedPriority} />
+                              {i.has_reminder && <span className="text-xs shrink-0" title={`Restock reminder every ${i.restock_reminder_days || DEFAULT_REMINDER_DAYS} days`}>🔔</span>}
+                            </div>
+                            <div className="flex items-center gap-2 mt-0.5">
+                              <span className={`text-xs ${out ? 'text-tomato font-semibold' : 'text-warm-gray'}`}>{i.stock_qty} {i.unit}</span>
+                              <SpoilageBadge status={i._spoilage?.status} daysRemaining={i._spoilage?.daysRemaining} stockQty={i.stock_qty} />
+                            </div>
+                          </div>
+                          {needsBuy(i) && (
+                            <button
+                              onClick={e => { e.stopPropagation(); onBuy(i); }}
+                              className="shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold bg-terracotta text-white"
+                            >Buy</button>
+                          )}
+                          <span className={`shrink-0 text-warm-gray text-xs transition-transform ${open ? 'rotate-180' : ''}`} aria-hidden="true">▾</span>
                         </div>
-                        <SpoilageBadge status={i._spoilage?.status} daysRemaining={i._spoilage?.daysRemaining} stockQty={i.stock_qty} />
-                      </div>
-                      <p className="text-xs text-warm-gray mt-1">Shelf: {i.shelf_life_days}d</p>
-                      <div className="flex gap-1 mt-3 pt-3 border-t items-center">
-                        <button
-                          onClick={() => {
-                            if (i.has_reminder) {
-                              onToggleReminder?.(i, false);
-                              setOpenDaysPickerId(null);
-                            } else {
-                              onToggleReminder?.(i, true);
-                              setOpenDaysPickerId(i.id);
-                            }
-                          }}
-                          title={i.has_reminder ? `Reminder every ${i.restock_reminder_days || DEFAULT_REMINDER_DAYS}d — click to turn off` : 'Set reminder'}
-                          className={`p-1.5 rounded text-base hover:bg-light-gray/20 ${i.has_reminder ? 'text-terracotta' : 'text-warm-gray/60'}`}
-                        >🔔</button>
-                        {i.has_reminder && openDaysPickerId === i.id && (
-                          <select
-                            autoFocus
-                            value={i.restock_reminder_days || DEFAULT_REMINDER_DAYS}
-                            onChange={(e) => { onChangeReminderDays?.(i, parseInt(e.target.value, 10)); setOpenDaysPickerId(null); }}
-                            onBlur={() => setOpenDaysPickerId(null)}
-                            className="text-xs px-1.5 py-1 rounded border bg-white"
-                          >
-                            {REMINDER_OPTIONS.map(d => <option key={d} value={d}>{d}d</option>)}
-                          </select>
+
+                        {/* Actions — only for the open row */}
+                        {open && (
+                          <div className="px-3 pb-3 pt-1 bg-cream/60 flex flex-wrap items-center gap-2">
+                            <span className="text-xs text-warm-gray mr-auto">
+                              {i.shelf_life_days != null ? `Keeps ${i.shelf_life_days} days` : 'No shelf life set'}
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <button
+                                onClick={() => {
+                                  if (i.has_reminder) {
+                                    onToggleReminder?.(i, false);
+                                    setOpenDaysPickerId(null);
+                                  } else {
+                                    onToggleReminder?.(i, true);
+                                    setOpenDaysPickerId(i.id);
+                                  }
+                                }}
+                                className={`px-2.5 py-1.5 rounded-lg text-xs font-medium border bg-white ${i.has_reminder ? 'text-terracotta border-terracotta/40' : 'text-charcoal'}`}
+                              >🔔 {i.has_reminder ? 'Reminder on' : 'Remind me'}</button>
+                              {i.has_reminder && openDaysPickerId === i.id && (
+                                <select
+                                  autoFocus
+                                  aria-label="Reminder interval"
+                                  value={i.restock_reminder_days || DEFAULT_REMINDER_DAYS}
+                                  onChange={(e) => { onChangeReminderDays?.(i, parseInt(e.target.value, 10)); setOpenDaysPickerId(null); }}
+                                  onBlur={() => setOpenDaysPickerId(null)}
+                                  className="text-xs px-1.5 py-1.5 rounded-lg border bg-white"
+                                >
+                                  {REMINDER_OPTIONS.map(d => <option key={d} value={d}>every {d}d</option>)}
+                                </select>
+                              )}
+                              {i.has_reminder && openDaysPickerId !== i.id && (
+                                <button
+                                  onClick={() => setOpenDaysPickerId(i.id)}
+                                  className="text-xs text-warm-gray hover:text-terracotta px-1"
+                                >every {i.restock_reminder_days || DEFAULT_REMINDER_DAYS}d</button>
+                              )}
+                            </div>
+                            {!needsBuy(i) && (
+                              <button onClick={() => onBuy(i)} className="px-2.5 py-1.5 rounded-lg text-xs font-medium border bg-white text-terracotta">Buy</button>
+                            )}
+                            <button onClick={() => onEdit(i)} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border bg-white text-charcoal"><EditIcon /> Edit</button>
+                            <button onClick={() => onDelete(i)} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium border bg-white text-tomato"><DelIcon /> Delete</button>
+                          </div>
                         )}
-                        {i.has_reminder && openDaysPickerId !== i.id && (
-                          <button
-                            onClick={() => setOpenDaysPickerId(i.id)}
-                            className="text-[11px] text-warm-gray hover:text-terracotta px-1"
-                          >{i.restock_reminder_days || DEFAULT_REMINDER_DAYS}d</button>
-                        )}
-                        <button onClick={() => onBuy(i)} className="flex-1 py-1.5 rounded text-sm text-terracotta hover:bg-terracotta/10">Buy</button>
-                        <button onClick={() => onEdit(i)} className="p-1.5 rounded text-warm-gray hover:bg-light-gray/20"><EditIcon /></button>
-                        <button onClick={() => onDelete(i)} className="p-1.5 rounded text-warm-gray hover:text-tomato"><DelIcon /></button>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ))}
