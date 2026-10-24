@@ -1,9 +1,16 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { DataIcon, DownloadIcon, UploadIcon } from '../ui/Icons';
+import supabase from '../../config/supabase.js';
+import { signOut } from '../AuthGate';
 
 export default function DataPage({ counts, onExport, onImport, onClearAll, onCategoryManager }) {
   const [importState, setImportState] = useState(null);
   const fileRef = useRef(null);
+  const [email, setEmail] = useState('');
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email || ''));
+  }, []);
 
   const handleFile = (e) => {
     const file = e.target.files?.[0];
@@ -39,7 +46,10 @@ export default function DataPage({ counts, onExport, onImport, onClearAll, onCat
         {/* Current Data Summary */}
         <div className="bg-white rounded-xl border p-5">
           <h3 className="font-semibold text-lg mb-1">Current Data</h3>
-          <p className="text-sm text-warm-gray mb-4">Connected to Supabase</p>
+          <div className="flex items-center justify-between gap-2 mb-4">
+            <p className="text-sm text-warm-gray truncate">Signed in as {email || '…'}</p>
+            <button onClick={signOut} className="text-sm text-tomato font-medium shrink-0">Sign out</button>
+          </div>
           <div className="grid grid-cols-3 gap-4">
             {[
               { n: 'Ingredients', c: counts.ingredients, cl: 'text-terracotta' },
