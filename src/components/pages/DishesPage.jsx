@@ -159,12 +159,12 @@ function DishCard({ d, tab, layout = 'grid', showRing, showStatusChip, showStatu
         </div>
       )}
 
-      {/* Actions — icon-only pills in grid mode, labeled buttons in list mode */}
-      <div className={`flex ${isGrid ? 'gap-1 flex-wrap' : 'gap-1'} mt-3 pt-3 border-t border-charcoal/10 items-center`}>
+      {/* Actions — grid: labelled main action + icon pills; list: labelled buttons */}
+      <div className={`flex ${isGrid ? 'gap-1' : 'gap-1'} mt-3 pt-3 border-t border-charcoal/10 items-center`}>
         {showCook && !isCooked && !isInFridge && (
           isGrid
-            ? <button onClick={() => onCook(d)} disabled={!av.canCook} title="Cook" aria-label="Cook"
-                className={`px-2 py-1 rounded-full text-sm bg-white/60 ${av.canCook ? 'text-sage hover:bg-sage/10' : 'text-light-gray cursor-not-allowed'}`}>✅</button>
+            ? <button onClick={() => onCook(d)} disabled={!av.canCook} title={av.canCook ? 'Cook' : 'Missing ingredients'}
+                className={`flex-1 min-w-0 px-2 py-1 rounded-full text-xs font-semibold bg-white/70 whitespace-nowrap ${av.canCook ? 'text-sage hover:bg-sage/10' : 'text-light-gray cursor-not-allowed'}`}>✅ Cook</button>
             : <button onClick={() => onCook(d)} disabled={!av.canCook}
                 className={`flex-1 py-1.5 rounded text-sm font-medium ${av.canCook ? 'text-sage hover:bg-sage/10' : 'text-light-gray cursor-not-allowed'}`}>
                 {av.canCook ? '✅ Cook' : 'Cook'}
@@ -173,8 +173,8 @@ function DishCard({ d, tab, layout = 'grid', showRing, showStatusChip, showStatu
         {/* Cooked tab: Store in Fridge */}
         {showStoreInFridge && isCooked && (
           isGrid
-            ? <button onClick={() => onStoreInFridge(d)} title="Store in fridge" aria-label="Store in fridge"
-                className="px-2 py-1 rounded-full text-sm bg-white/60 text-cyan-700 hover:bg-cyan-50">🧊</button>
+            ? <button onClick={() => onStoreInFridge(d)} title="Store in fridge"
+                className="flex-1 min-w-0 px-2 py-1 rounded-full text-xs font-semibold bg-white/70 whitespace-nowrap text-cyan-700 hover:bg-cyan-50">🧊 Fridge</button>
             : <button onClick={() => onStoreInFridge(d)}
                 className="flex-1 py-1.5 rounded text-sm font-medium text-cyan-700 hover:bg-cyan-50">
                 🧊 Store in Fridge
@@ -183,8 +183,8 @@ function DishCard({ d, tab, layout = 'grid', showRing, showStatusChip, showStatu
         {/* Fridge tab: Mark as Eaten (toggles inline notes input) */}
         {showMarkEaten && isInFridge && !eatenOpen && (
           isGrid
-            ? <button onClick={() => setEatenOpen(true)} title="Eaten" aria-label="Eaten"
-                className="px-2 py-1 rounded-full text-sm bg-white/60 text-terracotta hover:bg-terracotta/10">✅</button>
+            ? <button onClick={() => setEatenOpen(true)} title="Mark as eaten"
+                className="flex-1 min-w-0 px-2 py-1 rounded-full text-xs font-semibold bg-white/70 whitespace-nowrap text-terracotta hover:bg-terracotta/10">✅ Eaten</button>
             : <button onClick={() => setEatenOpen(true)}
                 className="flex-1 py-1.5 rounded text-sm font-medium text-terracotta hover:bg-terracotta/10">
                 ✅ Eaten
@@ -194,7 +194,7 @@ function DishCard({ d, tab, layout = 'grid', showRing, showStatusChip, showStatu
         {showMarkEaten && isInFridge && !eatenOpen && (
           isGrid
             ? <button onClick={() => onMarkWasted(d)} title="Wasted" aria-label="Wasted"
-                className="px-2 py-1 rounded-full text-sm bg-white/60 text-tomato hover:bg-tomato/10">🗑️</button>
+                className="px-2 py-1 rounded-full text-xs bg-white/70 text-tomato hover:bg-tomato/10">🗑️</button>
             : <button onClick={() => onMarkWasted(d)}
                 className="flex-1 py-1.5 rounded text-sm font-medium text-tomato hover:bg-tomato/10">
                 🗑️ Wasted
@@ -203,8 +203,8 @@ function DishCard({ d, tab, layout = 'grid', showRing, showStatusChip, showStatu
         {/* Quick action buttons for Menu Planner / All */}
         {!showCook && !showStoreInFridge && !showMarkEaten && !isCooked && !isInFridge && d.status !== 'In Progress' && (
           isGrid
-            ? <button onClick={() => onQuickStatus(d, 'In Progress')} title="Start cooking" aria-label="Start cooking"
-                className="px-2 py-1 rounded-full text-sm bg-white/60 text-amber-600 hover:bg-amber-50">🍳</button>
+            ? <button onClick={() => onQuickStatus(d, 'In Progress')} title="Move to In Progress"
+                className="flex-1 min-w-0 px-2 py-1 rounded-full text-xs font-semibold bg-white/70 whitespace-nowrap text-amber-700 hover:bg-amber-50">🔥 Start</button>
             : <button onClick={() => onQuickStatus(d, 'In Progress')}
                 className="flex-1 py-1.5 rounded text-sm font-medium text-amber-600 hover:bg-amber-50">
                 🔥 Start
@@ -212,8 +212,8 @@ function DishCard({ d, tab, layout = 'grid', showRing, showStatusChip, showStatu
         )}
         {!showCook && !showStoreInFridge && !showMarkEaten && !isCooked && !isInFridge && d.status === 'In Progress' && (
           isGrid
-            ? <button onClick={() => onCook(d)} disabled={!av.canCook} title="Mark cooked" aria-label="Mark cooked"
-                className={`px-2 py-1 rounded-full text-sm bg-white/60 ${av.canCook ? 'text-sage hover:bg-sage/10' : 'text-light-gray cursor-not-allowed'}`}>✓</button>
+            ? <button onClick={() => onCook(d)} disabled={!av.canCook} title={av.canCook ? 'Cook' : 'Missing ingredients'}
+                className={`flex-1 min-w-0 px-2 py-1 rounded-full text-xs font-semibold bg-white/70 whitespace-nowrap ${av.canCook ? 'text-sage hover:bg-sage/10' : 'text-light-gray cursor-not-allowed'}`}>✅ Cook</button>
             : <button onClick={() => onCook(d)} disabled={!av.canCook}
                 className={`flex-1 py-1.5 rounded text-sm font-medium ${av.canCook ? 'text-sage hover:bg-sage/10' : 'text-light-gray cursor-not-allowed'}`}>
                 ✅ Cook
@@ -221,7 +221,7 @@ function DishCard({ d, tab, layout = 'grid', showRing, showStatusChip, showStatu
         )}
         {/* Recipe button */}
         <button onClick={() => onRecipe(d)}
-          className={`${isGrid ? 'px-2 py-1 rounded-full bg-white/60' : 'p-1.5 rounded'} hover:bg-terracotta/10 ${hasRecipe ? 'text-terracotta' : 'text-warm-gray'}`}
+          className={`${isGrid ? 'shrink-0 px-2 py-1 rounded-full bg-white/70' : 'p-1.5 rounded'} hover:bg-terracotta/10 ${hasRecipe ? 'text-terracotta' : 'text-warm-gray'}`}
           title={hasRecipe ? 'View recipe' : 'Add recipe'} aria-label="Recipe">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20" />
@@ -230,7 +230,7 @@ function DishCard({ d, tab, layout = 'grid', showRing, showStatusChip, showStatu
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onEdit(d); }}
-          className={`${isGrid ? 'px-2 py-1 rounded-full bg-white/60' : 'px-2.5 py-1.5 rounded'} text-sm font-medium text-charcoal/70 hover:bg-light-gray/30 hover:text-charcoal flex items-center gap-1`}
+          className={`${isGrid ? 'shrink-0 px-2 py-1 rounded-full bg-white/70' : 'px-2.5 py-1.5 rounded'} text-sm font-medium text-charcoal/70 hover:bg-light-gray/30 hover:text-charcoal flex items-center gap-1`}
           title="Edit dish"
           aria-label="Edit dish"
         ><EditIcon />{!isGrid && ' Edit'}</button>
@@ -241,7 +241,7 @@ function DishCard({ d, tab, layout = 'grid', showRing, showStatusChip, showStatu
                 type="button"
                 onClick={(e) => { e.stopPropagation(); onRevert(d); }}
                 title="Revert one step back" aria-label="Revert"
-                className="px-2 py-1 rounded-full bg-white/60 text-xs font-semibold text-charcoal/70 hover:bg-light-gray/30 hover:text-charcoal"
+                className="shrink-0 px-2 py-1 rounded-full bg-white/70 text-xs font-semibold text-charcoal/70 hover:bg-light-gray/30 hover:text-charcoal"
               >↩</button>
             : <button
                 type="button"
@@ -269,6 +269,8 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
   const [countryFilter, setCountryFilterRaw] = useState(() => { try { return JSON.parse(sessionStorage.getItem('fd_dishCountry')) || []; } catch { return []; } });
   const [typeFilter, setTypeFilterRaw] = useState(() => { try { return JSON.parse(sessionStorage.getItem('fd_dishType')) || []; } catch { return []; } });
   const [minCompleteness, setMinCompletenessRaw] = useState(() => parseInt(sessionStorage.getItem('fd_dishMin')) || 0);
+  const [search, setSearch] = useState('');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [layout, setLayoutRaw] = useState(() => {
     try { return localStorage.getItem('fd_dishes_layout') === 'list' ? 'list' : 'grid'; } catch { return 'grid'; }
   });
@@ -312,7 +314,7 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
 
   // Filtered list per tab
   const filtered = useMemo(() => {
-    let list = dishes;
+    let list = [...dishes];
 
     // Tab filter
     if (tab === 'planner') list = list.filter(d => d.status !== 'Cooked' && d.status !== 'In Fridge');
@@ -325,6 +327,15 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
     if (tab !== 'progress' && tab !== 'cooked' && tab !== 'fridge') {
       if (countryFilter.length) list = list.filter(d => countryFilter.includes(d.country));
       if (typeFilter.length) list = list.filter(d => typeFilter.includes(d.dish_type));
+    }
+
+    // Search by name, country or type
+    if (search.trim()) {
+      const q = search.trim().toLowerCase();
+      list = list.filter(d =>
+        d.name.toLowerCase().includes(q) ||
+        (d.country || '').toLowerCase().includes(q) ||
+        (d.dish_type || '').toLowerCase().includes(q));
     }
 
     // Completeness threshold (Menu Planner only)
@@ -360,7 +371,7 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
     // All tab: status order then priority
     const order = { 'In Progress': 0, 'Planned': 1, 'Not planned': 2, 'Cooked': 3 };
     return list.sort((a, b) => (order[a.status] ?? 9) - (order[b.status] ?? 9) || a.priority - b.priority);
-  }, [dishes, tab, countryFilter, typeFilter, minCompleteness]);
+  }, [dishes, tab, countryFilter, typeFilter, minCompleteness, search]);
 
   // Summary stats for Menu Planner
   const plannerStats = useMemo(() => {
@@ -386,7 +397,7 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-xl bg-terracotta/10 flex items-center justify-center text-terracotta"><DishIcon /></div>
             <div>
-              <h1 className="font-semibold text-xl">🍽️ Dishes</h1>
+              <h1 className="font-semibold text-xl">Dishes</h1>
               <p className="text-sm text-warm-gray">{filtered.length} shown</p>
             </div>
           </div>
@@ -423,55 +434,93 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
           ))}
         </div>
 
-        {/* Priority legend */}
-        <div className="flex gap-3 mb-4 text-[11px] text-warm-gray items-center" aria-label="Priority color legend">
-          {(['high', 'normal', 'low']).map(v => (
-            <span key={v} className="inline-flex items-center gap-1.5">
-              <span className="inline-block w-3 h-3 rounded-sm" style={{ backgroundColor: PRIORITY_COLORS[v].border }} />
-              {PRIORITY_COLORS[v].label}
-            </span>
-          ))}
-        </div>
+        {/* Search + Filters ▾ */}
+        {(() => {
+          const showChips = tab !== 'progress' && tab !== 'cooked' && tab !== 'fridge';
+          const activeCount = (showChips ? countryFilter.length + typeFilter.length : 0) + (tab === 'planner' && minCompleteness > 0 ? 1 : 0);
+          const hasFilters = showChips || tab === 'planner';
+          return (
+            <>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="flex-1 min-w-0 flex items-center gap-2 bg-white rounded-xl px-3 py-2 border">
+                  <span className="text-sm" aria-hidden="true">🔍</span>
+                  <input
+                    placeholder="Search dishes, country, type…"
+                    aria-label="Search dishes"
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    className="flex-1 min-w-0 text-sm bg-transparent outline-none"
+                  />
+                  {search && <button onClick={() => setSearch('')} className="text-warm-gray text-sm" aria-label="Clear search">✕</button>}
+                </div>
+                {hasFilters && (
+                  <button
+                    onClick={() => setFiltersOpen(o => !o)}
+                    aria-expanded={filtersOpen}
+                    className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium border ${
+                      filtersOpen ? 'bg-terracotta text-white border-terracotta'
+                        : activeCount ? 'bg-terracotta/10 text-terracotta border-terracotta/30'
+                        : 'bg-white text-charcoal'
+                    }`}
+                  >
+                    Filters
+                    {activeCount > 0 && (
+                      <span className={`text-[10px] px-1.5 rounded-full ${filtersOpen ? 'bg-white/30' : 'bg-terracotta text-white'}`}>{activeCount}</span>
+                    )}
+                    <span className={`text-[10px] transition-transform ${filtersOpen ? 'rotate-180' : ''}`} aria-hidden="true">▾</span>
+                  </button>
+                )}
+              </div>
 
-        {/* Menu Planner summary & completeness filter */}
-        {tab === 'planner' && plannerStats && (
-          <div className="bg-white rounded-xl border p-4 mb-4">
-            <div className="flex items-center gap-4 mb-3">
-              <div className="text-center">
-                <div className="text-2xl font-bold text-sage">{plannerStats.ready}</div>
-                <div className="text-[10px] text-warm-gray">Ready to cook</div>
+              {/* One-line summary + priority colour key */}
+              <div className="flex items-center justify-between gap-3 mb-3 text-[11px] text-warm-gray">
+                {tab === 'planner' && plannerStats ? (
+                  <span>
+                    <span className="font-semibold text-sage">{plannerStats.ready} ready</span>
+                    {' · '}
+                    <span className="font-semibold text-amber-600">{plannerStats.above70} almost (70%+)</span>
+                  </span>
+                ) : <span />}
+                <span className="inline-flex items-center gap-2" aria-label="Priority colour key">
+                  {(['high', 'normal', 'low']).map(v => (
+                    <span key={v} className="inline-flex items-center gap-1">
+                      <span className="inline-block w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: PRIORITY_COLORS[v].border }} />
+                      {PRIORITY_COLORS[v].label}
+                    </span>
+                  ))}
+                </span>
               </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-amber-500">{plannerStats.above70}</div>
-                <div className="text-[10px] text-warm-gray">Almost ready (70%+)</div>
-              </div>
-              <div className="text-center">
-                <div className="text-2xl font-bold text-warm-gray">{plannerStats.total}</div>
-                <div className="text-[10px] text-warm-gray">Total dishes</div>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-warm-gray whitespace-nowrap">Show ≥</span>
-              {[0, 30, 50, 70, 100].map(v => (
-                <button key={v} onClick={() => setMinCompleteness(v)}
-                  className={`text-xs px-2.5 py-1 rounded-full font-medium ${
-                    minCompleteness === v ? 'bg-terracotta text-white' : 'bg-cream text-warm-gray border hover:border-gray-300'
-                  }`}>{v === 0 ? 'All' : `${v}%`}</button>
-              ))}
-            </div>
-          </div>
-        )}
 
-        {/* Country & Type filters (hidden on In Progress and Cooked tabs) */}
-        {tab !== 'progress' && tab !== 'cooked' && tab !== 'fridge' && countryOptions.length > 0 && (
-          <FilterBar label="Country" filters={countryOptions} active={countryFilter} onToggle={toggleFilter(countryFilter, setCountryFilter)} />
-        )}
-        {tab !== 'progress' && tab !== 'cooked' && tab !== 'fridge' && typeOptions.length > 0 && (
-          <FilterBar label="Type" filters={typeOptions} active={typeFilter} onToggle={toggleFilter(typeFilter, setTypeFilter)} />
-        )}
-        {tab !== 'progress' && tab !== 'cooked' && tab !== 'fridge' && (countryFilter.length > 0 || typeFilter.length > 0) && (
-          <button onClick={() => { setCountryFilter([]); setTypeFilter([]); }} className="text-xs text-terracotta font-medium mb-4 hover:underline">✕ Clear filters</button>
-        )}
+              {filtersOpen && hasFilters && (
+                <div className="bg-white rounded-xl border p-3 mb-3 space-y-1">
+                  {tab === 'planner' && (
+                    <div className="flex items-center gap-2 flex-wrap pb-2">
+                      <span className="text-xs text-warm-gray whitespace-nowrap">Ready ≥</span>
+                      {[0, 30, 50, 70, 100].map(v => (
+                        <button key={v} onClick={() => setMinCompleteness(v)}
+                          className={`text-xs px-2.5 py-1 rounded-full font-medium ${
+                            minCompleteness === v ? 'bg-terracotta text-white' : 'bg-cream text-warm-gray border hover:border-gray-300'
+                          }`}>{v === 0 ? 'All' : `${v}%`}</button>
+                      ))}
+                    </div>
+                  )}
+                  {showChips && countryOptions.length > 0 && (
+                    <FilterBar label="Country" filters={countryOptions} active={countryFilter} onToggle={toggleFilter(countryFilter, setCountryFilter)} />
+                  )}
+                  {showChips && typeOptions.length > 0 && (
+                    <FilterBar label="Type" filters={typeOptions} active={typeFilter} onToggle={toggleFilter(typeFilter, setTypeFilter)} />
+                  )}
+                  {activeCount > 0 && (
+                    <button
+                      onClick={() => { setCountryFilter([]); setTypeFilter([]); setMinCompleteness(0); }}
+                      className="text-xs text-terracotta font-medium hover:underline"
+                    >✕ Clear filters</button>
+                  )}
+                </div>
+              )}
+            </>
+          );
+        })()}
 
         {/* Empty state */}
         {!filtered.length ? (
@@ -483,6 +532,7 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
               {tab === 'cooked' && 'No cooked dishes yet.'}
               {tab === 'fridge' && 'Nothing in the fridge. Cook a dish and store it here.'}
               {tab === 'all' && 'No dishes.'}
+              {search && ` No match for "${search}".`}
             </p>
           </div>
         ) : (
