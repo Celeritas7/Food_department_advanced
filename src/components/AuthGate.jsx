@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import supabase from '../config/supabase.js';
+import supabase, { isConfigured } from '../config/supabase.js';
 
 /**
  * AuthGate — renders children only with a Supabase session.
@@ -23,6 +23,20 @@ export default function AuthGate({ children }) {
     });
     if (err) setError(err.message);
   };
+
+  if (!isConfigured) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-3 px-4 text-center">
+        <div className="text-4xl">⚙️</div>
+        <h1 className="text-xl font-bold text-charcoal">Supabase is not configured</h1>
+        <p className="text-sm text-warm-gray max-w-sm">
+          Create a <code>.env</code> file next to <code>package.json</code> with
+          VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY (see <code>.env.example</code>),
+          then restart the dev server.
+        </p>
+      </div>
+    );
+  }
 
   if (session === undefined) {
     return <div className="min-h-screen flex items-center justify-center text-warm-gray text-sm">Loading…</div>;
