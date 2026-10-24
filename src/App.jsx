@@ -9,6 +9,7 @@ import { computeSpoilage } from './engines/spoilage.js';
 import { checkDishAvailability, checkIntermediateAvailability } from './engines/availability.js';
 import { aggregateRequirements } from './engines/quantity.js';
 import { computePriorityPropagation } from './engines/priorityPropagation.js';
+import { computeDynamicPriority } from './engines/dynamicPriority.js';
 import { runAtomicPrepare, runAtomicBuy, runAtomicStoreInFridge, runAtomicMarkEaten } from './engines/storageAtomicity.js';
 
 // UI Components
@@ -111,6 +112,23 @@ export default function App() {
   useEffect(() => { loadAll(); }, [loadAll]);
 
   // ─── Enriched Data (engines) ─────────────────────────
+  const ingredientsWithSpoilage = useMemo(() =>
+    ingredients.map(i => ({ ...i, _spoilage: computeSpoilage(i) })),
+    [ingredients]
+  );
+
+  // Phase D: dynamic priority. `priority` below is the EFFECTIVE priority
+  // (raised by soon-expiring ingredients) so colours, sorting, the shopping
+  // list and inherited priority all follow it. The stored value stays in
+  // `_manualPriority` — the only one forms read and save.
+  const prioritizedDishes = useMemo(() => {
+    const dyn = computeDynamicPriority(dishes, dishIngs, ingredientsWithSpoilage);
+    return dishes.map(d => {
+      const p = dyn.get(d.id);
+      return { ...d, priority: p.priority, _manualPriority: p.manualPriority, _priorityBoost: p.boostedBy, _expiredIngredients: p.expired };
+    });
+  }, [dishes, dishIngs, ingredientsWithSpoilage]);
+
   // Inherited priority — propagated from planned dishes via intermediates.
   // Each intermediate carries its inputs as `input_ingredients` (snake_case
   // shape the engine accepts) so the propagation can reach raw ingredients.
@@ -119,16 +137,15 @@ export default function App() {
       ...i,
       input_ingredients: intIngs.filter(ii => ii.intermediate_id === i.id),
     }));
-    return computePriorityPropagation(dishes, dishIngs, dishInts, intermediatesWithInputs).ingredientPriorities;
-  }, [dishes, dishIngs, dishInts, intermediates, intIngs]);
+    return computePriorityPropagation(prioritizedDishes, dishIngs, dishInts, intermediatesWithInputs).ingredientPriorities;
+  }, [prioritizedDishes, dishIngs, dishInts, intermediates, intIngs]);
 
   const enrichedIngredients = useMemo(() =>
-    ingredients.map(i => ({
+    ingredientsWithSpoilage.map(i => ({
       ...i,
-      _spoilage: computeSpoilage(i),
       _inheritedPriority: inheritedPriorities.get(i.id) ?? null,
     })),
-    [ingredients, inheritedPriorities]
+    [ingredientsWithSpoilage, inheritedPriorities]
   );
 
   const enrichedIntermediates = useMemo(() =>
@@ -140,16 +157,16 @@ export default function App() {
   );
 
   const enrichedDishes = useMemo(() =>
-    dishes.map(d => ({
+    prioritizedDishes.map(d => ({
       ...d,
       _availability: checkDishAvailability(d, dishIngs, dishInts, ingredients, intermediates),
     })),
-    [dishes, dishIngs, dishInts, ingredients, intermediates]
+    [prioritizedDishes, dishIngs, dishInts, ingredients, intermediates]
   );
 
   const shoppingList = useMemo(() =>
-    aggregateRequirements(dishes, dishIngs, dishInts, intIngs, ingredients, intermediates),
-    [dishes, dishIngs, dishInts, intIngs, ingredients, intermediates]
+    aggregateRequirements(prioritizedDishes, dishIngs, dishInts, intIngs, ingredients, intermediates),
+    [prioritizedDishes, dishIngs, dishInts, intIngs, ingredients, intermediates]
   );
 
   const urgentCount = useMemo(() =>
@@ -501,6 +518,7 @@ export default function App() {
     const myInts = dishInts.filter(di => di.dish_id === dish.id);
     return {
       ...dish,
+      priority: dish._manualPriority ?? dish.priority,  // never save a temporary boost
       recipeIngredients: myIngs.map(di => ({ ingredientId: di.ingredient_id, qty: di.qty, unitOverride: di.recipe_unit || '' })),
       recipeIntermediates: myInts.map(di => ({ intermediateId: di.intermediate_id, qty: di.qty })),
     };
