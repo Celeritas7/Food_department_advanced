@@ -8,7 +8,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
 import { DishIcon, PlusIcon, EditIcon } from '../ui/Icons';
 import FilterBar from '../ui/FilterBar';
-import { getDishTypeEmoji, getCountryFlag } from '../../config/emoji.js';
+import { getDishTypeEmoji, getCountryFlag, getIngredientEmoji } from '../../config/emoji.js';
 import RevertPopup, { canRevert } from '../ui/RevertPopup.jsx';
 
 const STATUSES = ['Not planned', 'Planned', 'In Progress'];
@@ -41,6 +41,31 @@ function daysSince(iso) {
   return Math.floor(ms / 86400000);
 }
 
+// "400 / 200 g" when units match, else "400 g / 2 cups" (no conversion is done)
+function formatHaveNeed(have, haveUnit, need, needUnit) {
+  const h = Number.isFinite(+have) ? +have : 0;
+  if (!needUnit || needUnit === haveUnit) return `${h} / ${need} ${haveUnit || ''}`.trim();
+  return `${h} ${haveUnit || ''} / ${need} ${needUnit}`;
+}
+
+// ─── Stock list (C3): what each dish needs vs what is in stock ───
+function StockList({ rows, compact }) {
+  if (!rows.length) return <p className="mt-2 text-xs text-warm-gray">No ingredients linked</p>;
+  return (
+    <ul className={`mt-2 space-y-0.5 ${compact ? 'text-[11px]' : 'text-xs'}`} aria-label="Stock for this dish">
+      {rows.map(r => (
+        <li key={r.key} className={`flex items-center gap-1.5 ${r.missing ? 'text-tomato' : 'text-charcoal/80'}`}>
+          <span className="shrink-0" aria-label={r.missing ? 'Not enough' : 'Enough'}>{r.missing ? '❌' : '✅'}</span>
+          <span className="flex-1 min-w-0 truncate">{r.emoji} {r.name}{r.isPrep && <span className="text-warm-gray"> (prep)</span>}</span>
+          <span className={`shrink-0 whitespace-nowrap ${r.missing ? 'font-semibold' : 'text-warm-gray'}`}>
+            {formatHaveNeed(r.have, r.haveUnit, r.need, r.needUnit)}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 // ─── Completeness Ring SVG ───
 function CompletenessRing({ percent, size = 40, stroke = 4 }) {
   const r = (size - stroke) / 2;
@@ -60,7 +85,7 @@ function CompletenessRing({ percent, size = 40, stroke = 4 }) {
 }
 
 // ─── Dish Card (shared across tabs) ───
-function DishCard({ d, tab, layout = 'grid', showRing, showStatusChip, showStatusDropdown, hideCountryChip, showCook, showStoreInFridge, showMarkEaten, onCook, onQuickStatus, onEdit, onRecipe, onStoreInFridge, onMarkEaten, onMarkWasted, onRevert }) {
+function DishCard({ d, tab, layout = 'grid', stockRows, showRing, showStatusChip, showStatusDropdown, hideCountryChip, showCook, showStoreInFridge, showMarkEaten, onCook, onQuickStatus, onEdit, onRecipe, onStoreInFridge, onMarkEaten, onMarkWasted, onRevert }) {
   const [dropOpen, setDropOpen] = useState(false);
   const [eatenOpen, setEatenOpen] = useState(false);
   const [eatenNotes, setEatenNotes] = useState('');
@@ -143,6 +168,8 @@ function DishCard({ d, tab, layout = 'grid', showRing, showStatusChip, showStatu
           </div>
         </div>
       </div>
+
+      {stockRows && <StockList rows={stockRows} compact={isGrid} />}
 
       {/* Mark-as-eaten notes input (Fridge tab) */}
       {showMarkEaten && isInFridge && eatenOpen && (
@@ -256,7 +283,7 @@ function DishCard({ d, tab, layout = 'grid', showRing, showStatusChip, showStatu
 }
 
 // ─── Main Page ───
-export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatus, onManage, onRecipe, onStoreInFridge, onMarkEaten, onMarkWasted, onRevert }) {
+export default function DishesPage({ dishes, dishIngs = [], dishInts = [], ingredients = [], intermediates = [], onAdd, onEdit, onCook, onQuickStatus, onManage, onRecipe, onStoreInFridge, onMarkEaten, onMarkWasted, onRevert }) {
   // ▶ Phase C1: dish currently pending a Revert confirmation (or null).
   const [reverting, setReverting] = useState(null);
   const handleConfirmRevert = (restoreStock) => {
@@ -275,6 +302,44 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
     try { return localStorage.getItem('fd_dishes_layout') === 'list' ? 'list' : 'grid'; } catch { return 'grid'; }
   });
   const setLayout = (v) => { setLayoutRaw(v); try { localStorage.setItem('fd_dishes_layout', v); } catch {} };
+  const [showStock, setShowStockRaw] = useState(() => {
+    try { return localStorage.getItem('fd_dishes_show_stock') === '1'; } catch { return false; }
+  });
+  const setShowStock = (v) => { setShowStockRaw(v); try { localStorage.setItem('fd_dishes_show_stock', v ? '1' : '0'); } catch {} };
+  // Stock rows need the full card width, so the Stock view shows as a list.
+  // The saved grid/list choice is untouched and returns when Stock is off.
+  const stockActive = showStock && tab !== 'cooked' && tab !== 'fridge';
+  const viewLayout = stockActive ? 'list' : layout;
+
+  // C3: per-dish "have / need" rows, built only while the toggle is on.
+  // Missing/enough comes from the availability engine so it matches the ring.
+  const stockByDish = useMemo(() => {
+    if (!showStock) return null;
+    const ingById = new Map(ingredients.map(i => [i.id, i]));
+    const intById = new Map(intermediates.map(i => [i.id, i]));
+    const byDish = new Map();
+    const add = (dishId, row) => { if (!byDish.has(dishId)) byDish.set(dishId, []); byDish.get(dishId).push(row); };
+    const missingIng = new Map(dishes.map(d => [d.id, new Set((d._availability?.missing || []).map(m => m.ingredientId))]));
+    const missingInt = new Map(dishes.map(d => [d.id, new Set((d._availability?.missingInts || []).map(m => m.intermediateId))]));
+    for (const di of dishIngs) {
+      const ig = ingById.get(di.ingredient_id);
+      add(di.dish_id, {
+        key: 'i' + di.ingredient_id, emoji: ig ? getIngredientEmoji(ig) : '❓', name: ig?.name || 'Unknown ingredient',
+        have: ig?.stock_qty ?? 0, haveUnit: ig?.unit || '', need: di.qty, needUnit: di.recipe_unit || ig?.unit || '',
+        missing: !ig || !!missingIng.get(di.dish_id)?.has(di.ingredient_id),
+      });
+    }
+    for (const di of dishInts) {
+      const it = intById.get(di.intermediate_id);
+      add(di.dish_id, {
+        key: 'p' + di.intermediate_id, emoji: '🧑‍🍳', name: it?.name || 'Unknown prep', isPrep: true,
+        have: it?.stock_qty ?? 0, haveUnit: it?.unit || 'portions', need: di.qty, needUnit: it?.unit || 'portions',
+        missing: !it || !!missingInt.get(di.dish_id)?.has(di.intermediate_id),
+      });
+    }
+    for (const rows of byDish.values()) rows.sort((a, b) => (b.missing - a.missing) || a.name.localeCompare(b.name));
+    return byDish;
+  }, [showStock, dishes, dishIngs, dishInts, ingredients, intermediates]);
 
   const setTab = (v) => { setTabRaw(v); sessionStorage.setItem('fd_dishTab', v); };
   const setCountryFilter = (v) => { const val = typeof v === 'function' ? v(countryFilter) : v; setCountryFilterRaw(val); sessionStorage.setItem('fd_dishCountry', JSON.stringify(val)); };
@@ -405,13 +470,14 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
             <div className="flex rounded-lg border overflow-hidden" role="group" aria-label="Layout">
               <button
                 onClick={() => setLayout('grid')}
-                className={`px-2.5 py-2 text-sm font-medium ${layout === 'grid' ? 'bg-terracotta text-white' : 'bg-white text-warm-gray hover:bg-cream'}`}
-                title="Grid view" aria-label="Grid view" aria-pressed={layout === 'grid'}
+                disabled={stockActive}
+                className={`px-2.5 py-2 text-sm font-medium ${viewLayout === 'grid' ? 'bg-terracotta text-white' : 'bg-white text-warm-gray hover:bg-cream'} disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white`}
+                title={stockActive ? 'Grid view — turn off Stock to use it' : 'Grid view'} aria-label="Grid view" aria-pressed={viewLayout === 'grid'}
               >⊞</button>
               <button
                 onClick={() => setLayout('list')}
-                className={`px-2.5 py-2 text-sm font-medium border-l ${layout === 'list' ? 'bg-terracotta text-white' : 'bg-white text-warm-gray hover:bg-cream'}`}
-                title="List view" aria-label="List view" aria-pressed={layout === 'list'}
+                className={`px-2.5 py-2 text-sm font-medium border-l ${viewLayout === 'list' ? 'bg-terracotta text-white' : 'bg-white text-warm-gray hover:bg-cream'}`}
+                title="List view" aria-label="List view" aria-pressed={viewLayout === 'list'}
               >≡</button>
             </div>
             <button onClick={onManage} className="px-3 py-2 rounded-lg border text-sm font-medium text-warm-gray hover:bg-cream">📋 Manage</button>
@@ -445,7 +511,7 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
                 <div className="flex-1 min-w-0 flex items-center gap-2 bg-white rounded-xl px-3 py-2 border">
                   <span className="text-sm" aria-hidden="true">🔍</span>
                   <input
-                    placeholder="Search dishes, country, type…"
+                    placeholder="Search dishes…"
                     aria-label="Search dishes"
                     value={search}
                     onChange={e => setSearch(e.target.value)}
@@ -453,6 +519,16 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
                   />
                   {search && <button onClick={() => setSearch('')} className="text-warm-gray text-sm" aria-label="Clear search">✕</button>}
                 </div>
+                {tab !== 'cooked' && tab !== 'fridge' && (
+                  <button
+                    onClick={() => setShowStock(!showStock)}
+                    aria-pressed={showStock}
+                    title="Show what each dish needs vs. what is in stock"
+                    className={`shrink-0 px-3 py-2 rounded-xl text-sm font-medium border ${
+                      showStock ? 'bg-terracotta text-white border-terracotta' : 'bg-white text-charcoal'
+                    }`}
+                  >📦 Stock</button>
+                )}
                 {hasFilters && (
                   <button
                     onClick={() => setFiltersOpen(o => !o)}
@@ -537,15 +613,16 @@ export default function DishesPage({ dishes, onAdd, onEdit, onCook, onQuickStatu
           </div>
         ) : (
           <div
-            className={layout === 'grid' ? 'grid gap-2.5' : 'flex flex-col gap-3'}
-            style={layout === 'grid' ? { gridTemplateColumns: '1fr 1fr' } : undefined}
+            className={viewLayout === 'grid' ? 'grid gap-2.5' : 'flex flex-col gap-3'}
+            style={viewLayout === 'grid' ? { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' } : undefined}
           >
             {filtered.map(d => (
               <DishCard
                 key={d.id}
                 d={d}
                 tab={tab}
-                layout={layout}
+                layout={viewLayout}
+                stockRows={stockByDish && d.status !== 'Cooked' && d.status !== 'In Fridge' ? (stockByDish.get(d.id) || []) : undefined}
                 showRing={tab === 'planner' || tab === 'planned' || tab === 'all'}
                 showStatusChip={tab === 'planner' || tab === 'all'}
                 showStatusDropdown={tab === 'all'}
