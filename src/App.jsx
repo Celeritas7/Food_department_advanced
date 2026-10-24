@@ -2,7 +2,7 @@
  * App.jsx — Main Application Component
  * Orchestrates state, engines, and page routing
  */
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import * as db from './services/db.js';
 import supabase from './config/supabase.js';
 import { computeSpoilage } from './engines/spoilage.js';
@@ -20,20 +20,26 @@ import { PkgIcon, LayerIcon, DishIcon, CartIcon, DataIcon, AlertIcon } from './c
 import IngredientsPage from './components/pages/IngredientsPage';
 import PrepsPage from './components/pages/PrepsPage';
 import DishesPage from './components/pages/DishesPage';
-import DishManagerPanel from './components/pages/DishManagerPanel';
 import ShopPage from './components/pages/ShopPage';
-import DataPage from './components/pages/DataPage';
-import CategoryManagerPage from './components/pages/CategoryManagerPage';
 import ExpiryAlertPage from './components/pages/ExpiryAlertPage';
-import RecipePage from './components/pages/RecipePage'; // ▶ NEW
 
 // Forms
 import IngredientForm from './components/forms/IngredientForm';
 import BuyDialog from './components/forms/BuyDialog';
 import IntermediateForm from './components/forms/IntermediateForm';
 import PrepareDialog from './components/forms/PrepareDialog';
-import DishForm from './components/forms/DishForm';
-import CookDialog from './components/forms/CookDialog';
+
+// Opened occasionally — loaded on first use so the first page load is smaller
+const RecipePage = lazy(() => import('./components/pages/RecipePage'));
+const DataPage = lazy(() => import('./components/pages/DataPage'));
+const CategoryManagerPage = lazy(() => import('./components/pages/CategoryManagerPage'));
+const DishManagerPanel = lazy(() => import('./components/pages/DishManagerPanel'));
+const DishForm = lazy(() => import('./components/forms/DishForm'));
+const CookDialog = lazy(() => import('./components/forms/CookDialog'));
+
+const PageLoading = () => (
+  <div className="min-h-[40vh] flex items-center justify-center text-sm text-warm-gray">Loading…</div>
+);
 
 export default function App() {
   // ─── State (persisted in sessionStorage) ───────────────
@@ -517,6 +523,7 @@ export default function App() {
     return (
       <div>
         {toast && <Toast key={toast.key} message={toast.msg} type={toast.type} onDone={() => setToast(null)} />}
+        <Suspense fallback={<PageLoading />}>
         <RecipePage
           dish={recipeDish}
           ingredients={enrichedIngredients}
@@ -566,6 +573,7 @@ export default function App() {
           onBack={() => setRecipeDish(null)}
           notify={notify}
         />
+        </Suspense>
       </div>
     );
   }
@@ -633,6 +641,7 @@ export default function App() {
         />
       )}
       {page === 'data' && (
+        <Suspense fallback={<PageLoading />}>
         <DataPage
           counts={{ ingredients: ingredients.length, intermediates: intermediates.length, dishes: dishes.length }}
           onExport={handleExport}
@@ -640,8 +649,10 @@ export default function App() {
           onClearAll={async () => { setLoading(true); await loadAll(); }}
           onCategoryManager={() => setPage('cat')}
         />
+        </Suspense>
       )}
       {page === 'cat' && (
+        <Suspense fallback={<PageLoading />}>
         <CategoryManagerPage
           ingredients={enrichedIngredients}
           dishes={enrichedDishes}
@@ -654,6 +665,7 @@ export default function App() {
           onBack={() => setPage('data')}
           notify={notify}
         />
+        </Suspense>
       )}
       {page === 'alert' && (
         <ExpiryAlertPage
@@ -708,10 +720,13 @@ export default function App() {
         {modal.data && <PrepareDialog intermediate={modal.data} intIngredients={intIngs.filter(ii => ii.intermediate_id === modal.data.id)} ingredients={ingredients} onPrepare={handlePrepareIntermediate} onCancel={() => setModal({})} />}
       </Modal>
       <Modal open={modal.type === 'addDish'} onClose={() => setModal({})} title="Add Dish">
+        <Suspense fallback={<PageLoading />}>
         <DishForm ingredients={enrichedIngredients} intermediates={enrichedIntermediates} onSave={handleAddDish} onCancel={() => setModal({})}
           onCreateIngredient={async (data) => { const created = await db.addIngredient(data); setIngredients(prev => [...prev, created].sort((a,b) => a.name.localeCompare(b.name))); return created; }} />
+        </Suspense>
       </Modal>
       <Modal open={modal.type === 'editDish'} onClose={() => setModal({})} title="Edit Dish">
+        <Suspense fallback={<PageLoading />}>
         {modal.data && <DishForm initial={getDishFormData(modal.data)} ingredients={enrichedIngredients} intermediates={enrichedIntermediates} onSave={handleEditDish} onCancel={() => setModal({})}
           onDelete={async (d) => {
             try {
@@ -722,18 +737,22 @@ export default function App() {
             } catch (err) { notify('Failed: ' + err.message); }
           }}
           onCreateIngredient={async (data) => { const created = await db.addIngredient(data); setIngredients(prev => [...prev, created].sort((a,b) => a.name.localeCompare(b.name))); return created; }} />}
+        </Suspense>
       </Modal>
 
       {modal.type === 'manageDishes' && (
+        <Suspense fallback={null}>
         <DishManagerPanel
           dishes={enrichedDishes}
           onQuickStatus={handleQuickStatus}
           onClose={() => setModal({})}
         />
+        </Suspense>
       )}
 
       {/* ▶ Phase E1: cook-with-overrides confirmation dialog */}
       {modal.type === 'cookDish' && modal.data && (
+        <Suspense fallback={null}>
         <CookDialog
           dish={modal.data}
           recipeIngs={dishIngs.filter(di => di.dish_id === modal.data.id)}
@@ -743,6 +762,7 @@ export default function App() {
           onConfirm={handleConfirmCook}
           onCancel={() => setModal({})}
         />
+        </Suspense>
       )}
     </div>
   );
