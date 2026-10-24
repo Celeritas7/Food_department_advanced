@@ -169,7 +169,12 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
   };
 
   const handlePickerConfirm = (items) => {
-    setRecipeIngs(items.map(it => ({ ingredientId: it.id, qty: it.qty })));
+    // Keep each ingredient's recipe unit (tbsp, cups…) across a re-pick; the
+    // picker only knows ids and quantities.
+    setRecipeIngs(prev => {
+      const unitById = new Map(prev.map(r => [r.ingredientId, r.unitOverride]));
+      return items.map(it => ({ ingredientId: it.id, qty: it.qty, unitOverride: unitById.get(it.id) || '' }));
+    });
     setShowIngPicker(false);
   };
 

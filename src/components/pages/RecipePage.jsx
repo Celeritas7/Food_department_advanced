@@ -1302,6 +1302,24 @@ export default function RecipePage({ dish, ingredients: stockIngredients = [], d
     }
   };
 
+  // Quick saves (checkboxes, inline qty, sections) go through one queue:
+  // one request in flight, and only the newest pending state is sent next,
+  // so an older save can never land after a newer one. Failures are shown.
+  const pendingSaveRef = useRef(null);
+  const saveBusyRef = useRef(false);
+  const quickSave = async (data) => {
+    pendingSaveRef.current = data;
+    if (saveBusyRef.current) return;
+    saveBusyRef.current = true;
+    while (pendingSaveRef.current) {
+      const next = pendingSaveRef.current;
+      pendingSaveRef.current = null;
+      try { await onSave(dish.id, next); }
+      catch (err) { notify('Not saved: ' + err.message + ' — check your connection and try again'); }
+    }
+    saveBusyRef.current = false;
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try { await onSave(dish.id, recipe); setEditing(false); notify('Recipe saved!', 'success'); }
@@ -1327,18 +1345,18 @@ export default function RecipePage({ dish, ingredients: stockIngredients = [], d
       ),
     };
     setRecipe(next);
-    onSave(dish.id, next).catch(() => {});
+    quickSave(next);
   };
 
   const togglePrepCheck = (idx) => {
     updatePrep(idx, 'checked', !r.preparation[idx].checked);
-    onSave(dish.id, { ...recipe, preparation: recipe.preparation.map((p, i) => i === idx ? { ...p, checked: !p.checked } : p) }).catch(() => {});
+    quickSave({ ...recipe, preparation: recipe.preparation.map((p, i) => i === idx ? { ...p, checked: !p.checked } : p) });
   };
   const toggleStepCheck = (stepIdx, itemIdx) => {
     const steps = [...r.cookingSteps];
     steps[stepIdx] = { ...steps[stepIdx], items: steps[stepIdx].items.map((item, i) => i === itemIdx ? { ...item, checked: !item.checked } : item) };
     set('cookingSteps', steps);
-    onSave(dish.id, { ...recipe, cookingSteps: steps }).catch(() => {});
+    quickSave({ ...recipe, cookingSteps: steps });
   };
 
   const prepDone = r.preparation.filter(p => p.checked).length;
@@ -1373,7 +1391,7 @@ export default function RecipePage({ dish, ingredients: stockIngredients = [], d
             <div className="flex gap-2">
               <div className="relative">
                 <button onClick={() => setShowSectionMgr(!showSectionMgr)} className="px-3 py-1.5 rounded-lg border text-sm text-warm-gray hover:bg-cream">⚙️</button>
-                {showSectionMgr && <SectionManager visible={vis} onChange={async v => { set('visibleSections', v); await onSave(dish.id, { ...recipe, visibleSections: v }).catch(() => {}); }} onClose={() => setShowSectionMgr(false)} />}
+                {showSectionMgr && <SectionManager visible={vis} onChange={v => { set('visibleSections', v); quickSave({ ...recipe, visibleSections: v }); }} onClose={() => setShowSectionMgr(false)} />}
               </div>
               <button onClick={() => setEditing(true)} className="px-3 py-1.5 rounded-lg bg-terracotta text-white text-sm font-medium">✏️ Edit</button>
             </div>
@@ -1474,7 +1492,9 @@ export default function RecipePage({ dish, ingredients: stockIngredients = [], d
         {!editing && (prepDone > 0 || stepsDone > 0) && (
           <button onClick={async () => {
             const reset = { ...recipe, preparation: recipe.preparation.map(p => ({ ...p, checked: false })), cookingSteps: recipe.cookingSteps.map(s => ({ ...s, items: s.items.map(i => ({ ...i, checked: false })) })) };
-            setRecipe(reset); await onSave(dish.id, reset); notify('Checkboxes reset', 'success');
+            setRecipe(reset);
+            try { await onSave(dish.id, reset); notify('Checkboxes reset', 'success'); }
+            catch (err) { notify('Reset not saved: ' + err.message); }
           }} className="w-full py-2.5 rounded-xl border text-sm text-warm-gray hover:border-terracotta hover:text-terracotta transition-colors mt-4">
             🔄 Reset all checkboxes
           </button>
