@@ -127,13 +127,17 @@ export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, 
         if (!ig) return null;
         return {
           name: ig.name, category: ig.category, qty: di.qty,
-          unit: di.unit_override || ig.unit || 'g',
+          unit: di.recipe_unit || ig.unit || 'g',
           have: ig.stock_qty, missing: ig.stock_qty < di.qty,
         };
       }).filter(Boolean);
-      const missingCount = ingDetails.filter(i => i.missing).length;
-      const canCook = d._availability?.canCook || false;
-      return { ...d, ingDetails, missingCount, haveCount: ingDetails.length - missingCount, canCook };
+      // Counts and % come from the shared availability engine (includes preps),
+      // so they match the Dishes and Expiry pages.
+      const av = d._availability || {};
+      const missingCount = (av.missing?.length || 0) + (av.missingInts?.length || 0);
+      const totalCount = (av.totalIngs || 0) + (av.totalInts || 0);
+      const canCook = av.canCook || false;
+      return { ...d, ingDetails, missingCount, totalCount, pct: av.completeness || 0, canCook };
     }).sort((a, b) => a.canCook !== b.canCook ? (a.canCook ? -1 : 1) : a.priority - b.priority);
   }, [dishes, dishIngs, ingredients]);
 
@@ -281,8 +285,7 @@ export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, 
                   <h3 className="text-xs font-bold text-charcoal/60 uppercase tracking-wide mb-2">🔥 In Progress Dishes ({plannedDishCards.length})</h3>
                   <div className="flex gap-2.5 overflow-x-auto pb-2" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
                     {plannedDishCards.map(dish => {
-                      const total = dish.ingDetails.length || 1;
-                      const pct = Math.round((dish.haveCount / total) * 100);
+                      const { pct, totalCount: total } = dish;
                       const isSelected = expandedDishId === dish.id;
                       return (
                         <div key={dish.id} onClick={() => setExpandedDishId(isSelected ? null : dish.id)}
@@ -301,7 +304,7 @@ export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, 
                               <p className={`text-[10px] font-bold ${dish.canCook ? 'text-sage' : 'text-terracotta'}`}>
                                 {dish.canCook ? 'Ready!' : `${dish.missingCount} missing`}
                               </p>
-                              <p className="text-[9px] text-warm-gray">{total} ingredients</p>
+                              <p className="text-[9px] text-warm-gray">{total} item{total !== 1 ? 's' : ''}</p>
                             </div>
                           </div>
                         </div>
@@ -343,7 +346,7 @@ export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, 
                   <div>
                     <div className="flex items-center justify-between mb-2">
                       <h3 className="text-xs font-bold text-tomato uppercase tracking-wide">🛒 Shopping List</h3>
-                      <span className="text-xs text-warm-gray">{toBuyItems.length} items</span>
+                      <span className="text-xs text-warm-gray">{toBuyItems.length} item{toBuyItems.length !== 1 ? 's' : ''}</span>
                     </div>
                     <div className="space-y-2">
                       {toBuyItems.map(item => (

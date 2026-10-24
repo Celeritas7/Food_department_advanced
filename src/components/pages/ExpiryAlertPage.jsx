@@ -70,45 +70,47 @@ export default function ExpiryAlertPage({ ingredients, dishes, dishIngs, onCook,
   }, [ingredients]);
 
   const urgentIds = useMemo(() => new Set(urgentItems.map(i => i.id)), [urgentItems]);
-  const inStockIds = useMemo(() => new Set(ingredients.filter(i => i.stock_qty > 0).map(i => i.id)), [ingredients]);
   const ingMap = useMemo(() => new Map(ingredients.map(i => [i.id, i])), [ingredients]);
 
-  // Match dishes to urgent ingredients
+  // Match dishes to urgent ingredients. Readiness comes from the shared
+  // availability engine (d._availability) so it matches the Dishes and Shop
+  // pages: an ingredient counts only when there is enough of it, and preps count.
   const dishSuggestions = useMemo(() => {
     return dishes
       .filter(d => d.status !== 'Cooked')
       .map(d => {
         const myIngs = dishIngs.filter(di => di.dish_id === d.id);
-        if (!myIngs.length) return null;
-
-        const available = myIngs.filter(di => inStockIds.has(di.ingredient_id));
-        const missing = myIngs.filter(di => !inStockIds.has(di.ingredient_id));
         const usesUrgent = myIngs.filter(di => urgentIds.has(di.ingredient_id));
-        const completeness = myIngs.length > 0 ? available.length / myIngs.length : 0;
-        const canCook = missing.length === 0;
+        if (!usesUrgent.length) return null;
+
+        const av = d._availability || {};
+        const usesExpired = usesUrgent.some(di => (ingMap.get(di.ingredient_id)?._spoilage?.daysRemaining ?? 0) < 0);
+        const missingCount = (av.missing?.length || 0) + (av.missingInts?.length || 0);
 
         return {
           ...d,
           myIngs,
-          availableIngs: available,
-          missingIngs: missing,
           urgentIngs: usesUrgent,
-          completeness,
-          canCook,
+          completeness: (av.completeness || 0) / 100,
+          canCook: !!av.canCook,
+          usesExpired,
+          missingCount,
           urgentCount: usesUrgent.length,
         };
       })
-      .filter(d => d && d.urgentCount > 0)
+      .filter(Boolean)
       .sort((a, b) => {
-        if (a.canCook !== b.canCook) return b.canCook - a.canCook;
+        // Ready dishes that only use still-fresh items first; expired ones need a check
+        const rank = d => (d.canCook ? 0 : 2) + (d.usesExpired ? 1 : 0);
+        if (rank(a) !== rank(b)) return rank(a) - rank(b);
         if (a.urgentCount !== b.urgentCount) return b.urgentCount - a.urgentCount;
         return b.completeness - a.completeness;
       });
-  }, [dishes, dishIngs, urgentIds, inStockIds]);
+  }, [dishes, dishIngs, urgentIds, ingMap]);
 
   const expiredCount = urgentItems.filter(i => i._spoilage?.daysRemaining < 0).length;
   const todayTmrCount = urgentItems.filter(i => i._spoilage?.daysRemaining >= 0 && i._spoilage?.daysRemaining <= 1).length;
-  const readyCount = dishSuggestions.filter(d => d.canCook).length;
+  const readyCount = dishSuggestions.filter(d => d.canCook && !d.usesExpired).length;
 
   return (
     <div className="min-h-screen bg-cream pb-24">
@@ -138,7 +140,7 @@ export default function ExpiryAlertPage({ ingredients, dishes, dishIngs, onCook,
             <div className="w-px bg-white/20" />
             <div className="text-center">
               <div className="text-2xl font-extrabold text-white">{todayTmrCount}</div>
-              <div className="text-[10px] font-semibold text-white/70 uppercase tracking-wider">Today/Tmr</div>
+              <div className="text-[10px] font-semibold text-white/70 uppercase tracking-wider">Today / Tomorrow</div>
             </div>
             <div className="w-px bg-white/20" />
             <div className="text-center">
@@ -204,7 +206,7 @@ export default function ExpiryAlertPage({ ingredients, dishes, dishIngs, onCook,
                 const isExpanded = expandedDish === dish.id;
                 return (
                   <div key={dish.id} className={`bg-white rounded-xl overflow-hidden ${
-                    dish.canCook
+                    dish.canCook && !dish.usesExpired
                       ? 'border-2 border-sage shadow-sm shadow-sage/10'
                       : 'border border-light-gray'
                   }`}>
@@ -214,16 +216,21 @@ export default function ExpiryAlertPage({ ingredients, dishes, dishIngs, onCook,
                       className="flex items-center gap-3 px-4 py-3 cursor-pointer"
                     >
                       <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-xl ${
-                        dish.canCook ? 'bg-sage text-white' : 'bg-cream'
+                        dish.canCook && !dish.usesExpired ? 'bg-sage text-white' : 'bg-cream'
                       }`}>
-                        {dish.canCook ? '✅' : (getDishTypeEmoji(dish.dish_type) || '🍽️')}
+                        {dish.canCook && !dish.usesExpired ? '✅' : (getDishTypeEmoji(dish.dish_type) || '🍽️')}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-bold text-charcoal truncate">{dish.name}</span>
-                          {dish.canCook && (
+                          {dish.canCook && !dish.usesExpired && (
                             <span className="text-[10px] font-bold text-sage bg-sage/10 px-2 py-0.5 rounded-md flex-shrink-0">
                               Ready!
+                            </span>
+                          )}
+                          {dish.usesExpired && (
+                            <span className="text-[10px] font-bold text-tomato bg-tomato/10 px-2 py-0.5 rounded-md flex-shrink-0">
+                              ⚠️ Check expired item
                             </span>
                           )}
                         </div>
@@ -262,7 +269,7 @@ export default function ExpiryAlertPage({ ingredients, dishes, dishIngs, onCook,
                         <div className="space-y-1">
                           {dish.myIngs.map(di => {
                             const ing = ingMap.get(di.ingredient_id);
-                            const hasIt = ing && ing.stock_qty > 0;
+                            const hasIt = ing && ing.stock_qty >= (di.qty || 0) && ing.stock_qty > 0;
                             const isUrgent = ing && urgentIds.has(ing.id);
                             return (
                               <div key={di.ingredient_id} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs ${
@@ -278,7 +285,7 @@ export default function ExpiryAlertPage({ ingredients, dishes, dishIngs, onCook,
                                 </span>
                                 <span className="text-warm-gray">
                                   {ing ? `${ing.stock_qty} ${ing.unit}` : '—'}
-                                  {di.qty ? ` / need ${di.qty}` : ''}
+                                  {di.qty ? ` / need ${di.qty} ${di.recipe_unit || ing?.unit || ''}` : ''}
                                 </span>
                               </div>
                             );
@@ -296,7 +303,7 @@ export default function ExpiryAlertPage({ ingredients, dishes, dishIngs, onCook,
                             <button
                               onClick={(e) => { e.stopPropagation(); /* could add missing to cart */ }}
                               className="flex-1 py-2.5 rounded-xl bg-terracotta text-white text-sm font-bold"
-                            >🛒 Need {dish.missingIngs.length} more</button>
+                            >🛒 Need {dish.missingCount} more</button>
                           )}
                         </div>
                       </div>

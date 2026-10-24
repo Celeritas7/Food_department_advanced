@@ -199,7 +199,7 @@ export default function IngredientsPage({ ingredients, onAdd, onEdit, onBuy, onD
                           </h3>
                           <p className={`text-sm ${i.stock_qty > 0 ? '' : 'text-tomato'}`}>{i.stock_qty} {i.unit}</p>
                         </div>
-                        <SpoilageBadge status={i._spoilage?.status} daysRemaining={i._spoilage?.daysRemaining} />
+                        <SpoilageBadge status={i._spoilage?.status} daysRemaining={i._spoilage?.daysRemaining} stockQty={i.stock_qty} />
                       </div>
                       <p className="text-xs text-warm-gray mt-1">Shelf: {i.shelf_life_days}d</p>
                       <div className="flex gap-1 mt-3 pt-3 border-t items-center">

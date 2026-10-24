@@ -5,6 +5,26 @@
  */
 import supabase from '../config/supabase.js';
 
+// ─── LINK REPLACEMENT ───────────────────────────────────
+// Replace all junction rows of one parent without a window where they are
+// gone: upsert the new set first (on the table's UNIQUE pair), then delete
+// only the rows no longer in it. Any error throws, so the caller can tell
+// the user instead of reporting "Updated" over a lost recipe.
+async function replaceLinks(table, parentCol, parentId, childCol, rows) {
+  const byChild = new Map(rows.map(r => [r[childCol], { ...r, [parentCol]: parentId }]));
+  const keep = [...byChild.keys()];
+  if (keep.length) {
+    const { error } = await supabase
+      .from(table)
+      .upsert([...byChild.values()], { onConflict: `${parentCol},${childCol}` });
+    if (error) throw error;
+  }
+  let del = supabase.from(table).delete().eq(parentCol, parentId);
+  if (keep.length) del = del.not(childCol, 'in', `(${keep.join(',')})`);
+  const { error: delErr } = await del;
+  if (delErr) throw delErr;
+}
+
 // ─── INGREDIENTS ─────────────────────────────────────────
 
 export async function fetchIngredients() {
@@ -237,18 +257,11 @@ export async function updateIntermediate(id, updates) {
 
   // Re-link inputs if provided
   if (updates.inputIngredients !== undefined) {
-    await supabase.from('food_department_intermediate_ingredients').delete().eq('intermediate_id', id);
-    if (updates.inputIngredients.length) {
-      const links = updates.inputIngredients.map(inp => ({
-        intermediate_id: id,
+    await replaceLinks('food_department_intermediate_ingredients', 'intermediate_id', id, 'ingredient_id',
+      updates.inputIngredients.map(inp => ({
         ingredient_id: inp.ingredientId,
         qty_per_unit: inp.qtyPerUnit || 1,
-      }));
-      const { error: linkErr } = await supabase
-        .from('food_department_intermediate_ingredients')
-        .insert(links);
-      if (linkErr) throw linkErr;
-    }
+      })));
   }
 
   return data;
@@ -295,7 +308,8 @@ export async function addDish(dish) {
       qty: e.qty || 1,
       recipe_unit: e.unitOverride || null,
     }));
-    await supabase.from('food_department_dish_ingredients').insert(links);
+    const { error: linkErr } = await supabase.from('food_department_dish_ingredients').insert(links);
+    if (linkErr) throw linkErr;
   }
 
   // Link intermediates
@@ -305,7 +319,8 @@ export async function addDish(dish) {
       intermediate_id: e.intermediateId,
       qty: e.qty || 1,
     }));
-    await supabase.from('food_department_dish_intermediates').insert(links);
+    const { error: linkErr } = await supabase.from('food_department_dish_intermediates').insert(links);
+    if (linkErr) throw linkErr;
   }
 
   return data;
@@ -331,29 +346,21 @@ export async function updateDish(id, updates) {
 
   // Re-link ingredients if provided
   if (updates.recipeIngredients !== undefined) {
-    await supabase.from('food_department_dish_ingredients').delete().eq('dish_id', id);
-    if (updates.recipeIngredients.length) {
-      const links = updates.recipeIngredients.map(e => ({
-        dish_id: id,
+    await replaceLinks('food_department_dish_ingredients', 'dish_id', id, 'ingredient_id',
+      updates.recipeIngredients.map(e => ({
         ingredient_id: e.ingredientId,
         qty: e.qty || 1,
         recipe_unit: e.unitOverride || null,
-      }));
-      await supabase.from('food_department_dish_ingredients').insert(links);
-    }
+      })));
   }
 
   // Re-link intermediates if provided
   if (updates.recipeIntermediates !== undefined) {
-    await supabase.from('food_department_dish_intermediates').delete().eq('dish_id', id);
-    if (updates.recipeIntermediates.length) {
-      const links = updates.recipeIntermediates.map(e => ({
-        dish_id: id,
+    await replaceLinks('food_department_dish_intermediates', 'dish_id', id, 'intermediate_id',
+      updates.recipeIntermediates.map(e => ({
         intermediate_id: e.intermediateId,
         qty: e.qty || 1,
-      }));
-      await supabase.from('food_department_dish_intermediates').insert(links);
-    }
+      })));
   }
 
   return data;
@@ -385,9 +392,6 @@ export async function linkDishIngredientsFromRecipe(dishId, links) {
   // links: [{ ingredientId, qty, unit }]
   if (!links || links.length === 0) return;
 
-  // Remove existing links for this dish
-  await supabase.from('food_department_dish_ingredients').delete().eq('dish_id', dishId);
-
   // Deduplicate by ingredient_id — sum quantities if same ingredient appears multiple times
   const deduped = new Map();
   for (const l of links) {
@@ -399,15 +403,12 @@ export async function linkDishIngredientsFromRecipe(dishId, links) {
     }
   }
 
-  const rows = [...deduped.values()].map(l => ({
-    dish_id: dishId,
-    ingredient_id: l.ingredientId,
-    qty: l.qty,
-    recipe_unit: l.unit,
-  }));
-
-  const { error } = await supabase.from('food_department_dish_ingredients').insert(rows);
-  if (error) throw error;
+  await replaceLinks('food_department_dish_ingredients', 'dish_id', dishId, 'ingredient_id',
+    [...deduped.values()].map(l => ({
+      ingredient_id: l.ingredientId,
+      qty: l.qty,
+      recipe_unit: l.unit,
+    })));
 }
 
 // ─── UPDATE SINGLE DISH-INGREDIENT LINK ─────────────────

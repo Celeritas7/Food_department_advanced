@@ -20,8 +20,8 @@ export default function PrepsPage({ intermediates, ingredients, intIngredients, 
   }, [intermediates]);
 
   const statusOptions = [
-    { value: 'ready', label: 'Ready', emoji: '✅' },
-    { value: 'missing', label: 'Missing', emoji: '❌' },
+    { value: 'ready', label: 'Can prepare', emoji: '✅' },
+    { value: 'missing', label: 'Missing inputs', emoji: '❌' },
   ];
 
   const filtered = useMemo(() => {
@@ -80,15 +80,15 @@ export default function PrepsPage({ intermediates, ingredients, intIngredients, 
                       <p className={`text-sm ${t.stock_qty > 0 ? '' : 'text-tomato'}`}>{t.stock_qty} {t.unit}</p>
                     </div>
                     {t._availability?.unlinked ? (
-                      <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-500 border border-gray-200">Unlinked</span>
+                      <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-100 text-gray-500 border border-gray-200" title="No input ingredients set — tap ✏️ to add them">No inputs set</span>
                     ) : t._availability?.canPrepare ? (
-                      <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-600 border border-green-200">Ready</span>
+                      <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-green-100 text-green-600 border border-green-200">Can prepare</span>
                     ) : (
-                      <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-600 border border-red-200">Missing</span>
+                      <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-red-100 text-red-600 border border-red-200">Missing inputs</span>
                     )}
                   </div>
                   {t.category && <p className="text-xs text-warm-gray mt-1">{getCatEmoji(t.category)} {t.category}</p>}
-                  <p className="text-xs text-warm-gray mt-1 line-clamp-2">Inputs: {inputNames || 'None'}</p>
+                  <p className="text-xs text-warm-gray mt-1 line-clamp-2">Inputs: {inputNames || 'none yet — tap ✏️ to add'}</p>
                   <div className="flex gap-1 mt-3 pt-3 border-t">
                     <button onClick={() => onPrepare(t)} disabled={!t._availability?.canPrepare} className={`flex-1 py-1.5 rounded text-sm ${t._availability?.canPrepare ? 'text-purple hover:bg-purple/10' : 'text-light-gray cursor-not-allowed'}`}>Prepare</button>
                     <button onClick={() => onEdit(t)} className="p-1.5 rounded text-warm-gray hover:bg-light-gray/20"><EditIcon /></button>
