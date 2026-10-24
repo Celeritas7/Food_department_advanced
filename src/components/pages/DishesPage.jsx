@@ -306,6 +306,10 @@ export default function DishesPage({ dishes, dishIngs = [], dishInts = [], ingre
     try { return localStorage.getItem('fd_dishes_show_stock') === '1'; } catch { return false; }
   });
   const setShowStock = (v) => { setShowStockRaw(v); try { localStorage.setItem('fd_dishes_show_stock', v ? '1' : '0'); } catch {} };
+  // Stock rows need the full card width, so the Stock view shows as a list.
+  // The saved grid/list choice is untouched and returns when Stock is off.
+  const stockActive = showStock && tab !== 'cooked' && tab !== 'fridge';
+  const viewLayout = stockActive ? 'list' : layout;
 
   // C3: per-dish "have / need" rows, built only while the toggle is on.
   // Missing/enough comes from the availability engine so it matches the ring.
@@ -466,13 +470,14 @@ export default function DishesPage({ dishes, dishIngs = [], dishInts = [], ingre
             <div className="flex rounded-lg border overflow-hidden" role="group" aria-label="Layout">
               <button
                 onClick={() => setLayout('grid')}
-                className={`px-2.5 py-2 text-sm font-medium ${layout === 'grid' ? 'bg-terracotta text-white' : 'bg-white text-warm-gray hover:bg-cream'}`}
-                title="Grid view" aria-label="Grid view" aria-pressed={layout === 'grid'}
+                disabled={stockActive}
+                className={`px-2.5 py-2 text-sm font-medium ${viewLayout === 'grid' ? 'bg-terracotta text-white' : 'bg-white text-warm-gray hover:bg-cream'} disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white`}
+                title={stockActive ? 'Grid view — turn off Stock to use it' : 'Grid view'} aria-label="Grid view" aria-pressed={viewLayout === 'grid'}
               >⊞</button>
               <button
                 onClick={() => setLayout('list')}
-                className={`px-2.5 py-2 text-sm font-medium border-l ${layout === 'list' ? 'bg-terracotta text-white' : 'bg-white text-warm-gray hover:bg-cream'}`}
-                title="List view" aria-label="List view" aria-pressed={layout === 'list'}
+                className={`px-2.5 py-2 text-sm font-medium border-l ${viewLayout === 'list' ? 'bg-terracotta text-white' : 'bg-white text-warm-gray hover:bg-cream'}`}
+                title="List view" aria-label="List view" aria-pressed={viewLayout === 'list'}
               >≡</button>
             </div>
             <button onClick={onManage} className="px-3 py-2 rounded-lg border text-sm font-medium text-warm-gray hover:bg-cream">📋 Manage</button>
@@ -608,15 +613,15 @@ export default function DishesPage({ dishes, dishIngs = [], dishInts = [], ingre
           </div>
         ) : (
           <div
-            className={layout === 'grid' ? 'grid gap-2.5' : 'flex flex-col gap-3'}
-            style={layout === 'grid' ? { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' } : undefined}
+            className={viewLayout === 'grid' ? 'grid gap-2.5' : 'flex flex-col gap-3'}
+            style={viewLayout === 'grid' ? { gridTemplateColumns: 'repeat(2, minmax(0, 1fr))' } : undefined}
           >
             {filtered.map(d => (
               <DishCard
                 key={d.id}
                 d={d}
                 tab={tab}
-                layout={layout}
+                layout={viewLayout}
                 stockRows={stockByDish && d.status !== 'Cooked' && d.status !== 'In Fridge' ? (stockByDish.get(d.id) || []) : undefined}
                 showRing={tab === 'planner' || tab === 'planned' || tab === 'all'}
                 showStatusChip={tab === 'planner' || tab === 'all'}
