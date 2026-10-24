@@ -4,6 +4,15 @@
  * All CRUD operations for ingredients, intermediates, dishes, and junctions
  */
 import supabase from '../config/supabase.js';
+import { fetchAllRows } from './paged.js';
+
+// Every list read goes through fetchAllRows so tables past 1,000 rows load
+// completely. Each query ends in .order('id') for stable paging.
+const readAll = (table, order) => fetchAllRows(opts => {
+  let q = supabase.from(table).select('*', opts);
+  if (order) q = order(q);
+  return q.order('id');
+});
 
 // ─── LINK REPLACEMENT ───────────────────────────────────
 // Replace all junction rows of one parent: upsert the new set first (on the
@@ -36,12 +45,7 @@ async function replaceLinks(table, parentCol, parentId, childCol, rows) {
 // ─── INGREDIENTS ─────────────────────────────────────────
 
 export async function fetchIngredients() {
-  const { data, error } = await supabase
-    .from('food_department_ingredients')
-    .select('*')
-    .order('name');
-  if (error) throw error;
-  return data;
+  return readAll('food_department_ingredients', q => q.order('name'));
 }
 
 export async function addIngredient(ing) {
@@ -210,12 +214,7 @@ export async function revertDish(dishId, restoreStock) {
 // ─── INTERMEDIATES ───────────────────────────────────────
 
 export async function fetchIntermediates() {
-  const { data, error } = await supabase
-    .from('food_department_intermediates')
-    .select('*')
-    .order('name');
-  if (error) throw error;
-  return data;
+  return readAll('food_department_intermediates', q => q.order('name'));
 }
 
 export async function addIntermediate(inter) {
@@ -283,12 +282,7 @@ export async function deleteIntermediate(id) {
 // ─── DISHES ──────────────────────────────────────────────
 
 export async function fetchDishes() {
-  const { data, error } = await supabase
-    .from('food_department_dishes')
-    .select('*')
-    .order('priority', { ascending: true });
-  if (error) throw error;
-  return data;
+  return readAll('food_department_dishes', q => q.order('priority', { ascending: true }));
 }
 
 export async function addDish(dish) {
@@ -444,33 +438,23 @@ export async function updateDishIngredientLink(dishId, ingredientId, qty, recipe
 // ─── JUNCTION FETCHERS ───────────────────────────────────
 
 export async function fetchDishIngredients() {
-  const { data, error } = await supabase.from('food_department_dish_ingredients').select('*');
-  if (error) throw error;
-  return data;
+  return readAll('food_department_dish_ingredients');
 }
 
 export async function fetchDishIntermediates() {
-  const { data, error } = await supabase.from('food_department_dish_intermediates').select('*');
-  if (error) throw error;
-  return data;
+  return readAll('food_department_dish_intermediates');
 }
 
 export async function fetchIntermediateIngredients() {
-  const { data, error } = await supabase.from('food_department_intermediate_ingredients').select('*');
-  if (error) throw error;
-  return data;
+  return readAll('food_department_intermediate_ingredients');
 }
 
 export async function fetchIngredientShops() {
-  const { data, error } = await supabase.from('food_department_ingredient_shops').select('*');
-  if (error) throw error;
-  return data;
+  return readAll('food_department_ingredient_shops');
 }
 
 export async function fetchShops() {
-  const { data, error } = await supabase.from('food_department_shops').select('*').order('name');
-  if (error) throw error;
-  return data;
+  return readAll('food_department_shops', q => q.order('name'));
 }
 
 // ─── WORKFLOW: Cook Dish (atomic) ────────────────────────
@@ -559,12 +543,7 @@ export async function prepareIntermediate(intermediateId, units, inputIngredient
 // ─── GENERAL SHOPPING LIST (non-food items) ──────────────
 
 export async function getGeneralShoppingItems() {
-  const { data, error } = await supabase
-    .from('food_department_general_shopping')
-    .select('*')
-    .order('created_at', { ascending: false });
-  if (error) throw error;
-  return data;
+  return readAll('food_department_general_shopping', q => q.order('created_at', { ascending: false }));
 }
 
 export async function addGeneralShoppingItem(name, category, quantity) {
