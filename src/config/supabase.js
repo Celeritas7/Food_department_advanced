@@ -16,4 +16,12 @@ export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   },
   global: { headers: { 'x-akatsuki-app': 'food' } },
 });
+
+// Akatsuki broadcast overlay: load the hub script once, start it with this client.
+if (typeof document !== 'undefined') {
+  const s = document.createElement('script');
+  s.src = 'https://celeritas7.github.io/Akatsuki/js/akatsuki-broadcast.js';
+  s.onload = () => window.AkatsukiBroadcast?.(supabase, 'food').start();
+  document.head.appendChild(s);
+}
 export default supabase;
