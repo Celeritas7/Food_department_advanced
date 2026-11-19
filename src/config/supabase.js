@@ -1,10 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://YOUR_PROJECT.supabase.co';
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'YOUR_ANON_KEY';
+import publicConfig from './public-supabase.json';
+import { resolveSupabaseConfig } from './resolveSupabase.js';
 
-// False when .env is missing — the app would otherwise hang on a fake URL.
-export const isConfigured = Boolean(import.meta.env.VITE_SUPABASE_URL && import.meta.env.VITE_SUPABASE_ANON_KEY);
+// These are public browser settings, backed by owner-scoped RLS. Keeping a
+// checked-in default makes fresh CI/workspace builds deployable without .env.
+const { url: SUPABASE_URL, key: SUPABASE_ANON_KEY } = resolveSupabaseConfig(import.meta.env, publicConfig);
+export const isConfigured = true;
 
 // Signed-in client: every food_department_* table is owner-scoped by RLS
 // (user_id = auth.uid()), so all reads/writes need the user's JWT.
