@@ -1,5 +1,7 @@
 # Phase 6 — Release readiness
 
+> Update, November 20, 2026 (Japan): the pending migrations below have now been applied and the live catalog audit passes 23/23. The NO-GO findings below are the historical pre-activation snapshot. See `DATABASE_ACTIVATION_PHASE7.md` for the backup, rehearsal, migration versions and rolled-back hosted acceptance results. Physical-device acceptance remains pending.
+
 This extends the original five feature phases with release verification. Phase 5 is merged through PR #19 (`ec79f9f`). This change adds verification tooling, not another food feature or a production deployment.
 
 ## Current decision: NO-GO for new-feature acceptance
