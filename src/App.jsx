@@ -32,6 +32,7 @@ import PrepareDialog from './components/forms/PrepareDialog';
 
 // Opened occasionally — loaded on first use so the first page load is smaller
 const RecipePage = lazy(() => import('./components/pages/RecipePage'));
+const FermentationTracker = lazy(() => import('./components/fermentation/FermentationTracker'));
 const DataPage = lazy(() => import('./components/pages/DataPage'));
 const CategoryManagerPage = lazy(() => import('./components/pages/CategoryManagerPage'));
 const DishManagerPanel = lazy(() => import('./components/pages/DishManagerPanel'));
@@ -687,6 +688,7 @@ export default function App() {
           onImport={async () => { await loadAll(); notify('Data reloaded', 'success'); }}
           onClearAll={async () => { setLoading(true); await loadAll(); }}
           onCategoryManager={() => setPage('cat')}
+          onFermentation={() => setPage('fermentation')}
         />
         </Suspense>
       )}
@@ -719,6 +721,7 @@ export default function App() {
           onUndoClearIngredient={handleUndoClearIngredient}
         />
       )}
+      {page === 'fermentation' && <main className="max-w-3xl mx-auto p-4 pb-24 space-y-4"><button className="underline" onClick={() => setPage('data')}>← Data</button><Suspense fallback={<p>Loading…</p>}><FermentationTracker initiallyOpen /></Suspense></main>}
       {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t z-20">
         <div className="max-w-4xl mx-auto flex justify-around">
@@ -730,7 +733,7 @@ export default function App() {
             { key: 'int', icon: LayerIcon, label: 'Preps', color: 'purple' },
             { key: 'data', icon: DataIcon, label: 'Data', color: 'charcoal' },
           ].map(tab => (
-            <button key={tab.key} onClick={() => setPage(tab.key)} className={`flex flex-col items-center gap-0.5 py-2 px-1.5 relative ${(page === tab.key || (tab.key === 'data' && page === 'cat')) ? `text-${tab.color}` : 'text-warm-gray'}`}>
+            <button key={tab.key} onClick={() => setPage(tab.key)} className={`flex flex-col items-center gap-0.5 py-2 px-1.5 relative ${(page === tab.key || (tab.key === 'data' && ['cat','fermentation'].includes(page))) ? `text-${tab.color}` : 'text-warm-gray'}`}>
               <tab.icon />
               <span className="text-xs">{tab.label}</span>
               {tab.badge > 0 && <span className="absolute top-1 right-0 w-4 h-4 bg-tomato text-white text-xs rounded-full flex items-center justify-center">{tab.badge}</span>}
