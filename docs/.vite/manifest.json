@@ -31,7 +31,7 @@
     "name": "supplies"
   },
   "index.html": {
-    "file": "assets/index-B5iqKAhT.js",
+    "file": "assets/index-B4DTRtQ4.js",
     "name": "index",
     "src": "index.html",
     "isEntry": true,
@@ -58,7 +58,7 @@
     ]
   },
   "src/components/fermentation/FermentationTracker.jsx": {
-    "file": "assets/FermentationTracker-C3OkPiih.js",
+    "file": "assets/FermentationTracker-BuuaKHDR.js",
     "name": "FermentationTracker",
     "src": "src/components/fermentation/FermentationTracker.jsx",
     "isDynamicEntry": true,
@@ -82,7 +82,7 @@
     ]
   },
   "src/components/forms/DishForm.jsx": {
-    "file": "assets/DishForm-Dpaz4xTo.js",
+    "file": "assets/DishForm-1Qt1ZCQ1.js",
     "name": "DishForm",
     "src": "src/components/forms/DishForm.jsx",
     "isDynamicEntry": true,
@@ -95,7 +95,7 @@
     ]
   },
   "src/components/pages/CategoryManagerPage.jsx": {
-    "file": "assets/CategoryManagerPage-BE2MNZHi.js",
+    "file": "assets/CategoryManagerPage-BAQGTZ72.js",
     "name": "CategoryManagerPage",
     "src": "src/components/pages/CategoryManagerPage.jsx",
     "isDynamicEntry": true,
@@ -107,7 +107,7 @@
     ]
   },
   "src/components/pages/DataPage.jsx": {
-    "file": "assets/DataPage-jTYRQ31S.js",
+    "file": "assets/DataPage-BK5mXTlp.js",
     "name": "DataPage",
     "src": "src/components/pages/DataPage.jsx",
     "isDynamicEntry": true,
@@ -118,7 +118,7 @@
     ]
   },
   "src/components/pages/DishManagerPanel.jsx": {
-    "file": "assets/DishManagerPanel-A0TLNHis.js",
+    "file": "assets/DishManagerPanel-CZafkxxW.js",
     "name": "DishManagerPanel",
     "src": "src/components/pages/DishManagerPanel.jsx",
     "isDynamicEntry": true,
@@ -130,7 +130,7 @@
     ]
   },
   "src/components/pages/RecipePage.jsx": {
-    "file": "assets/RecipePage-sB0O_2A4.js",
+    "file": "assets/RecipePage-CT_wq_Kt.js",
     "name": "RecipePage",
     "src": "src/components/pages/RecipePage.jsx",
     "isDynamicEntry": true,
