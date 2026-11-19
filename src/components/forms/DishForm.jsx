@@ -1,3 +1,4 @@
+import { matchIngredientName } from '../../engines/ingredientIdentity.js';
 /**
  * DishForm.jsx — Dish creation/edit with inline editing, picker, CSV + free-text import
  */
@@ -189,22 +190,9 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
   // ─── Import matching ───────────────────
   const matchToIngredients = (parsedRows) => {
     return parsedRows.map(row => {
-      const rawName = row.name.toLowerCase().trim();
-      const csvName = rawName.replace(/\(.*?\)/g, '').trim();
-      const csvWords = csvName.split(/\s+/);
-
-      // 1. Exact full name match
-      let match = ingredients.find(i => i.name.toLowerCase() === rawName);
-      // 2. Exact match after stripping parenthetical
-      if (!match) match = ingredients.find(i => i.name.toLowerCase() === csvName);
-      // 3. Whole-word match: all words of shorter name appear as whole words in longer name
-      if (!match) match = ingredients.find(i => {
-        const stockWords = i.name.toLowerCase().split(/\s+/);
-        const shorter = csvWords.length <= stockWords.length ? csvWords : stockWords;
-        const longer = csvWords.length <= stockWords.length ? stockWords : csvWords;
-        return shorter.length > 0 && shorter.every(sw => sw.length > 1 && longer.some(lw => lw === sw));
-      });
-      return { ...row, matched: match || null };
+      const result = matchIngredientName(row.name, ingredients);
+      const match = result.ingredient;
+      return { ...row, matched: match || null, ambiguous: result.status === 'ambiguous' };
     });
   };
 
@@ -261,7 +249,7 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
   const handleCreateAndMatch = async (rowIdx) => {
     if (!onCreateIngredient) return;
     const row = importResult.rows[rowIdx];
-    if (!row || row.matched) return;
+    if (!row || row.matched || row.ambiguous) return;
     try {
       const created = await onCreateIngredient({
         name: row.name.trim(),
@@ -405,6 +393,7 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
                         <span className="text-warm-gray font-mono whitespace-nowrap">{row.qty}{row.unit ? ` ${row.unit}` : ''}</span>
                       )}
                     </div>
+                    {row.ambiguous && !row.matched && <p className="text-xs text-amber-700">Several pantry items share this name. Choose the correct existing item below.</p>}
                     {row.matched ? (
                       <div className="text-[10px] text-warm-gray ml-5 mt-0.5">
                         → {getCatEmoji(row.matched.category)} {row.matched.name}
@@ -420,7 +409,7 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
                           {ingredients.map(ig => <option key={ig.id} value={ig.id}>{getCatEmoji(ig.category)} {ig.name}</option>)}
                         </select>
                         {onCreateIngredient && (
-                          <button type="button" onClick={() => handleCreateAndMatch(i)}
+                          <button type="button" disabled={row.ambiguous} title={row.ambiguous ? "Choose an existing pantry item for this ambiguous name" : "Create ingredient"} onClick={() => handleCreateAndMatch(i)}
                             className="text-[10px] font-medium px-2 py-1 rounded-lg bg-blue-500 text-white whitespace-nowrap hover:bg-blue-600">
                             + Create
                           </button>

@@ -1,3 +1,4 @@
+import { parseIngredientAliases } from '../../engines/ingredientIdentity.js';
 /**
  * IngredientForm.jsx — Ingredient add/edit with category dropdown
  */
@@ -6,6 +7,7 @@ import { useState } from 'react';
 import { ALL_CATEGORIES, getCatEmoji } from '../../config/emoji.js';
 
 export default function IngredientForm({ initial, onSave, onCancel }) {
+  const [aliasText, setAliasText] = useState((initial?.aliases || []).join(', '));
   const [name, setName] = useState(initial?.name || '');
   const [unit, setUnit] = useState(initial?.unit || 'g');
   const [stock, setStock] = useState(initial?.stock_qty || 0);
@@ -19,6 +21,8 @@ export default function IngredientForm({ initial, onSave, onCancel }) {
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!name.trim()) return;
+    let aliases;
+    try { aliases = parseIngredientAliases(aliasText); } catch (err) { setError(err.message); return; }
     const seen = new Set();
     for (const c of conversions) {
       const key = normalizeUnit(c.unit);
@@ -28,7 +32,7 @@ export default function IngredientForm({ initial, onSave, onCancel }) {
       seen.add(key);
     }
     if (!Number.isFinite(Number(stock)) || Number(stock) < 0) { setError('Stock must be zero or more.'); return; }
-    onSave({ stockStatus: status, unitConversions: conversions.map(c => ({ ...c, unit: normalizeUnit(c.unit), stock_qty: Number(c.stock_qty) })), name: name.trim(), unit, stockQty: stock, shelfLifeDays: shelfLife, category, emoji: emoji.trim() });
+    onSave({ aliases, stockStatus: status, unitConversions: conversions.map(c => ({ ...c, unit: normalizeUnit(c.unit), stock_qty: Number(c.stock_qty) })), name: name.trim(), unit, stockQty: stock, shelfLifeDays: shelfLife, category, emoji: emoji.trim() });
   };
 
   return (
@@ -36,6 +40,11 @@ export default function IngredientForm({ initial, onSave, onCancel }) {
       <div>
         <label className="block text-sm font-medium mb-1">Name</label>
         <input value={name} onChange={e => setName(e.target.value)} className="w-full px-4 py-2 rounded-lg border" />
+      </div>
+      <div>
+        <label className="block text-sm font-medium mb-1">Alternate names</label>
+        <textarea aria-label="Ingredient alternate names" value={aliasText} onChange={e => setAliasText(e.target.value)} placeholder="nước mắm, nuoc mam, ナンプラー" className="w-full border rounded-lg p-3" rows={2} />
+        <p className="text-xs text-warm-gray">Names for the same ingredient, separated by commas or new lines. Different ingredients belong in recipe substitutions.</p>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>

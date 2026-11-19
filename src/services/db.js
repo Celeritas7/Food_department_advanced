@@ -58,6 +58,7 @@ export async function addIngredient(ing) {
     .from('food_department_ingredients')
     .insert([{
       name: ing.name,
+      aliases: ing.aliases || [],
       unit: ing.unit || 'g',
       stock_qty: ing.stockQty || 0,
       stock_status: ing.stockStatus || 'known',
@@ -77,6 +78,7 @@ export async function addIngredient(ing) {
 export async function updateIngredient(id, updates) {
   const mapped = {};
   if (updates.name !== undefined) mapped.name = updates.name;
+  if (updates.aliases !== undefined) mapped.aliases = updates.aliases;
   if (updates.unit !== undefined) mapped.unit = updates.unit;
   if (updates.stockQty !== undefined) {
     mapped.stock_qty = updates.stockQty;
@@ -589,6 +591,7 @@ export async function batchCreateIngredients(rows) {
     .filter(r => r?.name && r.name.trim())
     .map(r => ({
       name: r.name.trim(),
+      aliases: r.aliases || [],
       unit: r.unit || 'g',
       stock_qty: r.stockQty || 0,
       stock_status: r.stockStatus || 'known',
@@ -612,6 +615,7 @@ export async function bulkInsertIngredients(rows) {
   const now = new Date().toISOString();
   const mapped = rows.map(r => ({
     name: r.name?.trim(),
+    aliases: r.aliases || [],
     unit: r.unit?.trim() || 'g',
     stock_qty: parseFloat(r.stock_qty) || 0,
     stock_status: r.stock_status || 'known',
@@ -664,4 +668,18 @@ export async function exportAllData() {
     ingredient_shops: ishops,
     shops,
   };
+}
+
+// Recipe-specific replacement: link, display metadata and history change together.
+export async function substituteDishIngredient(dishId, replacement) {
+  const { data, error } = await supabase.rpc('fd_substitute_dish_ingredient', {
+    p_dish_id: dishId,
+    p_original_id: replacement.originalId,
+    p_replacement_id: replacement.replacementId,
+    p_qty: replacement.qty,
+    p_unit: replacement.unit,
+    p_note: replacement.note || null,
+  });
+  if (error) throw new Error(error.message || 'Substitution failed');
+  return data;
 }

@@ -593,6 +593,16 @@ export default function App() {
               });
             } catch (err) { notify('Update failed: ' + err.message); }
           }}
+          onSubstitute={async replacement => {
+            const result = await db.substituteDishIngredient(recipeDish.id, replacement);
+            // The atomic response is authoritative; no second network read is
+            // required before reflecting a successfully committed replacement.
+            setDishIngs(prev => prev.map(di => di.dish_id === recipeDish.id && di.ingredient_id === replacement.originalId ? result.link : di));
+            setDishes(prev => prev.map(d => d.id === result.dish.id ? { ...d, ...result.dish } : d));
+            setRecipeDish(prev => prev?.id === result.dish.id ? { ...prev, ...result.dish } : prev);
+            notify('Recipe substitution saved', 'success');
+            return result;
+          }}
           onBack={() => setRecipeDish(null)}
           notify={notify}
         />

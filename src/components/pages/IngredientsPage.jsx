@@ -1,3 +1,4 @@
+import { ingredientMatchesSearch } from '../../engines/ingredientIdentity.js';
 import { stockStatus, stockLabel } from '../../engines/pantry.js';
 /**
  * IngredientsPage.jsx — Ingredients list with compact filter tabs
@@ -50,7 +51,7 @@ export default function IngredientsPage({ ingredients, onAdd, onEdit, onBuy, onD
     let list = visibleIngredients;
     if (search) {
       const q = search.toLowerCase();
-      list = list.filter(i => i.name.toLowerCase().includes(q) || (i.category || '').toLowerCase().includes(q));
+      list = list.filter(i => ingredientMatchesSearch(i, q) || (i.category || '').toLowerCase().includes(q));
     }
     if (catFilter.length) list = list.filter(i => catFilter.includes(i.category));
     if (stockFilter.length) {

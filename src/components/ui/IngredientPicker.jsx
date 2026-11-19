@@ -1,3 +1,4 @@
+import { ingredientMatchesSearch } from '../../engines/ingredientIdentity.js';
 import { stockLabel } from '../../engines/pantry.js';
 /**
  * IngredientPicker.jsx — Category-tabbed ingredient selection modal
@@ -29,7 +30,7 @@ export default function IngredientPicker({ ingredients, onClose, onConfirm, init
     let list = ingredients;
     if (search) {
       const q = search.toLowerCase();
-      list = list.filter(i => i.name.toLowerCase().includes(q) || (i.category || '').toLowerCase().includes(q));
+      list = list.filter(i => ingredientMatchesSearch(i, q) || (i.category || '').toLowerCase().includes(q));
     } else if (activeCat) {
       list = list.filter(i => i.category === activeCat);
     }
