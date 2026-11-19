@@ -1,3 +1,4 @@
+import { stockStatus, stockLabel } from '../../engines/pantry.js';
 /**
  * IngredientsPage.jsx — Ingredients list with compact filter tabs
  * Only one filter group expands at a time to save screen space
@@ -13,6 +14,7 @@ const DEFAULT_REMINDER_DAYS = 7;
 // "Buy" shows on the row only when the item actually needs buying:
 // out of stock, below its minimum, or expired.
 function needsBuy(i) {
+  if (stockStatus(i) !== 'known') return false;
   if (!(i.stock_qty > 0)) return true;
   if (i.min_stock_qty != null && i.stock_qty < i.min_stock_qty) return true;
   return i._spoilage?.status === 'Expired';
@@ -53,8 +55,8 @@ export default function IngredientsPage({ ingredients, onAdd, onEdit, onBuy, onD
     if (catFilter.length) list = list.filter(i => catFilter.includes(i.category));
     if (stockFilter.length) {
       list = list.filter(i => {
-        if (stockFilter.includes('in') && i.stock_qty > 0) return true;
-        if (stockFilter.includes('out') && i.stock_qty <= 0) return true;
+        if (stockFilter.includes('in') && (i.stock_qty > 0 || stockStatus(i) === 'have_unknown')) return true;
+        if (stockFilter.includes('out') && (i.stock_qty <= 0 || stockStatus(i) === 'check')) return true;
         return false;
       });
     }
@@ -200,7 +202,7 @@ export default function IngredientsPage({ ingredients, onAdd, onEdit, onBuy, onD
                 <div className="bg-white rounded-xl border divide-y overflow-hidden">
                   {items.map(i => {
                     const open = expandedId === i.id;
-                    const out = !(i.stock_qty > 0);
+                    const out = stockStatus(i) !== 'known' || !(i.stock_qty > 0);
                     return (
                       <div key={i.id} className="fade">
                         {/* Compact row — tap to show actions */}
@@ -220,10 +222,11 @@ export default function IngredientsPage({ ingredients, onAdd, onEdit, onBuy, onD
                               {i.has_reminder && <span className="text-xs shrink-0" title={`Restock reminder every ${i.restock_reminder_days || DEFAULT_REMINDER_DAYS} days`}>🔔</span>}
                             </div>
                             <div className="flex items-center gap-2 mt-0.5">
-                              <span className={`text-xs ${out ? 'text-tomato font-semibold' : 'text-warm-gray'}`}>{i.stock_qty} {i.unit}</span>
+                              <span className={`text-xs ${out ? 'text-tomato font-semibold' : 'text-warm-gray'}`}>{stockLabel(i)}</span>
                               <SpoilageBadge status={i._spoilage?.status} daysRemaining={i._spoilage?.daysRemaining} stockQty={i.stock_qty} />
                             </div>
                           </div>
+                          {stockStatus(i) !== 'known' && <button onClick={e => { e.stopPropagation(); onEdit(i); }} className="text-xs px-3 py-1.5 rounded-lg border shrink-0">Check</button>}
                           {needsBuy(i) && (
                             <button
                               onClick={e => { e.stopPropagation(); onBuy(i); }}

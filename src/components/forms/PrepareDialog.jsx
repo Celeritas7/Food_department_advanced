@@ -1,3 +1,4 @@
+import { evaluateNeed } from '../../engines/pantry.js';
 import { useState } from 'react';
 
 export default function PrepareDialog({ intermediate, intIngredients, ingredients, onPrepare, onCancel }) {
@@ -5,10 +6,11 @@ export default function PrepareDialog({ intermediate, intIngredients, ingredient
 
   const needs = intIngredients.map(inp => {
     const ig = ingredients.find(i => i.id === inp.ingredient_id);
-    return { ...inp, ingredient: ig, totalNeeded: inp.qty_per_unit * units };
+    const result = evaluateNeed(ig, inp.qty_per_unit * units, inp.recipe_unit);
+    return { ...inp, ingredient: ig, totalNeeded: result.required, ...result };
   });
 
-  const canPrepare = needs.every(n => n.ingredient && n.ingredient.stock_qty >= n.totalNeeded) && units > 0;
+  const canPrepare = needs.every(n => n.sufficient) && units > 0;
 
   return (
     <div className="space-y-4">
@@ -26,12 +28,12 @@ export default function PrepareDialog({ intermediate, intIngredients, ingredient
         <p className="text-sm text-warm-gray mb-2">Will deduct:</p>
         <ul className="text-sm space-y-1">
           {needs.map((n, i) => {
-            const short = n.ingredient && n.ingredient.stock_qty < n.totalNeeded;
+            const short = !n.sufficient;
             return (
               <li key={i} className="flex justify-between">
                 <span className={short ? 'text-tomato font-medium' : ''}>{n.ingredient?.name}{short && ' ⚠'}</span>
                 <span className={short ? 'text-tomato' : 'text-warm-gray'}>
-                  -{n.totalNeeded} {n.ingredient?.unit}{short && ` (have ${n.ingredient.stock_qty})`}
+                  {n.reason || `-${n.totalNeeded} ${n.ingredient?.unit || ''}`}{short && ` (have ${n.ingredient.stock_qty})`}
                 </span>
               </li>
             );

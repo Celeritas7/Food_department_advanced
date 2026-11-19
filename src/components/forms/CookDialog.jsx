@@ -11,6 +11,7 @@
  *   - qty must be ≤ current stock (you cannot overdraw)
  * Bad rows render with a red tint + inline error message.
  */
+import { convertToStock, stockStatus } from '../../engines/pantry.js';
 import { useState, useMemo } from 'react';
 import { getIngredientEmoji } from '../../config/emoji.js';
 
@@ -26,8 +27,10 @@ function buildInitialRows(recipeIngs, recipeInts, ingredients, intermediates) {
       id: di.ingredient_id,
       name: ig?.name || 'Unknown ingredient',
       emoji: ig ? getIngredientEmoji(ig) : '🥕',
-      recipeQty: Number(di.qty) || 0,
-      unit: di.recipe_unit || ig?.unit || '',
+      recipeQty: convertToStock(di.qty, di.recipe_unit, ig),
+      recipeLabel: `${di.qty} ${di.recipe_unit || ig?.unit || ''}`,
+      unknown: stockStatus(ig) !== 'known',
+      unit: ig?.unit || '',
       stock: Number(ig?.stock_qty) || 0,
     };
   });
@@ -65,7 +68,7 @@ export default function CookDialog({ dish, recipeIngs, recipeInts, ingredients, 
   // sharing a uuid (won't happen, but safe) can't collide.
   const buildDefaults = () => {
     const o = {};
-    for (const r of rows) o[`${r.kind}:${r.id}`] = String(r.recipeQty);
+    for (const r of rows) o[`${r.kind}:${r.id}`] = r.recipeQty == null ? '' : String(r.recipeQty);
     return o;
   };
   const [qtys, setQtys] = useState(buildDefaults);
@@ -82,7 +85,8 @@ export default function CookDialog({ dish, recipeIngs, recipeInts, ingredients, 
       const raw = qtys[`${r.kind}:${r.id}`];
       const q = parseQty(raw);
       let error = null;
-      if (Number.isNaN(q)) error = 'Enter a number';
+      if (r.unknown) error = 'Check and enter measured pantry stock first';
+      else if (Number.isNaN(q)) error = 'Enter a number';
       else if (q <= 0) error = 'Must be > 0';
       else if (q > r.stock) error = 'Exceeds available stock';
       map[`${r.kind}:${r.id}`] = error;
@@ -97,7 +101,7 @@ export default function CookDialog({ dish, recipeIngs, recipeInts, ingredients, 
     const intermediateOverrides = [];
     for (const r of rows) {
       const q = Number(qtys[`${r.kind}:${r.id}`]);
-      if (r.kind === 'ingredient') ingredientOverrides.push({ ingredient_id: r.id, qty: q });
+      if (r.kind === 'ingredient') ingredientOverrides.push({ ingredient_id: r.id, qty: q, unit: r.unit });
       else intermediateOverrides.push({ intermediate_id: r.id, qty: q });
     }
     setSubmitting(true);
@@ -162,12 +166,13 @@ export default function CookDialog({ dish, recipeIngs, recipeInts, ingredients, 
                       <span className="text-sm text-warm-gray">{r.unit}</span>
                       <button
                         type="button"
-                        onClick={() => setRow(r, String(r.stock))}
+                        disabled={r.unknown} onClick={() => setRow(r, String(r.stock))}
                         className="ml-auto text-[11px] font-semibold text-terracotta hover:underline"
                       >Use all</button>
                     </div>
+                    {r.recipeLabel && <p className="text-[11px] mt-1 text-warm-gray">Recipe: {r.recipeLabel}{r.recipeQty == null ? ` · No confirmed conversion. Enter the amount actually used in ${r.unit}.` : ''}</p>}
                     <p className={`text-[11px] mt-1.5 ${overStock ? 'text-amber-700' : 'text-warm-gray'}`}>
-                      {overStock
+                      {r.unknown ? 'Pantry quantity unknown' : overStock
                         ? `Only ${r.stock} ${r.unit} available`
                         : `You have ${r.stock} ${r.unit} in stock`}
                     </p>

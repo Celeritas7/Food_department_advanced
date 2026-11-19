@@ -1,3 +1,4 @@
+import { stockLabel } from '../../engines/pantry.js';
 /**
  * ShopPage.jsx — Shopping list with Layout B + three tabs:
  *  1. To Buy — dish cards + aggregated shopping list + ready to cook
@@ -39,7 +40,7 @@ function priorityCardStyle(p) {
   return { backgroundColor: v.bg, borderLeft: `4px solid ${v.border}` };
 }
 
-export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, dishInts, intermediates, onBuy, onCook, generalShoppingItems = [], onAddGeneral, onToggleGeneral, onDeleteGeneral, onClearIngredient, onUndoClearIngredient }) {
+export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, dishInts, intermediates, onBuy, onCheckStock, onCook, generalShoppingItems = [], onAddGeneral, onToggleGeneral, onDeleteGeneral, onClearIngredient, onUndoClearIngredient }) {
   // ▶ Phase C2: confirmation popup + 5s inline undo toast for "Used Up" flow
   const [confirming, setConfirming] = useState(null);
   const [undoState, setUndoState] = useState(null);
@@ -133,7 +134,7 @@ export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, 
           return {
             name: ig.name, category: ig.category, emoji: ig.emoji, qty: di.qty,
             unit: di.recipe_unit || ig.unit || 'g',
-            have: ig.stock_qty, missing: missingIngIds.has(di.ingredient_id),
+            have: stockLabel(ig), missing: missingIngIds.has(di.ingredient_id),
           };
         }),
         ...(dishInts || []).filter(di => di.dish_id === d.id).map(di => {
@@ -185,7 +186,7 @@ export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, 
   const toggleCat = (c) => setCatFilter(prev => prev.includes(c) ? prev.filter(v => v !== c) : [...prev, c]);
 
   const tabs = [
-    { key: 'buy', label: 'To Buy', count: toBuyItems.length, dot: 'bg-red-500' },
+    { key: 'buy', label: 'Buy / Check', count: toBuyItems.length, dot: 'bg-red-500' },
     { key: 'stock', label: 'In Stock', count: inStockItems.length, dot: 'bg-emerald-500' },
     { key: 'expiry', label: 'Use It Up', count: expiringItems.length, dot: 'bg-amber-500' },
   ];
@@ -369,9 +370,9 @@ export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, 
                                 <h4 className="font-semibold text-sm truncate">{getIngredientEmoji(ingById.get(item.id) || item)} {item.name}</h4>
                                 <PriorityBadge priority={item.priority} />
                               </div>
-                              <div className="flex gap-3 text-xs mt-1 text-warm-gray">
-                                <span>Have: <b className={item.stock > 0 ? 'text-sage' : 'text-tomato'}>{item.stock}</b> {item.unit}</span>
-                                <span className="text-tomato font-semibold">Buy: {item.deficit} {item.unit}</span>
+                              <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs mt-1 text-warm-gray">
+                                <span>Have: <b className={item.stock > 0 ? 'text-sage' : 'text-tomato'}>{item.stock == null ? 'Check stock' : item.stock}</b> {item.stock == null ? '' : item.unit}</span>
+                                <span className="text-tomato font-semibold">{item.requiresCheck ? `Check stock / conversion: ${item.checkReason || ''}` : `Buy: ${item.deficit} ${item.unit}`}</span>
                               </div>
                               {item.usedIn?.length > 0 && (
                                 <p className="text-[10px] text-warm-gray mt-0.5 truncate">📍 {item.usedIn.join(', ')}</p>
@@ -379,9 +380,9 @@ export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, 
                             </div>
                             <button onClick={() => {
                               const ig = ingredients.find(x => x.id === item.id);
-                              if (ig) onBuy(ig, item.deficit);
+                              if (ig) { if (item.requiresCheck) onCheckStock?.(ig); else onBuy(ig, item.deficit); }
                             }} className="px-3.5 py-2 rounded-xl bg-terracotta text-white text-xs font-semibold shrink-0">
-                              Buy
+                              {item.requiresCheck ? 'Check' : 'Buy'}
                             </button>
                           </div>
                         </div>
@@ -455,7 +456,7 @@ export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, 
                           <PriorityBadge priority={item.priority} />
                         </div>
                         <div className="flex gap-3 text-xs mt-1 text-warm-gray">
-                          <span>Have: <b className="text-sage">{item.stock}</b> {item.unit}</span>
+                          <span>Have: <b className="text-sage">{item.stock == null ? 'Check stock' : item.stock}</b> {item.stock == null ? '' : item.unit}</span>
                           <span>Need: <b>{item.needed}</b> {item.unit}</span>
                         </div>
                         {item.usedIn?.length > 0 && (

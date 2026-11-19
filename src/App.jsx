@@ -265,7 +265,7 @@ export default function App() {
 
   const handleUndoClearIngredient = useCallback(async (ingredient, logId, prevStockQty) => {
     try {
-      const updated = await db.updateIngredient(ingredient.id, { stockQty: prevStockQty });
+      const updated = await db.updateIngredient(ingredient.id, { stockQty: prevStockQty, stockStatus: ingredient.stock_status || (ingredient.in_stock && !prevStockQty ? 'have_unknown' : 'known') });
       await db.deleteUsageLog(logId);
       setIngredients(prev => prev.map(i => i.id === ingredient.id ? updated : i));
     } catch (err) {
@@ -337,7 +337,7 @@ export default function App() {
     if (dish.status === 'Cooked') return notify('Dish is already cooked');
     if (dish._availability && !dish._availability.canCook) {
       const missing = [
-        ...(dish._availability.missingIngredients || []).map(m => `${m.name} ${m.required - m.available}${ingredients.find(i => i.id === m.ingredientId)?.unit || ''}`),
+        ...(dish._availability.missingIngredients || []).map(m => `${m.name}: ${m.reason || `${m.deficit} ${m.unit}`}`),
         ...(dish._availability.missingIntermediates || []).map(m => `${m.name} ${m.required - m.available}`),
       ].join(', ');
       return notify(missing ? `Missing: ${missing}` : `Cannot cook ${dish.name}`);
@@ -512,6 +512,7 @@ export default function App() {
       inputIngredients: inputs.map(ii => ({
         ingredientId: ii.ingredient_id,
         qtyPerUnit: ii.qty_per_unit,
+        recipeUnit: ii.recipe_unit || ingredients.find(i => i.id === ii.ingredient_id)?.unit,
       })),
     };
   };
@@ -650,6 +651,7 @@ export default function App() {
       )}
       {page === 'shop' && (
         <ShopPage
+          onCheckStock={(i) => setModal({ type: 'editIng', data: i })}
           shoppingList={shoppingList}
           ingredients={enrichedIngredients}
           dishes={enrichedDishes}
