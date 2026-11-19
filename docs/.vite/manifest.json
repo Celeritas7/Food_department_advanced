@@ -1,0 +1,148 @@
+{
+  "_emoji-DagoC2km.js": {
+    "file": "assets/emoji-DagoC2km.js",
+    "name": "emoji"
+  },
+  "_ingredientIdentity-BJypSfkt.js": {
+    "file": "assets/ingredientIdentity-BJypSfkt.js",
+    "name": "ingredientIdentity"
+  },
+  "_pantry-BCGyBcu7.js": {
+    "file": "assets/pantry-BCGyBcu7.js",
+    "name": "pantry"
+  },
+  "_react-DJbrKl1w.js": {
+    "file": "assets/react-DJbrKl1w.js",
+    "name": "react",
+    "imports": [
+      "_rolldown-runtime-jpDsebLB.js"
+    ]
+  },
+  "_rolldown-runtime-jpDsebLB.js": {
+    "file": "assets/rolldown-runtime-jpDsebLB.js",
+    "name": "rolldown-runtime"
+  },
+  "_supabase-GSZJcBY1.js": {
+    "file": "assets/supabase-GSZJcBY1.js",
+    "name": "supabase"
+  },
+  "_supplies-C2dVz1Or.js": {
+    "file": "assets/supplies-C2dVz1Or.js",
+    "name": "supplies"
+  },
+  "index.html": {
+    "file": "assets/index-B5iqKAhT.js",
+    "name": "index",
+    "src": "index.html",
+    "isEntry": true,
+    "imports": [
+      "_rolldown-runtime-jpDsebLB.js",
+      "_supabase-GSZJcBY1.js",
+      "_react-DJbrKl1w.js",
+      "_emoji-DagoC2km.js",
+      "_ingredientIdentity-BJypSfkt.js",
+      "_pantry-BCGyBcu7.js",
+      "_supplies-C2dVz1Or.js"
+    ],
+    "dynamicImports": [
+      "src/components/pages/RecipePage.jsx",
+      "src/components/fermentation/FermentationTracker.jsx",
+      "src/components/pages/DataPage.jsx",
+      "src/components/pages/CategoryManagerPage.jsx",
+      "src/components/pages/DishManagerPanel.jsx",
+      "src/components/forms/DishForm.jsx",
+      "src/components/forms/CookDialog.jsx"
+    ],
+    "css": [
+      "assets/index-CjhOUCx2.css"
+    ]
+  },
+  "src/components/fermentation/FermentationTracker.jsx": {
+    "file": "assets/FermentationTracker-C3OkPiih.js",
+    "name": "FermentationTracker",
+    "src": "src/components/fermentation/FermentationTracker.jsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_rolldown-runtime-jpDsebLB.js",
+      "index.html",
+      "_react-DJbrKl1w.js"
+    ]
+  },
+  "src/components/forms/CookDialog.jsx": {
+    "file": "assets/CookDialog-CTyBkwzj.js",
+    "name": "CookDialog",
+    "src": "src/components/forms/CookDialog.jsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_rolldown-runtime-jpDsebLB.js",
+      "_react-DJbrKl1w.js",
+      "_emoji-DagoC2km.js",
+      "_pantry-BCGyBcu7.js",
+      "_supplies-C2dVz1Or.js"
+    ]
+  },
+  "src/components/forms/DishForm.jsx": {
+    "file": "assets/DishForm-Dpaz4xTo.js",
+    "name": "DishForm",
+    "src": "src/components/forms/DishForm.jsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_rolldown-runtime-jpDsebLB.js",
+      "index.html",
+      "_react-DJbrKl1w.js",
+      "_emoji-DagoC2km.js",
+      "_ingredientIdentity-BJypSfkt.js"
+    ]
+  },
+  "src/components/pages/CategoryManagerPage.jsx": {
+    "file": "assets/CategoryManagerPage-BE2MNZHi.js",
+    "name": "CategoryManagerPage",
+    "src": "src/components/pages/CategoryManagerPage.jsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_rolldown-runtime-jpDsebLB.js",
+      "index.html",
+      "_react-DJbrKl1w.js",
+      "_emoji-DagoC2km.js"
+    ]
+  },
+  "src/components/pages/DataPage.jsx": {
+    "file": "assets/DataPage-jTYRQ31S.js",
+    "name": "DataPage",
+    "src": "src/components/pages/DataPage.jsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_rolldown-runtime-jpDsebLB.js",
+      "index.html",
+      "_react-DJbrKl1w.js"
+    ]
+  },
+  "src/components/pages/DishManagerPanel.jsx": {
+    "file": "assets/DishManagerPanel-A0TLNHis.js",
+    "name": "DishManagerPanel",
+    "src": "src/components/pages/DishManagerPanel.jsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_rolldown-runtime-jpDsebLB.js",
+      "index.html",
+      "_react-DJbrKl1w.js",
+      "_emoji-DagoC2km.js"
+    ]
+  },
+  "src/components/pages/RecipePage.jsx": {
+    "file": "assets/RecipePage-sB0O_2A4.js",
+    "name": "RecipePage",
+    "src": "src/components/pages/RecipePage.jsx",
+    "isDynamicEntry": true,
+    "imports": [
+      "_rolldown-runtime-jpDsebLB.js",
+      "index.html",
+      "_react-DJbrKl1w.js",
+      "src/components/fermentation/FermentationTracker.jsx",
+      "_emoji-DagoC2km.js",
+      "_ingredientIdentity-BJypSfkt.js",
+      "_pantry-BCGyBcu7.js",
+      "_supplies-C2dVz1Or.js"
+    ]
+  }
+}
