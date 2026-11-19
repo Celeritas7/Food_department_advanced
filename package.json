@@ -12,7 +12,9 @@
     "test:pantry-db": "node scripts/test-pantry-db.mjs",
     "test:scaling-ui": "node scripts/test-scaling-ui.mjs",
     "test:identity-ui": "node scripts/test-identity-ui.mjs",
-    "test:supplies-ui": "node scripts/test-supplies-ui.mjs"
+    "test:supplies-ui": "node scripts/test-supplies-ui.mjs",
+    "test:fermentation-db": "node scripts/test-fermentation-db.mjs",
+    "test:fermentation-ui": "node scripts/test-fermentation-ui.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

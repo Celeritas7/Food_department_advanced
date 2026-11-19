@@ -3,7 +3,7 @@ import { DataIcon, DownloadIcon, UploadIcon } from '../ui/Icons';
 import supabase from '../../config/supabase.js';
 import { signOut } from '../AuthGate';
 
-export default function DataPage({ counts, onExport, onImport, onClearAll, onCategoryManager }) {
+export default function DataPage({ counts, onExport, onImport, onClearAll, onCategoryManager, onFermentation }) {
   const [importState, setImportState] = useState(null);
   const fileRef = useRef(null);
   const [email, setEmail] = useState('');
@@ -64,6 +64,7 @@ export default function DataPage({ counts, onExport, onImport, onClearAll, onCat
           </div>
         </div>
 
+        <div className="bg-white rounded-xl border p-5"><h3 className="font-semibold text-lg">🫙 Fermentation batches</h3><p className="text-sm text-warm-gray mb-3">Observations and scheduled checks across your recipes.</p><button onClick={onFermentation} className="w-full py-3 rounded-xl bg-terracotta text-white">Open batch logs</button></div>
         {/* Category Manager */}
         <div className="bg-white rounded-xl border p-5">
           <h3 className="font-semibold text-lg mb-1">🏷️ Category Manager</h3>

@@ -1,3 +1,4 @@
+import fermentationApi from './fermentation.js';
 import { validateSupplies } from '../engines/supplies.js';
 import { recipeScale } from '../engines/scaling.js';
 import { normalizeUnit } from '../engines/pantry.js';
@@ -647,7 +648,7 @@ export async function bulkInsertIngredients(rows) {
 }
 
 export async function exportAllData() {
-  const [ings, ints, dishes, di, dint, ii, ishops, shops] = await Promise.all([
+  const [ings, ints, dishes, di, dint, ii, ishops, shops, fermentation] = await Promise.all([
     fetchIngredients(),
     fetchIntermediates(),
     fetchDishes(),
@@ -656,10 +657,12 @@ export async function exportAllData() {
     fetchIntermediateIngredients(),
     fetchIngredientShops(),
     fetchShops(),
+    fermentationApi.list(),
   ]);
 
   return {
-    version: 2,
+    version: 3,
+    fermentation,
     exportedAt: new Date().toISOString(),
     ingredients: ings,
     intermediates: ints,

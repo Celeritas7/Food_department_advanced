@@ -1,3 +1,5 @@
+import FermentationTracker from '../fermentation/FermentationTracker.jsx';
+import fermentationApiDefault from '../../services/fermentation.js';
 import RecipeSuppliesControl from '../supplies/RecipeSuppliesControl.jsx';
 import { validateSupplies } from '../../engines/supplies.js';
 import { matchIngredientName, ingredientMatchesSearch } from '../../engines/ingredientIdentity.js';
@@ -1198,7 +1200,7 @@ function CookingStep({ step, editable, onChange, onDelete }) {
 // MAIN RECIPE PAGE
 // ═══════════════════════════════════════════════════════════
 
-export default function RecipePage({ dish, ingredients: stockIngredients = [], dishIngs = [], onSave, onLinkIngredients, onUpdateStock, onCreateIngredient, onBatchCreateIngredients, onUpdateDishLink, onSubstitute, onBack, notify }) {
+export default function RecipePage({ dish, ingredients: stockIngredients = [], dishIngs = [], onSave, onLinkIngredients, onUpdateStock, onCreateIngredient, onBatchCreateIngredients, onUpdateDishLink, onSubstitute, onBack, notify, fermentationApi = fermentationApiDefault }) {
   const empty = { visibleSections: [...DEFAULT_VISIBLE], overview: '', nutrition: [], ingredientGroups: [], preparation: [], cookingSteps: [], serve: '' };
   const [recipe, setRecipe] = useState(() => {
     const data = dish.recipe_data || empty;
@@ -1280,6 +1282,14 @@ export default function RecipePage({ dish, ingredients: stockIngredients = [], d
     } finally { setBatchSaving(false); }
   };
 
+  const [fermentationSaving, setFermentationSaving] = useState(false);
+  const startFermentation = async draft => {
+    setFermentationSaving(true);
+    try {
+      if (batchUnsaved || !await quickSave(recipe)) throw new Error('Save the recipe batch before starting a fermentation log.');
+      return await fermentationApi.start(dish.id, draft);
+    } finally { setFermentationSaving(false); }
+  };
   const [suppliesSaving, setSuppliesSaving] = useState(false);
   const saveSupplies = async supplies => {
     const next = { ...recipe, supplies: validateSupplies(supplies) };
@@ -1347,7 +1357,7 @@ export default function RecipePage({ dish, ingredients: stockIngredients = [], d
   const hasRecipe = r.ingredientGroups.length > 0 || r.preparation.length > 0 || r.cookingSteps.length > 0 || r.serve || r.overview || (r.nutrition || []).length > 0;
 
   return (
-    <div className="min-h-screen bg-cream pb-24" inert={substituting || suppliesSaving ? '' : undefined} aria-busy={substituting || suppliesSaving}>
+    <div className="min-h-screen bg-cream pb-24" inert={substituting || suppliesSaving || fermentationSaving ? '' : undefined} aria-busy={substituting || suppliesSaving || fermentationSaving}>
       <header className="bg-white border-b sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
           <button disabled={batchSaving} onClick={onBack} className="p-2 rounded-lg text-warm-gray hover:bg-light-gray/20"><BackIcon /></button>
@@ -1385,6 +1395,7 @@ export default function RecipePage({ dish, ingredients: stockIngredients = [], d
         {!editing && <RecipeScaleControl dish={{ ...dish, recipe_data: recipe }} links={dishIngs} ingredients={stockIngredients} onApply={applyBatchScale} />}
         {!editing && onSubstitute && <RecipeSubstitutionControl dish={{ ...dish, recipe_data: recipe }} links={dishIngs} ingredients={stockIngredients} onApply={applySubstitution} disabled={batchSaving || batchUnsaved || ['Cooked', 'In Fridge'].includes(dish.status)} />}
         {!editing && <RecipeSuppliesControl dish={{ ...dish, recipe_data: recipe }} links={dishIngs} ingredients={stockIngredients} onSave={saveSupplies} disabled={batchSaving || batchUnsaved} />}
+        {!editing && <FermentationTracker key={dish.id} dish={{ ...dish, recipe_data: recipe }} api={fermentationApi} onStart={startFermentation} disabled={batchSaving || batchUnsaved} />}
         {batchUnsaved && <p role="alert" className="text-sm text-tomato">Batch preview is not saved yet. Shopping and dish availability use the last saved batch.</p>}
         {editing && recipeScale({ recipe_data: recipe }) !== 1 && <p className="text-sm text-warm-gray">Editing original recipe quantities. Your selected batch multiplier applies when you leave editing.</p>}
         {editing && !hasRecipe && (
