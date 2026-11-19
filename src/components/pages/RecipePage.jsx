@@ -1,3 +1,6 @@
+import { recipeScale, scaleQuantity, formatQuantity } from '../../engines/scaling.js';
+import { createRecipeSaveQueue } from '../../services/recipeSaveQueue.js';
+import RecipeScaleControl from '../forms/RecipeScaleControl.jsx';
 import { evaluateNeed, stockLabel } from '../../engines/pantry.js';
 /**
  * RecipePage.jsx — Full recipe view & editor
@@ -1028,7 +1031,7 @@ function CheckItem({ text, checked, onChange, onTextChange, onDelete, editable }
   );
 }
 
-function BulletItem({ text, editable, onChange, onDelete, linked, linkedName, linkedStock, linkedUnit, stockIngredients, dishIngs = [], onUpdateStock, onUpdateDishLink, onLink, onUnlink, onCreateIngredient, onCommitQty }) {
+function BulletItem({ batchScale = 1, text, editable, onChange, onDelete, linked, linkedName, linkedStock, linkedUnit, stockIngredients, dishIngs = [], onUpdateStock, onUpdateDishLink, onLink, onUnlink, onCreateIngredient, onCommitQty }) {
   const [editingStock, setEditingStock] = useState(false);
   const [tempQty, setTempQty] = useState('');
   const [tempUnit, setTempUnit] = useState('');
@@ -1041,7 +1044,7 @@ function BulletItem({ text, editable, onChange, onDelete, linked, linkedName, li
   const stockQty = liveStock ? liveStock.stock_qty : 0;
   const stockUnit = liveStock ? liveStock.unit : (linkedUnit || '');
   const dishLink = linked && dishIngs ? dishIngs.find(di => di.ingredient_id === linked) : null;
-  const neededQty = dishLink ? dishLink.qty : 0;
+  const neededQty = dishLink ? scaleQuantity(dishLink.qty, { recipe_data: { batchScale } }) : 0;
   const recipeUnit = dishLink?.recipe_unit || stockUnit; // AI-provided unit or fallback to stock unit
   const need = evaluateNeed(liveStock, neededQty, recipeUnit);
   const sufficient = need.sufficient;
@@ -1120,10 +1123,10 @@ function BulletItem({ text, editable, onChange, onDelete, linked, linkedName, li
                   className="w-14 px-1.5 py-0.5 rounded-full border border-terracotta text-[10px] text-center bg-white outline-none"
                 />
               ) : (
-                <button onClick={() => { setTempRecipeQty(String(neededQty)); setEditingRecipeQty(true); }}
+                <button disabled={batchScale !== 1} onClick={() => { setTempRecipeQty(String(neededQty)); setEditingRecipeQty(true); }}
                   className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-blue-50 text-blue-700 hover:bg-blue-100 hover:ring-2 hover:ring-blue-200 transition-all inline-flex items-center gap-0.5"
-                  title="Click to edit recipe qty">
-                  {neededQty} {recipeUnit}
+                  title={batchScale === 1 ? "Edit original recipe quantity" : "Select Original batch to edit recipe quantities"}>
+                  {formatQuantity(neededQty)} {recipeUnit}
                   <span className="opacity-50 text-[8px]">✏️</span>
                 </button>
               ))}
@@ -1137,7 +1140,7 @@ function BulletItem({ text, editable, onChange, onDelete, linked, linkedName, li
               {editingStock && (
                 <div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-lg border z-30 p-3 w-52">
                   <p className="text-xs font-semibold text-charcoal mb-1.5 truncate">{liveStock?.name || linkedName}</p>
-                  <p className="text-[10px] text-warm-gray mb-2">Recipe needs {neededQty} {recipeUnit}</p>
+                  <p className="text-[10px] text-warm-gray mb-2">Recipe needs {formatQuantity(neededQty)} {recipeUnit}</p>
                   <div className="flex items-center gap-1.5">
                     <input type="number" value={tempQty} onChange={e => setTempQty(e.target.value)}
                       onKeyDown={e => e.key === 'Enter' && saveStock()}
@@ -1164,7 +1167,7 @@ function BulletItem({ text, editable, onChange, onDelete, linked, linkedName, li
   );
 }
 
-function IngredientGroup({ group, editable, onChange, onDelete, stockIngredients, dishIngs = [], onUpdateStock, onCreateIngredient, onUpdateDishLink, onCommitItemQty }) {
+function IngredientGroup({ batchScale = 1, group, editable, onChange, onDelete, stockIngredients, dishIngs = [], onUpdateStock, onCreateIngredient, onUpdateDishLink, onCommitItemQty }) {
   const updateItem = (idx, val) => { const items = [...group.items]; items[idx] = { ...items[idx], text: val }; onChange({ ...group, items }); };
   const removeItem = (idx) => onChange({ ...group, items: group.items.filter((_, i) => i !== idx) });
   const addItem = () => onChange({ ...group, items: [...group.items, { id: uid(), text: '' }] });
@@ -1184,7 +1187,7 @@ function IngredientGroup({ group, editable, onChange, onDelete, stockIngredients
       rightSlot={editable ? <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="text-xs text-gray-400 hover:text-tomato px-1">🗑️</button> : null}>
       <div className="space-y-1">
         {group.items.map((item, i) => (
-          <BulletItem key={item.id} text={item.text} editable={editable}
+          <BulletItem batchScale={batchScale} key={item.id} text={item.text} editable={editable}
             onChange={val => updateItem(i, val)} onDelete={() => removeItem(i)}
             linked={item.ingredientId} linkedName={item.linkedName} linkedStock={item.linkedStock} linkedUnit={item.linkedUnit}
             stockIngredients={stockIngredients} dishIngs={dishIngs} onUpdateStock={onUpdateStock} onCreateIngredient={onCreateIngredient} onUpdateDishLink={onUpdateDishLink}
@@ -1306,24 +1309,29 @@ export default function RecipePage({ dish, ingredients: stockIngredients = [], d
   // Quick saves (checkboxes, inline qty, sections) go through one queue:
   // one request in flight, and only the newest pending state is sent next,
   // so an older save can never land after a newer one. Failures are shown.
-  const pendingSaveRef = useRef(null);
-  const saveBusyRef = useRef(false);
-  const quickSave = async (data) => {
-    pendingSaveRef.current = data;
-    if (saveBusyRef.current) return;
-    saveBusyRef.current = true;
-    while (pendingSaveRef.current) {
-      const next = pendingSaveRef.current;
-      pendingSaveRef.current = null;
-      try { await onSave(dish.id, next); }
-      catch (err) { notify('Not saved: ' + err.message + ' — check your connection and try again'); }
-    }
-    saveBusyRef.current = false;
+  const saveQueueRef = useRef(null);
+  if (!saveQueueRef.current) saveQueueRef.current = createRecipeSaveQueue(
+    data => onSave(dish.id, data),
+    err => notify('Not saved: ' + err.message + ' — check your connection and try again')
+  );
+  const quickSave = data => saveQueueRef.current(data);
+  const [batchUnsaved, setBatchUnsaved] = useState(false);
+  const [batchSaving, setBatchSaving] = useState(false);
+  const applyBatchScale = async (factor, settings = {}) => {
+    const next = { ...recipe, ...settings, batchScale: factor };
+    setRecipe(next);
+    setBatchUnsaved(true);
+    setBatchSaving(true);
+    try {
+      const saved = await quickSave(next);
+      if (!saved) throw new Error('Batch size was not saved. Retry Apply batch before using shopping totals.');
+      setBatchUnsaved(false);
+    } finally { setBatchSaving(false); }
   };
 
   const handleSave = async () => {
     setSaving(true);
-    try { await onSave(dish.id, recipe); setEditing(false); notify('Recipe saved!', 'success'); }
+    try { const saved = await quickSave(recipe); if (!saved) throw new Error('Recipe save failed'); setBatchUnsaved(false); setEditing(false); notify('Recipe saved!', 'success'); }
     catch (err) { notify('Save failed: ' + err.message); }
     setSaving(false);
   };
@@ -1369,7 +1377,7 @@ export default function RecipePage({ dish, ingredients: stockIngredients = [], d
     <div className="min-h-screen bg-cream pb-24">
       <header className="bg-white border-b sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
-          <button onClick={onBack} className="p-2 rounded-lg text-warm-gray hover:bg-light-gray/20"><BackIcon /></button>
+          <button disabled={batchSaving} onClick={onBack} className="p-2 rounded-lg text-warm-gray hover:bg-light-gray/20"><BackIcon /></button>
           <div className="flex-1 min-w-0">
             <h1 className="font-semibold text-lg truncate">📖 {dish.name}</h1>
             <div className="flex gap-2 text-xs text-warm-gray">
@@ -1385,7 +1393,7 @@ export default function RecipePage({ dish, ingredients: stockIngredients = [], d
                 <button onClick={() => setShowSectionMgr(!showSectionMgr)} className="px-3 py-1.5 rounded-lg border text-sm text-warm-gray hover:bg-cream">⚙️</button>
                 {showSectionMgr && <SectionManager visible={vis} onChange={v => set('visibleSections', v)} onClose={() => setShowSectionMgr(false)} />}
               </div>
-              <button onClick={() => { setRecipe(dish.recipe_data ? { ...empty, ...dish.recipe_data } : empty); setEditing(false); }} className="px-3 py-1.5 rounded-lg border text-sm text-warm-gray">Cancel</button>
+              <button onClick={() => { setRecipe(dish.recipe_data ? { ...empty, ...dish.recipe_data } : empty); setBatchUnsaved(false); setEditing(false); }} className="px-3 py-1.5 rounded-lg border text-sm text-warm-gray">Cancel</button>
               <button onClick={handleSave} disabled={saving} className="px-4 py-1.5 rounded-lg bg-terracotta text-white text-sm font-medium disabled:opacity-50">{saving ? '...' : '💾 Save'}</button>
             </div>
           ) : (
@@ -1394,13 +1402,16 @@ export default function RecipePage({ dish, ingredients: stockIngredients = [], d
                 <button onClick={() => setShowSectionMgr(!showSectionMgr)} className="px-3 py-1.5 rounded-lg border text-sm text-warm-gray hover:bg-cream">⚙️</button>
                 {showSectionMgr && <SectionManager visible={vis} onChange={v => { set('visibleSections', v); quickSave({ ...recipe, visibleSections: v }); }} onClose={() => setShowSectionMgr(false)} />}
               </div>
-              <button onClick={() => setEditing(true)} className="px-3 py-1.5 rounded-lg bg-terracotta text-white text-sm font-medium">✏️ Edit</button>
+              <button disabled={batchSaving} onClick={() => setEditing(true)} className="px-3 py-1.5 rounded-lg bg-terracotta text-white text-sm font-medium">✏️ Edit</button>
             </div>
           )}
         </div>
       </header>
 
       <main className="max-w-3xl mx-auto px-4 py-4 space-y-2">
+        {!editing && <RecipeScaleControl dish={{ ...dish, recipe_data: recipe }} links={dishIngs} ingredients={stockIngredients} onApply={applyBatchScale} />}
+        {batchUnsaved && <p role="alert" className="text-sm text-tomato">Batch preview is not saved yet. Shopping and dish availability use the last saved batch.</p>}
+        {editing && recipeScale({ recipe_data: recipe }) !== 1 && <p className="text-sm text-warm-gray">Editing original recipe quantities. Your selected batch multiplier applies when you leave editing.</p>}
         {editing && !hasRecipe && (
           <div className="bg-gradient-to-br from-violet-50 to-indigo-50 rounded-2xl p-6 text-center border border-violet-200/50 mb-4">
             <div className="text-4xl mb-3">📥</div>
@@ -1442,7 +1453,7 @@ export default function RecipePage({ dish, ingredients: stockIngredients = [], d
             rightSlot={editing ? <button onClick={(e) => { e.stopPropagation(); addGroup(); }} className="text-xs px-2.5 py-1 rounded-lg bg-terracotta/10 text-terracotta font-medium">+ Group</button> : null}>
             {r.ingredientGroups.length === 0 && !editing && <p className="text-sm text-gray-400 pl-4">No ingredients yet</p>}
             {r.ingredientGroups.map((g, i) => (
-              <IngredientGroup key={g.id} group={g} editable={editing} onChange={u => updateGroup(i, u)} onDelete={() => removeGroup(i)} stockIngredients={stockIngredients} dishIngs={dishIngs} onUpdateStock={onUpdateStock} onCreateIngredient={onCreateIngredient} onUpdateDishLink={onUpdateDishLink}
+              <IngredientGroup batchScale={editing ? 1 : recipeScale({ recipe_data: recipe })} key={g.id} group={g} editable={editing} onChange={u => updateGroup(i, u)} onDelete={() => removeGroup(i)} stockIngredients={stockIngredients} dishIngs={dishIngs} onUpdateStock={onUpdateStock} onCreateIngredient={onCreateIngredient} onUpdateDishLink={onUpdateDishLink}
                 onCommitItemQty={(itemIdx, ingId, qty, unit) => handleCommitItemQty(i, itemIdx, ingId, qty, unit)} />
             ))}
           </Toggle>

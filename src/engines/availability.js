@@ -1,3 +1,4 @@
+import { recipeScale, scaleQuantity } from './scaling.js';
 import { evaluateNeed } from './pantry.js';
 /**
  * Availability Engine
@@ -25,21 +26,24 @@ export function checkDishAvailability(dish, dishIngs, dishInts, ingredients, int
   // Check ingredients (TEST-AV-002, AV-008)
   const missing = myIngs.map(e => {
     const ig = ingMap.get(e.ingredient_id);
-    const result = evaluateNeed(ig, e.qty, e.recipe_unit);
+    const result = evaluateNeed(ig, scaleQuantity(e.qty, dish), e.recipe_unit);
+    if (recipeScale(dish) == null) result.reason = 'Set a valid recipe batch size';
     return { ingredientId: e.ingredient_id, name: ig?.name || '?', ...result };
   }).filter(r => !r.sufficient);
 
   // Check intermediates (TEST-AV-004, AV-005)
   const missingInts = myInts.filter(e => {
     const it = intMap.get(e.intermediate_id);
-    return !it || it.stock_qty < e.qty;
+    const required = scaleQuantity(e.qty, dish);
+    return !it || required == null || it.stock_qty < required;
   }).map(e => {
     const it = intMap.get(e.intermediate_id);
-    return { intermediateId: e.intermediate_id, name: it?.name || '?', required: e.qty, available: it?.stock_qty || 0 };
+    return { intermediateId: e.intermediate_id, name: it?.name || '?', required: scaleQuantity(e.qty, dish), available: it?.stock_qty || 0 };
   });
 
   return {
-    canCook: missing.length === 0 && missingInts.length === 0,
+    canCook: recipeScale(dish) != null && missing.length === 0 && missingInts.length === 0,
+    invalidScale: recipeScale(dish) == null,
     unlinked: false,
     missing,
     missingInts,

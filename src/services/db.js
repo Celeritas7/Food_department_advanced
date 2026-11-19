@@ -1,3 +1,4 @@
+import { recipeScale } from '../engines/scaling.js';
 import { normalizeUnit } from '../engines/pantry.js';
 /**
  * Database Service — Supabase backend
@@ -390,6 +391,7 @@ export async function deleteDish(id) {
 // ▶ NEW: Save/load the Notion-style recipe_data JSON blob
 
 export async function saveRecipeData(dishId, recipeData) {
+  if (recipeScale({ recipe_data: recipeData }) == null) throw new Error('Batch multiplier must be greater than 0 and at most 1000');
   const { data, error } = await supabase
     .from('food_department_dishes')
     .update({ recipe_data: recipeData })

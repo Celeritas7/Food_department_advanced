@@ -1,3 +1,4 @@
+import { scaleQuantity, formatQuantity } from '../../engines/scaling.js';
 import { stockLabel } from '../../engines/pantry.js';
 /**
  * ShopPage.jsx — Shopping list with Layout B + three tabs:
@@ -132,7 +133,7 @@ export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, 
           const ig = ingredients.find(i => i.id === di.ingredient_id);
           if (!ig) return null;
           return {
-            name: ig.name, category: ig.category, emoji: ig.emoji, qty: di.qty,
+            name: ig.name, category: ig.category, emoji: ig.emoji, qty: formatQuantity(scaleQuantity(di.qty, d)),
             unit: di.recipe_unit || ig.unit || 'g',
             have: stockLabel(ig), missing: missingIngIds.has(di.ingredient_id),
           };
@@ -141,7 +142,7 @@ export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, 
           const it = (intermediates || []).find(i => i.id === di.intermediate_id);
           if (!it) return null;
           return {
-            name: it.name, category: it.category, emoji: '🧑‍🍳', isPrep: true, qty: di.qty,
+            name: it.name, category: it.category, emoji: '🧑‍🍳', isPrep: true, qty: formatQuantity(scaleQuantity(di.qty, d)),
             unit: it.unit || 'portions',
             have: it.stock_qty, missing: missingIntIds.has(di.intermediate_id),
           };
