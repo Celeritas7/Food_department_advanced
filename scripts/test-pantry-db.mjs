@@ -15,6 +15,8 @@ try {
  await db.exec(read('supabase/migrations/' + migration));
  const scalingMigration = readdirSync(new URL('../supabase/migrations', import.meta.url)).find(f => f.endsWith('_recipe_batch_scaling.sql'));
  await db.exec(read('supabase/migrations/' + scalingMigration));
+ const identityMigration = readdirSync(new URL('../supabase/migrations', import.meta.url)).find(f => f.endsWith('_ingredient_aliases_substitutions.sql'));
+ await db.exec(read('supabase/migrations/' + identityMigration));
  assert.equal(await scalar("SELECT stock_status FROM food_department_ingredients WHERE name='Legacy unknown'"), 'have_unknown');
  assert.equal(await scalar("SELECT stock_status FROM food_department_ingredients WHERE name='Legacy measured'"), 'known');
  const ingredient = (await query("INSERT INTO food_department_ingredients(name,stock_qty,unit,unit_conversions) VALUES ('Sugar',100,'g','[{\"unit\":\"tbsp\",\"stock_qty\":12,\"confirmed\":true}]') RETURNING *"))[0];
@@ -92,6 +94,42 @@ try {
  assert.equal(await scalar(`SELECT recipe_unit FROM food_department_intermediate_ingredients WHERE ingredient_id='${metricId}'`),'kg');
  await db.query(`SELECT fd_cook_dish('${metricDish}')`);
  assert.equal(Number(await scalar(`SELECT stock_qty FROM food_department_ingredients WHERE id='${metricId}'`)),800);
+ // Aliases preserve identity; explicit replacements affect recipe accounting only.
+ const fishId = await scalar("INSERT INTO food_department_ingredients(name,unit,stock_qty,aliases) VALUES ('Fish sauce','ml',50,'[\"nước mắm\",\"ナンプラー\"]') RETURNING id");
+ const soyId = await scalar("INSERT INTO food_department_ingredients(name,unit,stock_qty,aliases) VALUES ('Soy sauce','ml',100,'[\"Shoyu\"]') RETURNING id");
+ for(const bad of ['{}','[3]','[""]']) await reject(`UPDATE food_department_ingredients SET aliases='${bad}' WHERE id='${fishId}'`, /fd_ingredient_aliases_valid/);
+ const substitutionDish = await scalar("INSERT INTO food_department_dishes(name,status) VALUES ('Substitution recipe','In Progress') RETURNING id");
+ await db.query('UPDATE food_department_dishes SET recipe_data=$1 WHERE id=$2', [{batchScale:0.5,overview:'Keep this note',ingredientGroups:[{id:'g',items:[{id:'i',text:'Fish sauce',ingredientId:fishId,qty:10}]}]},substitutionDish]);
+ await db.exec(`INSERT INTO food_department_dish_ingredients(dish_id,ingredient_id,qty,recipe_unit) VALUES ('${substitutionDish}','${fishId}',10,'ml')`);
+ const substitute = (oldId=fishId,newId=soyId,qty=30) => `SELECT fd_substitute_dish_ingredient('${substitutionDish}','${oldId}','${newId}',${qty},'ml','Use a milder flavor')`;
+ await reject(substitute(fishId,soyId,0),/finite and positive/);
+ assert.equal(await scalar(`SELECT ingredient_id FROM food_department_dish_ingredients WHERE dish_id='${substitutionDish}'`),fishId);
+ // Force the second write to fail: the junction replacement must roll back.
+ await db.exec(`CREATE FUNCTION fail_substitution_metadata() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'Simulated metadata failure'; END; $$;
+ CREATE TRIGGER fail_substitution_metadata BEFORE UPDATE OF recipe_data ON food_department_dishes FOR EACH ROW WHEN (NEW.id='${substitutionDish}') EXECUTE FUNCTION fail_substitution_metadata()`);
+ await reject(substitute(),/Simulated metadata failure/);
+ assert.equal(await scalar(`SELECT ingredient_id FROM food_department_dish_ingredients WHERE dish_id='${substitutionDish}'`),fishId);
+ assert.equal((await scalar(`SELECT recipe_data FROM food_department_dishes WHERE id='${substitutionDish}'`)).substitutionHistory,undefined);
+ await db.exec('DROP TRIGGER fail_substitution_metadata ON food_department_dishes; DROP FUNCTION fail_substitution_metadata()');
+ const substitution = await scalar(substitute());
+ assert.equal(substitution.link.ingredient_id,soyId);
+ assert.equal(substitution.dish.recipe_data.batchScale,0.5);
+ assert.equal(substitution.dish.recipe_data.overview,'Keep this note');
+ assert.equal(substitution.dish.recipe_data.ingredientGroups[0].items[0].ingredientId,soyId);
+ assert.equal(substitution.dish.recipe_data.ingredientGroups[0].items[0].text,'Fish sauce');
+ assert.equal(substitution.dish.recipe_data.substitutionHistory[0].originalQty,10);
+ assert.equal(Number(await scalar(`SELECT stock_qty FROM food_department_ingredients WHERE id='${fishId}'`)),50);
+ assert.equal(Number(await scalar(`SELECT stock_qty FROM food_department_ingredients WHERE id='${soyId}'`)),100);
+ await reject(substitute(),/Recipe ingredient changed/);
+ await db.query(`SELECT fd_cook_dish('${substitutionDish}')`);
+ assert.equal(Number(await scalar(`SELECT stock_qty FROM food_department_ingredients WHERE id='${soyId}'`)),85);
+ assert.equal(Number(await scalar(`SELECT stock_qty FROM food_department_ingredients WHERE id='${fishId}'`)),50);
+ await reject(substitute(soyId,fishId),/Finish or revert/);
+ await db.query(`SELECT fd_revert_dish('${substitutionDish}',true)`);
+ assert.equal(Number(await scalar(`SELECT stock_qty FROM food_department_ingredients WHERE id='${soyId}'`)),100);
+ await db.exec(`INSERT INTO food_department_dish_ingredients(dish_id,ingredient_id,qty,recipe_unit) VALUES ('${substitutionDish}','${fishId}',1,'ml')`);
+ await reject(substitute(soyId,fishId),/already in this recipe/);
+ assert.equal((await scalar(`SELECT recipe_data FROM food_department_dishes WHERE id='${substitutionDish}'`)).substitutionHistory.length,1);
  // Run the real owner migrations and exercise the RPCs under two users.
  await db.exec(`CREATE SCHEMA auth; CREATE TABLE auth.users(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), email text);
  CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS 'SELECT nullif(current_setting(''request.jwt.claim.sub'',true),'''')::uuid';
@@ -104,13 +142,18 @@ try {
  await db.exec(`SET ROLE authenticated; SET request.jwt.claim.sub='${other}'`);
  assert.equal(Number(await scalar('SELECT count(*) FROM food_department_ingredients')),0);
  await reject(`SELECT fd_cook_dish('${dish}')`,/Dish not found/);
+ await reject(substitute(soyId,id),/Recipe not found/);
+ const privateId = await scalar("INSERT INTO food_department_ingredients(name,unit,stock_qty) VALUES ('Other user stock','ml',500) RETURNING id");
  await db.exec(`SET request.jwt.claim.sub='${owner}'`);
+ await reject(substitute(soyId,privateId),/Replacement ingredient not found/);
+ assert.equal((await scalar(`SELECT recipe_data FROM food_department_dishes WHERE id='${substitutionDish}'`)).substitutionHistory.length,1);
  await db.exec(`UPDATE food_department_ingredients SET stock_qty=100,stock_status='known' WHERE id='${id}'`);
  await db.query(`SELECT fd_cook_dish('${dish}')`);
  assert.equal(Number(await scalar(`SELECT stock_qty FROM food_department_ingredients WHERE id='${id}'`)),76);
  await db.query(`SELECT fd_revert_dish('${dish}',true)`);
  await db.exec('RESET ROLE; SET ROLE anon;');
  await reject(`SELECT fd_cook_dish('${dish}')`,/permission denied/);
+ await reject(substitute(soyId,id),/permission denied/);
  await db.exec('RESET ROLE');
- console.log('Pantry database checks passed: conversions, rollback, legacy and override cook, revert, preparation, purchase, stock certainty, owner RLS, cross-user and anonymous rejection, batch scaling without double deductions.');
+ console.log('Pantry database checks passed: conversions, rollback, legacy and override cook, revert, preparation, purchase, stock certainty, owner RLS, cross-user and anonymous rejection, batch scaling, alias validation, atomic substitutions, replacement-only cook/revert and substitution owner isolation.');
 } catch (error) { console.error(error.message, error.where || '', error.query || ''); process.exitCode = 1; } finally { await db.close(); }

@@ -1,3 +1,5 @@
+import { matchIngredientName, ingredientMatchesSearch } from '../../engines/ingredientIdentity.js';
+import RecipeSubstitutionControl from '../forms/RecipeSubstitutionControl.jsx';
 import { recipeScale, scaleQuantity, formatQuantity } from '../../engines/scaling.js';
 import { createRecipeSaveQueue } from '../../services/recipeSaveQueue.js';
 import RecipeScaleControl from '../forms/RecipeScaleControl.jsx';
@@ -574,16 +576,9 @@ function ImportModal({ onImport, onClose, notify, stockIngredients = [], onBatch
   // Match AI's structuredIngredients to stock
   const matchedLinks = preview?.structuredIngredients && stockIngredients.length > 0
     ? (preview.structuredIngredients || []).map(si => {
-        const siNorm = si.name.toLowerCase().trim();
-        let best = null; let bestScore = 0;
-        for (const s of stockIngredients) {
-          const sNorm = s.name.toLowerCase().trim();
-          if (siNorm === sNorm || siNorm.includes(sNorm) || sNorm.includes(siNorm)) {
-            const score = Math.max(siNorm.length, sNorm.length);
-            if (score > bestScore) { best = s; bestScore = score; }
-          }
-        }
-        return best ? { ingredientId: best.id, name: best.name, qty: si.qty || 1, recipeUnit: si.unit, stockUnit: best.unit, stockQty: best.stock_qty } : { name: si.name, qty: si.qty || 1, recipeUnit: si.unit, unmatched: true };
+        const result = matchIngredientName(si.name, stockIngredients);
+        const best = result.ingredient;
+        return best ? { ingredientId: best.id, name: best.name, qty: si.qty || 1, recipeUnit: si.unit, stockUnit: best.unit, stockQty: best.stock_qty } : { name: si.name, qty: si.qty || 1, recipeUnit: si.unit, unmatched: true, ambiguous: result.status === 'ambiguous' };
       })
     : [];
 
@@ -609,7 +604,7 @@ function ImportModal({ onImport, onClose, notify, stockIngredients = [], onBatch
     };
   };
 
-  const unmatchedLinks = matchedLinks.filter(l => l.unmatched);
+  const unmatchedLinks = matchedLinks.filter(l => l.unmatched && !l.ambiguous);
 
   const handleApply = () => {
     if (!preview) return;
@@ -744,6 +739,7 @@ function ImportModal({ onImport, onClose, notify, stockIngredients = [], onBatch
                     📦 Stock Linking: {matchedCount}/{totalStructured} ingredients matched
                   </p>
                   <div className="space-y-1 text-xs max-h-32 overflow-y-auto">
+                    {matchedLinks.some(l => l.ambiguous) && <p className="text-xs text-amber-700">Some names match multiple pantry items. They will stay unlinked; choose the correct item in recipe editing.</p>}
                     {matchedLinks.map((l, i) => (
                       <div key={i} className="flex items-center gap-2">
                         <span className={l.unmatched ? 'text-amber-500' : 'text-emerald-600'}>{l.unmatched ? '○' : '●'}</span>
@@ -875,63 +871,11 @@ function normalizeForMatch(text) {
 }
 
 function autoMatchIngredients(ingredientGroups, stockIngredients) {
-  if (!stockIngredients?.length) return ingredientGroups;
-
-  const stockNorm = stockIngredients.map(s => ({
-    id: s.id,
-    name: s.name,
-    norm: s.name.toLowerCase().trim(),
-    unit: s.unit,
-    stock_qty: s.stock_qty,
-  }));
-
-  return ingredientGroups.map(group => ({
-    ...group,
-    items: group.items.map(item => {
-      if (item.ingredientId) return item;
-      const norm = normalizeForMatch(item.text);
-      if (!norm) return item;
-
-      let best = null;
-      let bestScore = 0;
-      const nWords = norm.split(' ');
-
-      for (const s of stockNorm) {
-        const sWords = s.norm.split(' ');
-
-        // Exact full match (best possible)
-        if (norm === s.norm) {
-          return { ...item, ingredientId: s.id, linkedName: s.name, linkedUnit: s.unit, linkedStock: s.stock_qty };
-        }
-
-        // Whole-word boundary match: "salt" matches "salt" but NOT "unsalted"
-        // Check if all words of the shorter name appear as whole words in the longer name
-        const shorter = norm.length <= s.norm.length ? nWords : sWords;
-        const longer = norm.length <= s.norm.length ? sWords : nWords;
-        const allMatch = shorter.length > 0 && shorter.every(sw => sw.length > 1 && longer.some(lw => lw === sw));
-
-        if (allMatch) {
-          // Score by how close the lengths are (prefer exact or near-exact)
-          const score = 100 - Math.abs(norm.length - s.norm.length);
-          if (score > bestScore) { best = s; bestScore = score; }
-        }
-        // Fallback: exact word overlap (not substring within words)
-        else {
-          const exactOverlap = sWords.filter(sw => sw.length > 2 && nWords.some(nw => nw === sw)).length;
-          const score = exactOverlap / Math.max(sWords.length, 1);
-          if (score >= 0.5 && exactOverlap > 0 && exactOverlap > bestScore) {
-            best = s;
-            bestScore = exactOverlap;
-          }
-        }
-      }
-
-      if (best) {
-        return { ...item, ingredientId: best.id, linkedName: best.name, linkedUnit: best.unit, linkedStock: best.stock_qty };
-      }
-      return item;
-    }),
-  }));
+  return ingredientGroups.map(group => ({ ...group, items: group.items.map(item => {
+    if (item.ingredientId) return item;
+    const best = matchIngredientName(normalizeForMatch(item.text), stockIngredients).ingredient;
+    return best ? { ...item, ingredientId: best.id, linkedName: best.name, linkedUnit: best.unit, linkedStock: best.stock_qty } : item;
+  }) }));
 }
 
 // ─── Link Picker (inline search dropdown) ───
@@ -949,7 +893,7 @@ function LinkPicker({ stockIngredients, currentId, onLink, onUnlink, onCreate })
 
   const currentStock = currentId ? stockIngredients.find(s => s.id === currentId) : null;
   const filtered = stockIngredients.filter(s =>
-    s.name.toLowerCase().includes(search.toLowerCase())
+    ingredientMatchesSearch(s, search)
   ).slice(0, 8);
 
   const handleCreate = async () => {
@@ -1106,7 +1050,7 @@ function BulletItem({ batchScale = 1, text, editable, onChange, onDelete, linked
         </>
       ) : (
         <>
-          <span className="flex-1 text-base text-charcoal leading-normal">{text}</span>
+          <span className="flex-1 text-base text-charcoal leading-normal">{text}{liveStock && liveStock.name !== text && <span className="block text-xs text-warm-gray">Using: {liveStock.name}</span>}</span>
           {linked && (
             <div className="flex items-center gap-1 shrink-0">
               {/* Recipe qty pill — click to edit inline; commits on blur/Enter to dish_ingredients + recipe_data */}
@@ -1252,7 +1196,7 @@ function CookingStep({ step, editable, onChange, onDelete }) {
 // MAIN RECIPE PAGE
 // ═══════════════════════════════════════════════════════════
 
-export default function RecipePage({ dish, ingredients: stockIngredients = [], dishIngs = [], onSave, onLinkIngredients, onUpdateStock, onCreateIngredient, onBatchCreateIngredients, onUpdateDishLink, onBack, notify }) {
+export default function RecipePage({ dish, ingredients: stockIngredients = [], dishIngs = [], onSave, onLinkIngredients, onUpdateStock, onCreateIngredient, onBatchCreateIngredients, onUpdateDishLink, onSubstitute, onBack, notify }) {
   const empty = { visibleSections: [...DEFAULT_VISIBLE], overview: '', nutrition: [], ingredientGroups: [], preparation: [], cookingSteps: [], serve: '' };
   const [recipe, setRecipe] = useState(() => {
     const data = dish.recipe_data || empty;
@@ -1329,6 +1273,17 @@ export default function RecipePage({ dish, ingredients: stockIngredients = [], d
     } finally { setBatchSaving(false); }
   };
 
+  const [substituting, setSubstituting] = useState(false);
+  const applySubstitution = async replacement => {
+    if (batchUnsaved) throw new Error('Save or reset the batch preview before choosing a substitution.');
+    setSubstituting(true);
+    try {
+      if (!await quickSave(recipe)) throw new Error('Save the current recipe before choosing a substitution.');
+      const result = await onSubstitute(replacement);
+      setRecipe({ ...empty, ...result.dish.recipe_data });
+    } finally { setSubstituting(false); }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try { const saved = await quickSave(recipe); if (!saved) throw new Error('Recipe save failed'); setBatchUnsaved(false); setEditing(false); notify('Recipe saved!', 'success'); }
@@ -1374,7 +1329,7 @@ export default function RecipePage({ dish, ingredients: stockIngredients = [], d
   const hasRecipe = r.ingredientGroups.length > 0 || r.preparation.length > 0 || r.cookingSteps.length > 0 || r.serve || r.overview || (r.nutrition || []).length > 0;
 
   return (
-    <div className="min-h-screen bg-cream pb-24">
+    <div className="min-h-screen bg-cream pb-24" inert={substituting ? '' : undefined} aria-busy={substituting}>
       <header className="bg-white border-b sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
           <button disabled={batchSaving} onClick={onBack} className="p-2 rounded-lg text-warm-gray hover:bg-light-gray/20"><BackIcon /></button>
@@ -1410,6 +1365,7 @@ export default function RecipePage({ dish, ingredients: stockIngredients = [], d
 
       <main className="max-w-3xl mx-auto px-4 py-4 space-y-2">
         {!editing && <RecipeScaleControl dish={{ ...dish, recipe_data: recipe }} links={dishIngs} ingredients={stockIngredients} onApply={applyBatchScale} />}
+        {!editing && onSubstitute && <RecipeSubstitutionControl dish={{ ...dish, recipe_data: recipe }} links={dishIngs} ingredients={stockIngredients} onApply={applySubstitution} disabled={batchSaving || batchUnsaved || ['Cooked', 'In Fridge'].includes(dish.status)} />}
         {batchUnsaved && <p role="alert" className="text-sm text-tomato">Batch preview is not saved yet. Shopping and dish availability use the last saved batch.</p>}
         {editing && recipeScale({ recipe_data: recipe }) !== 1 && <p className="text-sm text-warm-gray">Editing original recipe quantities. Your selected batch multiplier applies when you leave editing.</p>}
         {editing && !hasRecipe && (
@@ -1505,7 +1461,7 @@ export default function RecipePage({ dish, ingredients: stockIngredients = [], d
           <button onClick={async () => {
             const reset = { ...recipe, preparation: recipe.preparation.map(p => ({ ...p, checked: false })), cookingSteps: recipe.cookingSteps.map(s => ({ ...s, items: s.items.map(i => ({ ...i, checked: false })) })) };
             setRecipe(reset);
-            try { await onSave(dish.id, reset); notify('Checkboxes reset', 'success'); }
+            try { if (!await quickSave(reset)) throw new Error('Recipe save failed'); notify('Checkboxes reset', 'success'); }
             catch (err) { notify('Reset not saved: ' + err.message); }
           }} className="w-full py-2.5 rounded-xl border text-sm text-warm-gray hover:border-terracotta hover:text-terracotta transition-colors mt-4">
             🔄 Reset all checkboxes
