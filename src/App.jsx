@@ -661,6 +661,7 @@ export default function App() {
       )}
       {page === 'shop' && (
         <ShopPage
+          onOpenRecipe={dish => dish && setRecipeDish(dish)}
           onCheckStock={(i) => setModal({ type: 'editIng', data: i })}
           shoppingList={shoppingList}
           ingredients={enrichedIngredients}

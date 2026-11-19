@@ -1,3 +1,4 @@
+import { equipmentReadiness } from '../../engines/supplies.js';
 import { scaleQuantity, recipeScale, formatQuantity } from '../../engines/scaling.js';
 /**
  * CookDialog — Phase E1 cook-with-overrides confirmation dialog.
@@ -131,6 +132,7 @@ export default function CookDialog({ dish, recipeIngs, recipeInts, ingredients, 
 
         <div className="px-5 py-3 overflow-y-auto flex-1">
           <p className="text-xs text-warm-gray mb-3">Batch: {formatQuantity(recipeScale(dish))}× original recipe. Amounts below are the actual quantities to deduct.</p>
+          {equipmentReadiness(dish).filter(e=>e.state!=='ready').length > 0 && <div className="border rounded-lg p-3 mb-3 text-xs space-y-1"><p className="font-semibold">Review equipment before cooking</p>{equipmentReadiness(dish).filter(e=>e.state!=='ready').map((e,i)=><p key={`${e.id}:${i}`}>{e.name}: {e.reason}</p>)}<p>These are planning notes; stock validation below checks ingredients and preparations.</p></div>}
           {rows.length === 0 ? (
             <p className="text-sm text-warm-gray text-center py-6">
               This dish has no linked ingredients or preparations.
