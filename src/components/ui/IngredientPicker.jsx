@@ -1,3 +1,4 @@
+import { stockLabel } from '../../engines/pantry.js';
 /**
  * IngredientPicker.jsx — Category-tabbed ingredient selection modal
  * Used by DishForm and IntermediateForm
@@ -6,7 +7,7 @@ import { useState, useMemo } from 'react';
 import { getCatEmoji } from '../../config/emoji.js';
 import { XIcon } from './Icons';
 
-export default function IngredientPicker({ ingredients, onClose, onConfirm, initialSelected = [], title = 'Pick Ingredients', qtyLabel = 'qty' }) {
+export default function IngredientPicker({ ingredients, onClose, onConfirm, initialSelected = [], title = 'Pick Ingredients', qtyLabel = 'qty', quantityUnits = {} }) {
   const [search, setSearch] = useState('');
   const [activeCat, setActiveCat] = useState(null);
   const [selected, setSelected] = useState(() => {
@@ -157,10 +158,7 @@ export default function IngredientPicker({ ingredients, onClose, onConfirm, init
                       {getCatEmoji(ing.category)} {ing.name}
                     </div>
                     <div className="text-xs text-warm-gray flex items-center gap-1.5 mt-0.5">
-                      Stock: {ing.stock_qty > 0
-                        ? <span className="text-sage font-medium">{ing.stock_qty} {ing.unit}</span>
-                        : <span className="text-tomato font-medium">Out</span>
-                      }
+                      Stock: <span>{stockLabel(ing)}</span>
                       {ing._spoilage?.status === 'NearExpiry' && <span className="text-[10px] px-1.5 py-0.5 rounded bg-butter/40 text-yellow-700">⚠ {ing._spoilage.daysRemaining}d</span>}
                       {ing._spoilage?.status === 'Expired' && <span className="text-[10px] px-1.5 py-0.5 rounded bg-tomato/10 text-tomato">Expired</span>}
                     </div>
@@ -175,7 +173,7 @@ export default function IngredientPicker({ ingredients, onClose, onConfirm, init
                         onChange={e => setQty(ing.id, e.target.value)}
                         className="w-14 px-2 py-1.5 rounded-lg border text-center text-sm font-semibold"
                       />
-                      <span className="text-xs text-warm-gray">{ing.unit}</span>
+                      <span className="text-xs text-warm-gray">{quantityUnits[ing.id] || ing.unit}</span>
                     </div>
                   )}
                 </div>

@@ -1,3 +1,4 @@
+import { convertToStock, stockStatus } from './pantry.js';
 /**
  * Quantity Aggregation Engine (Phase 4)
  *
@@ -23,6 +24,7 @@ export function computeQuantityAggregation(
   ingredients,
   intermediates,
 ) {
+  const ingMap = new Map(ingredients.map(i => [i.id, i]));
   const ingredientRequirements = new Map();
   const intermediateRequirements = new Map();
   const ingredientDeficits = new Map();
@@ -38,8 +40,9 @@ export function computeQuantityAggregation(
   // 1. Sum direct ingredient + intermediate requirements
   for (const dish of activeDishes) {
     for (const e of dishIngredients.filter(di => di.dish_id === dish.id)) {
-      const cur = ingredientRequirements.get(e.ingredient_id) || 0;
-      ingredientRequirements.set(e.ingredient_id, cur + e.qty);
+      const cur = ingredientRequirements.get(e.ingredient_id) ?? 0;
+      const qty = convertToStock(e.qty, e.recipe_unit, ingMap.get(e.ingredient_id));
+      ingredientRequirements.set(e.ingredient_id, ingredientRequirements.get(e.ingredient_id) === null || qty === null ? null : cur + qty);
     }
     for (const e of dishIntermediates.filter(di => di.dish_id === dish.id)) {
       const cur = intermediateRequirements.get(e.intermediate_id) || 0;
@@ -61,17 +64,17 @@ export function computeQuantityAggregation(
         const ingId = inp.ingredientId ?? inp.ingredient_id;
         const qtyPerUnit = inp.qtyPerUnit ?? inp.qty_per_unit ?? 0;
         if (ingId == null) continue;
-        const cur = ingredientRequirements.get(ingId) || 0;
-        ingredientRequirements.set(ingId, cur + qtyPerUnit * deficit);
+        const cur = ingredientRequirements.get(ingId) ?? 0;
+        const qty = convertToStock(qtyPerUnit * deficit, inp.recipe_unit, ingMap.get(ingId));
+        ingredientRequirements.set(ingId, ingredientRequirements.get(ingId) === null || qty === null ? null : cur + qty);
       }
     }
   }
 
   // 3. Ingredient deficits against stock (single source of truth per ingredient)
-  const ingMap = new Map(ingredients.map(i => [i.id, i]));
   for (const [ingId, required] of ingredientRequirements) {
     const stock = ingMap.get(ingId)?.stock_qty ?? 0;
-    ingredientDeficits.set(ingId, Math.max(0, required - stock));
+    ingredientDeficits.set(ingId, required === null || stockStatus(ingMap.get(ingId)) !== 'known' ? null : Math.max(0, required - stock));
   }
 
   return { ingredientRequirements, ingredientDeficits, intermediateRequirements, intermediateDeficits };

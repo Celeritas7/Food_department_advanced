@@ -12,6 +12,7 @@
  *
  * Tests: TEST-WF-001 through TEST-WF-010
  */
+import { convertToStock, evaluateNeed } from './pantry.js';
 import { checkDishAvailability } from './availability.js';
 
 // ─── ACTION 1 ─────────────────────────────────────────────
@@ -40,9 +41,9 @@ export function cookDish(dishId, dishes, dishIngs, dishInts, ingredients, interm
   for (const e of dishIngs.filter(di => di.dish_id === dishId)) {
     const ig = ingMap.get(e.ingredient_id);
     if (!ig) throw new Error(`Ingredient ${e.ingredient_id} not found`);
-    const newStock = ig.stock_qty - e.qty;
+    const newStock = ig.stock_qty - convertToStock(e.qty, e.recipe_unit, ig);
     if (newStock < 0) throw new Error(`Insufficient ${ig.name}: need ${e.qty}, have ${ig.stock_qty}`);
-    updatedIngredients.push({ ...ig, stock_qty: newStock });
+    updatedIngredients.push({ ...ig, stock_qty: newStock, stock_status: 'known', in_stock: newStock > 0 });
   }
 
   // Compute new intermediate stock with the same safety check.
@@ -79,7 +80,7 @@ export function prepareIntermediate(intermediateId, unitsToPrepare, intermediate
     const ig = ingMap.get(ingId);
     if (!ig) throw new Error(`Input ingredient ${ingId} not found`);
     const needed = qtyPerUnit * unitsToPrepare;
-    if (ig.stock_qty < needed) {
+    if (!evaluateNeed(ig, needed, inp.recipe_unit).sufficient) {
       throw new Error(`Insufficient ${ig.name}: need ${needed}, have ${ig.stock_qty}`);
     }
   }
@@ -89,7 +90,8 @@ export function prepareIntermediate(intermediateId, unitsToPrepare, intermediate
     const ingId = inp.ingredientId ?? inp.ingredient_id;
     const qtyPerUnit = inp.qtyPerUnit ?? inp.qty_per_unit ?? 0;
     const ig = ingMap.get(ingId);
-    return { ...ig, stock_qty: ig.stock_qty - qtyPerUnit * unitsToPrepare };
+    const stock = ig.stock_qty - convertToStock(qtyPerUnit * unitsToPrepare, inp.recipe_unit, ig);
+    return { ...ig, stock_qty: stock, stock_status: 'known', in_stock: stock > 0 };
   });
 
   const updatedIntermediate = {

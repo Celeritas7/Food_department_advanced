@@ -1,3 +1,4 @@
+import { evaluateNeed } from './pantry.js';
 /**
  * Availability Engine
  * Evaluates per-dish whether it can be cooked based on current stock
@@ -22,13 +23,11 @@ export function checkDishAvailability(dish, dishIngs, dishInts, ingredients, int
   const intMap = new Map(intermediates.map(i => [i.id, i]));
 
   // Check ingredients (TEST-AV-002, AV-008)
-  const missing = myIngs.filter(e => {
+  const missing = myIngs.map(e => {
     const ig = ingMap.get(e.ingredient_id);
-    return !ig || ig.stock_qty < e.qty;
-  }).map(e => {
-    const ig = ingMap.get(e.ingredient_id);
-    return { ingredientId: e.ingredient_id, name: ig?.name || '?', required: e.qty, available: ig?.stock_qty || 0 };
-  });
+    const result = evaluateNeed(ig, e.qty, e.recipe_unit);
+    return { ingredientId: e.ingredient_id, name: ig?.name || '?', ...result };
+  }).filter(r => !r.sufficient);
 
   // Check intermediates (TEST-AV-004, AV-005)
   const missingInts = myInts.filter(e => {
@@ -82,7 +81,7 @@ export function checkIntermediateAvailability(inter, intIngs, ingredients) {
   const ingMap = new Map(ingredients.map(i => [i.id, i]));
   const ok = inputs.every(inp => {
     const ig = ingMap.get(inp.ingredient_id);
-    return ig && ig.stock_qty >= inp.qty_per_unit;
+    return evaluateNeed(ig, inp.qty_per_unit, inp.recipe_unit).sufficient;
   });
 
   return { canPrepare: ok, unlinked: false };

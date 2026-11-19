@@ -1,3 +1,4 @@
+import { normalizeUnit } from '../engines/pantry.js';
 /**
  * Database Service — Supabase backend
  * Replaces Dexie (IndexedDB) with Supabase (PostgreSQL)
@@ -26,7 +27,10 @@ async function replaceLinks(table, parentCol, parentId, childCol, rows) {
   const byChild = new Map();
   for (const r of rows) {
     const prev = byChild.get(r[childCol]);
-    if (prev) prev[qtyCol] = (prev[qtyCol] || 0) + (r[qtyCol] || 0);
+    if (prev) {
+      if (normalizeUnit(prev.recipe_unit) !== normalizeUnit(r.recipe_unit)) throw new Error('The same ingredient has different recipe units. Convert these rows to one unit before saving.');
+      prev[qtyCol] = Number(prev[qtyCol] || 0) + Number(r[qtyCol] || 0);
+    }
     else byChild.set(r[childCol], { ...r, [parentCol]: parentId });
   }
   const keep = [...byChild.keys()];
@@ -55,6 +59,8 @@ export async function addIngredient(ing) {
       name: ing.name,
       unit: ing.unit || 'g',
       stock_qty: ing.stockQty || 0,
+      stock_status: ing.stockStatus || 'known',
+      unit_conversions: ing.unitConversions || [],
       shelf_life_days: ing.shelfLifeDays || 7,
       category: ing.category || '',
       country: ing.country || '',
@@ -71,7 +77,12 @@ export async function updateIngredient(id, updates) {
   const mapped = {};
   if (updates.name !== undefined) mapped.name = updates.name;
   if (updates.unit !== undefined) mapped.unit = updates.unit;
-  if (updates.stockQty !== undefined) mapped.stock_qty = updates.stockQty;
+  if (updates.stockQty !== undefined) {
+    mapped.stock_qty = updates.stockQty;
+    mapped.stock_status = updates.stockStatus || 'known';
+  }
+  if (updates.stockStatus !== undefined) mapped.stock_status = updates.stockStatus;
+  if (updates.unitConversions !== undefined) mapped.unit_conversions = updates.unitConversions;
   if (updates.shelfLifeDays !== undefined) mapped.shelf_life_days = updates.shelfLifeDays;
   if (updates.category !== undefined) mapped.category = updates.category;
   if (updates.country !== undefined) mapped.country = updates.country;
@@ -237,6 +248,7 @@ export async function addIntermediate(inter) {
       intermediate_id: data.id,
       ingredient_id: inp.ingredientId,
       qty_per_unit: inp.qtyPerUnit || 1,
+      recipe_unit: inp.recipeUnit || null,
     }));
     const { error: linkErr } = await supabase
       .from('food_department_intermediate_ingredients')
@@ -268,6 +280,7 @@ export async function updateIntermediate(id, updates) {
       updates.inputIngredients.map(inp => ({
         ingredient_id: inp.ingredientId,
         qty_per_unit: inp.qtyPerUnit || 1,
+        recipe_unit: inp.recipeUnit || null,
       })));
   }
 
@@ -399,7 +412,8 @@ export async function linkDishIngredientsFromRecipe(dishId, links) {
   for (const l of links) {
     const existing = deduped.get(l.ingredientId);
     if (existing) {
-      existing.qty += (l.qty || 1);
+      if (normalizeUnit(existing.unit) !== normalizeUnit(l.unit)) throw new Error('The same ingredient has different recipe units. Convert these rows to one unit before saving.');
+      existing.qty = Number(existing.qty) + Number(l.qty || 1);
     } else {
       deduped.set(l.ingredientId, { ingredientId: l.ingredientId, qty: l.qty || 1, unit: l.unit || null });
     }
@@ -459,85 +473,17 @@ export async function fetchShops() {
 
 // ─── WORKFLOW: Cook Dish (atomic) ────────────────────────
 
-export async function cookDish(dishId, recipeIngredients, recipeIntermediates, ingredients, intermediates) {
-  // Validate before attempting
-  const ingMap = new Map(ingredients.map(i => [i.id, i]));
-  const intMap = new Map(intermediates.map(i => [i.id, i]));
-
-  for (const e of recipeIngredients) {
-    const ig = ingMap.get(e.ingredient_id);
-    if (!ig) throw new Error(`Ingredient not found`);
-    if (ig.stock_qty < e.qty) throw new Error(`Not enough ${ig.name}: need ${e.qty}, have ${ig.stock_qty}`);
-  }
-  for (const e of recipeIntermediates) {
-    const it = intMap.get(e.intermediate_id);
-    if (!it) throw new Error(`Preparation not found`);
-    if (it.stock_qty < e.qty) throw new Error(`Not enough ${it.name}: need ${e.qty}, have ${it.stock_qty}`);
-  }
-
-  // Deduct ingredients
-  for (const e of recipeIngredients) {
-    const ig = ingMap.get(e.ingredient_id);
-    const { error } = await supabase
-      .from('food_department_ingredients')
-      .update({ stock_qty: ig.stock_qty - e.qty })
-      .eq('id', e.ingredient_id);
-    if (error) throw error;
-  }
-
-  // Deduct intermediates
-  for (const e of recipeIntermediates) {
-    const it = intMap.get(e.intermediate_id);
-    const { error } = await supabase
-      .from('food_department_intermediates')
-      .update({ stock_qty: it.stock_qty - e.qty })
-      .eq('id', e.intermediate_id);
-    if (error) throw error;
-  }
-
-  // Mark dish as cooked
-  const { error } = await supabase
-    .from('food_department_dishes')
-    .update({ status: 'Cooked', last_cooked_on: new Date().toISOString() })
-    .eq('id', dishId);
+// Compatibility exports also delegate to the transactional server path.
+export async function cookDish(dishId) {
+  const { data, error } = await supabase.rpc('fd_cook_dish', { p_dish_id: dishId });
   if (error) throw error;
+  return data;
 }
 
-// ─── WORKFLOW: Prepare Intermediate (atomic) ─────────────
-
-export async function prepareIntermediate(intermediateId, units, inputIngredients, ingredients) {
-  const ingMap = new Map(ingredients.map(i => [i.id, i]));
-
-  // Validate
-  for (const inp of inputIngredients) {
-    const ig = ingMap.get(inp.ingredient_id);
-    if (!ig) throw new Error(`Input ingredient not found`);
-    const needed = inp.qty_per_unit * units;
-    if (ig.stock_qty < needed) throw new Error(`Not enough ${ig.name}: need ${needed}, have ${ig.stock_qty}`);
-  }
-
-  // Deduct inputs
-  for (const inp of inputIngredients) {
-    const ig = ingMap.get(inp.ingredient_id);
-    const { error } = await supabase
-      .from('food_department_ingredients')
-      .update({ stock_qty: ig.stock_qty - (inp.qty_per_unit * units) })
-      .eq('id', inp.ingredient_id);
-    if (error) throw error;
-  }
-
-  // Increment intermediate stock
-  const { data: current } = await supabase
-    .from('food_department_intermediates')
-    .select('stock_qty')
-    .eq('id', intermediateId)
-    .single();
-
-  const { error } = await supabase
-    .from('food_department_intermediates')
-    .update({ stock_qty: (current?.stock_qty || 0) + units })
-    .eq('id', intermediateId);
+export async function prepareIntermediate(intermediateId, units) {
+  const { data, error } = await supabase.rpc('fd_prepare_intermediate', { p_intermediate_id: intermediateId, p_units: units });
   if (error) throw error;
+  return data;
 }
 
 // ─── GENERAL SHOPPING LIST (non-food items) ──────────────
@@ -643,6 +589,8 @@ export async function batchCreateIngredients(rows) {
       name: r.name.trim(),
       unit: r.unit || 'g',
       stock_qty: r.stockQty || 0,
+      stock_status: r.stockStatus || 'known',
+      unit_conversions: r.unitConversions || [],
       shelf_life_days: r.shelfLifeDays || 7,
       category: r.category || '',
       country: r.country || '',
@@ -664,6 +612,8 @@ export async function bulkInsertIngredients(rows) {
     name: r.name?.trim(),
     unit: r.unit?.trim() || 'g',
     stock_qty: parseFloat(r.stock_qty) || 0,
+    stock_status: r.stock_status || 'known',
+    unit_conversions: r.unit_conversions || [],
     shelf_life_days: parseInt(r.shelf_life_days) || 7,
     category: r.category?.trim() || '',
     country: r.country?.trim() || '',

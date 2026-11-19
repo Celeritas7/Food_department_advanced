@@ -15,7 +15,8 @@ export default function IntermediateForm({ initial, ingredients, onSave, onCance
   const [showPicker, setShowPicker] = useState(false);
 
   const handlePickerConfirm = (items) => {
-    setInputs(items.map(it => ({ ingredientId: it.id, qtyPerUnit: it.qty })));
+    const units = new Map(inputs.map(inp => [inp.ingredientId, inp.recipeUnit]));
+    setInputs(items.map(it => ({ ingredientId: it.id, qtyPerUnit: it.qty, recipeUnit: units.get(it.id) || ingredients.find(i => i.id === it.id)?.unit })));
     setShowPicker(false);
   };
 
@@ -72,7 +73,7 @@ export default function IntermediateForm({ initial, ingredients, onSave, onCance
                   <div key={i} className="flex items-center justify-between px-3 py-2 rounded-lg bg-purple/5 border border-purple/20">
                     <span className="text-sm font-medium truncate">{getCatEmoji(ig?.category)} {ig?.name || '?'}</span>
                     <div className="flex items-center gap-2">
-                      <span className="text-sm font-bold text-purple">{inp.qtyPerUnit} {ig?.unit}/unit</span>
+                      <span className="text-sm font-bold text-purple">{inp.qtyPerUnit} {inp.recipeUnit || ig?.unit}/unit</span>
                       <button type="button" onClick={() => setInputs(inputs.filter((_, j) => j !== i))} className="text-warm-gray hover:text-tomato"><DelIcon /></button>
                     </div>
                   </div>
@@ -93,6 +94,7 @@ export default function IntermediateForm({ initial, ingredients, onSave, onCance
         <IngredientPicker
           ingredients={ingredients}
           initialSelected={pickerInitial}
+          quantityUnits={Object.fromEntries(inputs.map(inp => [inp.ingredientId, inp.recipeUnit]))}
           onClose={() => setShowPicker(false)}
           onConfirm={handlePickerConfirm}
           title="Pick Inputs for Preparation"

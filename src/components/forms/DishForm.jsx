@@ -584,6 +584,7 @@ export default function DishForm({ initial, ingredients, intermediates, onSave, 
         <IngredientPicker
           ingredients={ingredients}
           initialSelected={pickerInitial}
+          quantityUnits={Object.fromEntries(recipeIngs.map(r => [r.ingredientId, r.unitOverride]))}
           onClose={() => setShowIngPicker(false)}
           onConfirm={handlePickerConfirm}
           title="Pick Ingredients for Dish"

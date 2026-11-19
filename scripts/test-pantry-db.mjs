@@ -1,0 +1,95 @@
+import { PGlite } from '@electric-sql/pglite';
+import { readFileSync, readdirSync } from 'node:fs';
+import assert from 'node:assert/strict';
+import { convertToStock } from '../src/engines/pantry.js';
+const db = new PGlite();
+const read = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
+const query = async sql => (await db.query(sql)).rows;
+const scalar = async sql => Object.values((await query(sql))[0])[0];
+const reject = async (sql, regex) => assert.rejects(() => db.query(sql), regex);
+try {
+ await db.exec('CREATE ROLE anon; CREATE ROLE authenticated;');
+ for (const file of ['000_live_baseline.sql', '009_atomic_workflow.sql', 'fd_functions_live.sql', '010_buy_with_purchase_date.sql', '014_fd_cook_dish_with_overrides.sql', '015_revert_cook_fix.sql']) await db.exec(read('supabase/' + file));
+ await db.exec("INSERT INTO food_department_ingredients(name,stock_qty,in_stock) VALUES ('Legacy unknown',0,true),('Legacy measured',100,false);");
+ const migration = readdirSync(new URL('../supabase/migrations', import.meta.url)).find(f => f.endsWith('_accurate_pantry_calculations.sql'));
+ await db.exec(read('supabase/migrations/' + migration));
+ assert.equal(await scalar("SELECT stock_status FROM food_department_ingredients WHERE name='Legacy unknown'"), 'have_unknown');
+ assert.equal(await scalar("SELECT stock_status FROM food_department_ingredients WHERE name='Legacy measured'"), 'known');
+ const ingredient = (await query("INSERT INTO food_department_ingredients(name,stock_qty,unit,unit_conversions) VALUES ('Sugar',100,'g','[{\"unit\":\"tbsp\",\"stock_qty\":12,\"confirmed\":true}]') RETURNING *"))[0];
+ const id = ingredient.id;
+ for (const [qty, unit] of [[2,'tablespoons'],[0.05,'kg'],[2,'GRAMS'],[2,null]]) {
+   assert.equal(Number(await scalar(`SELECT fd_stock_quantity(${qty},${unit ? `'${unit}'` : 'null'},'g','${JSON.stringify(ingredient.unit_conversions)}')`)), convertToStock(qty,unit,ingredient));
+ }
+ await reject("SELECT fd_stock_quantity(2,'cup','g','[]')", /Confirm conversion/);
+ await reject("SELECT fd_stock_quantity('NaN','g','g','[]')", /finite/);
+ await reject(`UPDATE food_department_ingredients SET unit_conversions='[{"unit":"cup","stock_qty":20,"confirmed":false}]' WHERE id='${id}'`, /confirmation/);
+ const dish = await scalar("INSERT INTO food_department_dishes(name,status) VALUES ('Cake','In Progress') RETURNING id");
+ await db.exec(`INSERT INTO food_department_dish_ingredients(dish_id,ingredient_id,qty,recipe_unit) VALUES ('${dish}','${id}',2,'tbsp');`);
+ const cook = (rows = [{ingredient_id:id,qty:2,unit:'tbsp'}]) => `SELECT fd_cook_dish_with_overrides('${dish}','${JSON.stringify(rows)}','[]')`;
+ await reject(cook([{ingredient_id:id,qty:1000,unit:'g'}]), /Insufficient/);
+ assert.equal(Number(await scalar(`SELECT stock_qty FROM food_department_ingredients WHERE id='${id}'`)),100);
+ assert.equal(await scalar(`SELECT status FROM food_department_dishes WHERE id='${dish}'`),'In Progress');
+ await reject(cook([{ingredient_id:id,qty:1,unit:'g'},{ingredient_id:id,qty:1,unit:'g'}]),/Duplicate/);
+ await reject(cook([]),/No linked/);
+ await db.exec(`UPDATE food_department_ingredients SET stock_status='check' WHERE id='${id}'`);
+ await reject(cook(),/Check stock/);
+ await db.exec(`UPDATE food_department_ingredients SET stock_status='known' WHERE id='${id}'`);
+ await db.query(cook());
+ assert.equal(Number(await scalar(`SELECT stock_qty FROM food_department_ingredients WHERE id='${id}'`)),76);
+ await reject(`UPDATE food_department_ingredients SET unit='kg' WHERE id='${id}'`,/Revert or finish/);
+ await reject(cook(),/Cannot cook/);
+ await db.query(`SELECT fd_revert_dish('${dish}',true)`);
+ assert.equal(Number(await scalar(`SELECT stock_qty FROM food_department_ingredients WHERE id='${id}'`)),100);
+ await reject(`SELECT fd_revert_dish('${dish}',true)`,/Cannot revert/);
+ // Old clients omit units; the RPC converts from the recipe unit.
+ await db.query(cook([{ingredient_id:id,qty:2}]));
+ assert.equal(Number(await scalar(`SELECT stock_qty FROM food_department_ingredients WHERE id='${id}'`)),76);
+ await db.query(`SELECT fd_revert_dish('${dish}',true)`);
+ await db.query(`SELECT fd_cook_dish('${dish}')`);
+ assert.equal(Number(await scalar(`SELECT stock_qty FROM food_department_ingredients WHERE id='${id}'`)),76);
+ await db.query(`SELECT fd_revert_dish('${dish}',true)`);
+ const prep = await scalar("INSERT INTO food_department_intermediates(name,stock_qty) VALUES ('Syrup',0) RETURNING id");
+ await db.exec(`INSERT INTO food_department_intermediate_ingredients(intermediate_id,ingredient_id,qty_per_unit,recipe_unit) VALUES ('${prep}','${id}',0.05,'kg')`);
+ await db.query(`SELECT fd_prepare_intermediate('${prep}',1)`);
+ assert.equal(Number(await scalar(`SELECT stock_qty FROM food_department_ingredients WHERE id='${id}'`)),50);
+ await reject(`SELECT fd_prepare_intermediate('${prep}',2)`,/Insufficient/);
+ assert.equal(Number(await scalar(`SELECT stock_qty FROM food_department_intermediates WHERE id='${prep}'`)),1);
+ await db.exec(`UPDATE food_department_ingredients SET stock_status='have_unknown' WHERE id='${id}'`);
+ await reject(`SELECT fd_prepare_intermediate('${prep}',1)`,/Check stock/);
+ await db.query(`SELECT fd_buy_ingredient('${id}',20,null)`);
+ assert.equal(await scalar(`SELECT stock_status FROM food_department_ingredients WHERE id='${id}'`),'have_unknown');
+ // A measured correction can resolve uncertainty; the legacy flag follows.
+ await db.exec(`UPDATE food_department_ingredients SET stock_qty=0,stock_status='known' WHERE id='${id}'`);
+ assert.equal(await scalar(`SELECT in_stock FROM food_department_ingredients WHERE id='${id}'`),false);
+ // Changing pantry units must never reinterpret unitless legacy recipes.
+ const metricId = await scalar("INSERT INTO food_department_ingredients(name,stock_qty,unit) VALUES ('Flour',1,'kg') RETURNING id");
+ const metricDish = await scalar("INSERT INTO food_department_dishes(name,status) VALUES ('Bread','Planned') RETURNING id");
+ await db.exec(`INSERT INTO food_department_dish_ingredients(dish_id,ingredient_id,qty) VALUES ('${metricDish}','${metricId}',0.2);
+ INSERT INTO food_department_intermediate_ingredients(intermediate_id,ingredient_id,qty_per_unit) VALUES ('${prep}','${metricId}',0.1);
+ UPDATE food_department_ingredients SET unit='g',stock_qty=1000 WHERE id='${metricId}'`);
+ assert.equal(await scalar(`SELECT recipe_unit FROM food_department_dish_ingredients WHERE dish_id='${metricDish}'`),'kg');
+ assert.equal(await scalar(`SELECT recipe_unit FROM food_department_intermediate_ingredients WHERE ingredient_id='${metricId}'`),'kg');
+ await db.query(`SELECT fd_cook_dish('${metricDish}')`);
+ assert.equal(Number(await scalar(`SELECT stock_qty FROM food_department_ingredients WHERE id='${metricId}'`)),800);
+ // Run the real owner migrations and exercise the RPCs under two users.
+ await db.exec(`CREATE SCHEMA auth; CREATE TABLE auth.users(id uuid PRIMARY KEY DEFAULT gen_random_uuid(), email text);
+ CREATE FUNCTION auth.uid() RETURNS uuid LANGUAGE sql STABLE AS 'SELECT nullif(current_setting(''request.jwt.claim.sub'',true),'''')::uuid';
+ GRANT USAGE ON SCHEMA auth TO authenticated; GRANT EXECUTE ON FUNCTION auth.uid() TO authenticated;
+ GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;`);
+ const ownerEmail = read('supabase/016_owner_columns.sql').match(/WHERE email = '([^']+)'/)[1];
+ const owner = (await db.query('INSERT INTO auth.users(email) VALUES ($1) RETURNING id',[ownerEmail])).rows[0].id;
+ const other = await scalar("INSERT INTO auth.users(email) VALUES ('other@example.test') RETURNING id");
+ for (const file of ['016_owner_columns.sql','017_owner_rls.sql']) await db.exec(read('supabase/'+file));
+ await db.exec(`SET ROLE authenticated; SET request.jwt.claim.sub='${other}'`);
+ assert.equal(Number(await scalar('SELECT count(*) FROM food_department_ingredients')),0);
+ await reject(`SELECT fd_cook_dish('${dish}')`,/Dish not found/);
+ await db.exec(`SET request.jwt.claim.sub='${owner}'`);
+ await db.exec(`UPDATE food_department_ingredients SET stock_qty=100,stock_status='known' WHERE id='${id}'`);
+ await db.query(`SELECT fd_cook_dish('${dish}')`);
+ assert.equal(Number(await scalar(`SELECT stock_qty FROM food_department_ingredients WHERE id='${id}'`)),76);
+ await db.query(`SELECT fd_revert_dish('${dish}',true)`);
+ await db.exec('RESET ROLE; SET ROLE anon;');
+ await reject(`SELECT fd_cook_dish('${dish}')`,/permission denied/);
+ await db.exec('RESET ROLE');
+ console.log('Pantry database checks passed: conversions, rollback, legacy and override cook, revert, preparation, purchase, stock certainty, owner RLS, cross-user and anonymous rejection.');
+} catch (error) { console.error(error.message, error.where || '', error.query || ''); process.exitCode = 1; } finally { await db.close(); }

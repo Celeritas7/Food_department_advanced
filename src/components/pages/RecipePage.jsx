@@ -1,3 +1,4 @@
+import { evaluateNeed, stockLabel } from '../../engines/pantry.js';
 /**
  * RecipePage.jsx — Full recipe view & editor
  * 6 Notion-style collapsible sections (all optional):
@@ -1042,10 +1043,10 @@ function BulletItem({ text, editable, onChange, onDelete, linked, linkedName, li
   const dishLink = linked && dishIngs ? dishIngs.find(di => di.ingredient_id === linked) : null;
   const neededQty = dishLink ? dishLink.qty : 0;
   const recipeUnit = dishLink?.recipe_unit || stockUnit; // AI-provided unit or fallback to stock unit
-  const sameUnit = recipeUnit === stockUnit || !dishLink?.recipe_unit;
-  const remaining = sameUnit ? stockQty - neededQty : null; // only compare if same unit
-  const sufficient = sameUnit ? (stockQty >= neededQty && neededQty > 0) : stockQty > 0;
-  const runningLow = sameUnit && sufficient && remaining < neededQty;
+  const need = evaluateNeed(liveStock, neededQty, recipeUnit);
+  const sufficient = need.sufficient;
+  const runningLow = sufficient && need.available - need.required < need.required;
+
 
   useEffect(() => {
     if (!editingStock) return;
@@ -1131,7 +1132,7 @@ function BulletItem({ text, editable, onChange, onDelete, linked, linkedName, li
                   className={'text-[10px] px-1.5 py-0.5 rounded-full font-medium inline-flex items-center gap-1 cursor-pointer hover:ring-2 hover:ring-offset-1 transition-all ' +
                     (sufficient ? (runningLow ? 'bg-amber-100 text-amber-700 hover:ring-amber-300' : 'bg-emerald-100 text-emerald-700 hover:ring-emerald-300') : 'bg-red-100 text-red-600 hover:ring-red-300')}
                   title={`Need ${neededQty} ${recipeUnit} · Have ${stockQty} ${stockUnit} · Tap to update`}>
-                  📦 {stockQty} {stockUnit}
+                  📦 {stockLabel(liveStock)}{need.reason ? ' · Check stock / conversion' : ''}
                 </button>
               {editingStock && (
                 <div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-lg border z-30 p-3 w-52">

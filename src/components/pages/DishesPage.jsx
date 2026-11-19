@@ -1,3 +1,4 @@
+import { stockStatus, stockLabel } from '../../engines/pantry.js';
 /**
  * DishesPage.jsx — 4-tab layout:
  *   📖 Menu Planner (smart hub ranked by % completeness)
@@ -58,7 +59,7 @@ function StockList({ rows, compact }) {
           <span className="shrink-0" aria-label={r.missing ? 'Not enough' : 'Enough'}>{r.missing ? '❌' : '✅'}</span>
           <span className="flex-1 min-w-0 truncate">{r.emoji} {r.name}{r.isPrep && <span className="text-warm-gray"> (prep)</span>}</span>
           <span className={`shrink-0 whitespace-nowrap ${r.missing ? 'font-semibold' : 'text-warm-gray'}`}>
-            {formatHaveNeed(r.have, r.haveUnit, r.need, r.needUnit)}
+            {r.haveLabel ? `${r.haveLabel} / ${r.need} ${r.needUnit}` : formatHaveNeed(r.have, r.haveUnit, r.need, r.needUnit)}
           </span>
         </li>
       ))}
@@ -342,6 +343,7 @@ export default function DishesPage({ dishes, dishIngs = [], dishInts = [], ingre
       const ig = ingById.get(di.ingredient_id);
       add(di.dish_id, {
         key: 'i' + di.ingredient_id, emoji: ig ? getIngredientEmoji(ig) : '❓', name: ig?.name || 'Unknown ingredient',
+        haveLabel: ig && stockStatus(ig) !== 'known' ? stockLabel(ig) : null,
         have: ig?.stock_qty ?? 0, haveUnit: ig?.unit || '', need: di.qty, needUnit: di.recipe_unit || ig?.unit || '',
         missing: !ig || !!missingIng.get(di.dish_id)?.has(di.ingredient_id),
       });

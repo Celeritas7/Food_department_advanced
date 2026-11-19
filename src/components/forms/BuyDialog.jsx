@@ -1,3 +1,4 @@
+import { stockStatus, stockLabel } from '../../engines/pantry.js';
 import { useState } from 'react';
 
 // Tap-to-set quantity presets per unit (no typing needed).
@@ -41,7 +42,7 @@ export default function BuyDialog({ ingredient, suggestedQty, onBuy, onCancel })
     <div className="space-y-4">
       <div className="bg-cream rounded-xl p-4">
         <h3 className="font-semibold">{ingredient.name}</h3>
-        <p className="text-sm text-warm-gray">Current: {ingredient.stock_qty} {ingredient.unit}</p>
+        <p className="text-sm text-warm-gray">Current: {stockLabel(ingredient)}</p>
       </div>
 
       <div>
@@ -98,14 +99,15 @@ export default function BuyDialog({ ingredient, suggestedQty, onBuy, onCancel })
       <div className="bg-sage/10 rounded-xl p-4 flex justify-between">
         <div>
           <span className="text-sm text-warm-gray">Now</span>
-          <div className="font-medium">{ingredient.stock_qty} {ingredient.unit}</div>
+          <div className="font-medium">{stockLabel(ingredient)}</div>
         </div>
         <div className="text-right">
           <span className="text-sm text-warm-gray">After</span>
-          <div className="font-medium text-sage">{(ingredient.stock_qty + qty).toFixed(1)} {ingredient.unit}</div>
+          <div className="font-medium text-sage">{stockStatus(ingredient) === 'known' ? `${(Number(ingredient.stock_qty) + qty).toFixed(1)} ${ingredient.unit}` : 'Quantity still unknown'}</div>
         </div>
       </div>
 
+      {stockStatus(ingredient) !== 'known' && <p className="text-sm text-warm-gray">This records your purchase. Edit the ingredient and measure the total stock before cooking or calculating how much to buy.</p>}
       <div className="flex gap-3">
         <button onClick={onCancel} className="flex-1 py-2 rounded-lg border">Cancel</button>
         <button onClick={handleBuy} disabled={qty <= 0} className={`flex-1 py-2 rounded-lg text-white ${qty > 0 ? 'bg-terracotta' : 'bg-light-gray cursor-not-allowed'}`}>Buy</button>
