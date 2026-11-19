@@ -14,7 +14,9 @@
     "test:identity-ui": "node scripts/test-identity-ui.mjs",
     "test:supplies-ui": "node scripts/test-supplies-ui.mjs",
     "test:fermentation-db": "node scripts/test-fermentation-db.mjs",
-    "test:fermentation-ui": "node scripts/test-fermentation-ui.mjs"
+    "test:fermentation-ui": "node scripts/test-fermentation-ui.mjs",
+    "verify": "node scripts/verify-release.mjs",
+    "check:pages": "node scripts/check-pages-build.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

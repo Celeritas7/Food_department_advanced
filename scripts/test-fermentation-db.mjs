@@ -10,6 +10,8 @@ const reject=(sql,params,pattern)=>assert.rejects(()=>query(sql,params),pattern)
 const files=readdirSync(new URL('../supabase/migrations',import.meta.url));
 try {
  await db.exec('CREATE ROLE anon; CREATE ROLE authenticated;');
+ const missingSchemaAudit=await query(read('scripts/release-audit.sql'));
+ assert(missingSchemaAudit.length>=20 && missingSchemaAudit.every(row=>row.passed===false), 'Missing schema must fail closed without query errors');
  for(const f of ['000_live_baseline.sql','009_atomic_workflow.sql','fd_functions_live.sql','010_buy_with_purchase_date.sql','014_fd_cook_dish_with_overrides.sql','015_revert_cook_fix.sql']) await db.exec(read('supabase/'+f));
  for(const suffix of ['accurate_pantry_calculations.sql','recipe_batch_scaling.sql','ingredient_aliases_substitutions.sql']) await db.exec(read('supabase/migrations/'+files.find(f=>f.endsWith(suffix))));
  await db.exec(`CREATE SCHEMA auth; CREATE TABLE auth.users(id uuid PRIMARY KEY DEFAULT gen_random_uuid(),email text);
@@ -84,9 +86,17 @@ try {
  const closed=await scalar(appendSql,closeArgs);assert.equal(closed.batch.stage,'closed');assert.equal(closed.batch.next_check_at,null);
  assert.deepEqual(await scalar(appendSql,closeArgs),closed);
  await reject(appendSql,[batchId,randomUUID(),eventTime,4,null,'More',null,null,false],/log is closed/);
- await db.exec('RESET ROLE; SET ROLE anon;');
+ await db.exec('RESET ROLE;');
+ const audit=read('scripts/release-audit.sql');
+ const auditRows=await query(audit);
+ assert(auditRows.length>=20);
+ assert.deepEqual(auditRows.filter(row=>!row.passed),[], 'Fully migrated database must pass structural release checks');
+ await db.exec('ALTER TABLE food_department_fermentation_entries DISABLE ROW LEVEL SECURITY');
+ assert((await query(audit)).some(row=>row.check_name==='owner-rls:food_department_fermentation_entries' && !row.passed));
+ await db.exec('ALTER TABLE food_department_fermentation_entries ENABLE ROW LEVEL SECURITY');
+ await db.exec('SET ROLE anon;');
  await reject('SELECT * FROM food_department_fermentation_batches',[],/permission denied/);
  await reject(startSql,args,/permission denied/);
  await reject(appendSql,eventArgs,/permission denied/);
- console.log('Fermentation SQL checks passed: snapshots, independent batches, retries, validation, owner isolation, append-only entries, recipe deletion, stages, atomic rollback, anonymous denial.');
+ console.log('Fermentation SQL checks passed: release audit for missing/complete schema and disabled RLS, snapshots, independent batches, retries, validation, owner isolation, append-only entries, recipe deletion, stages, atomic rollback, anonymous denial.');
 } finally {await db.close();}

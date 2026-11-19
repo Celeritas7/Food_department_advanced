@@ -6,6 +6,7 @@ export default defineConfig({
   base: '/Food_department_advanced/',
   build: {
     outDir: 'docs',
+    manifest: true,
     rolldownOptions: {
       output: {
         // Libraries change rarely; separate files stay cached across app updates
