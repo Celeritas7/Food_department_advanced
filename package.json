@@ -11,7 +11,8 @@
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
     "test:pantry-db": "node scripts/test-pantry-db.mjs",
     "test:scaling-ui": "node scripts/test-scaling-ui.mjs",
-    "test:identity-ui": "node scripts/test-identity-ui.mjs"
+    "test:identity-ui": "node scripts/test-identity-ui.mjs",
+    "test:supplies-ui": "node scripts/test-supplies-ui.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",

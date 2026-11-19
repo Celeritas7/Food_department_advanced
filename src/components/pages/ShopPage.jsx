@@ -1,3 +1,6 @@
+import EquipmentShopping from '../supplies/EquipmentShopping.jsx';
+import PurchaseNote from '../supplies/PurchaseNote.jsx';
+import { ingredientPurchaseNotes } from '../../engines/supplies.js';
 import { scaleQuantity, formatQuantity } from '../../engines/scaling.js';
 import { stockLabel } from '../../engines/pantry.js';
 /**
@@ -41,7 +44,7 @@ function priorityCardStyle(p) {
   return { backgroundColor: v.bg, borderLeft: `4px solid ${v.border}` };
 }
 
-export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, dishInts, intermediates, onBuy, onCheckStock, onCook, generalShoppingItems = [], onAddGeneral, onToggleGeneral, onDeleteGeneral, onClearIngredient, onUndoClearIngredient }) {
+export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, dishInts, intermediates, onBuy, onCheckStock, onCook, onOpenRecipe, generalShoppingItems = [], onAddGeneral, onToggleGeneral, onDeleteGeneral, onClearIngredient, onUndoClearIngredient }) {
   // ▶ Phase C2: confirmation popup + 5s inline undo toast for "Used Up" flow
   const [confirming, setConfirming] = useState(null);
   const [undoState, setUndoState] = useState(null);
@@ -65,7 +68,7 @@ export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, 
   };
 
   const [topTab, setTopTabRaw] = useState(() => {
-    try { return localStorage.getItem('fd_shop_top_tab') === 'general' ? 'general' : 'groceries'; } catch { return 'groceries'; }
+    try { const saved = localStorage.getItem('fd_shop_top_tab'); return ['general','equipment'].includes(saved) ? saved : 'groceries'; } catch { return 'groceries'; }
   });
   const setTopTab = (v) => { setTopTabRaw(v); try { localStorage.setItem('fd_shop_top_tab', v); } catch {} };
   const [tab, setTab] = useState('buy');
@@ -216,7 +219,7 @@ export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, 
             <div className="w-10 h-10 rounded-xl bg-terracotta/10 flex items-center justify-center text-terracotta"><CartIcon /></div>
             <div>
               <h1 className="font-semibold text-xl">🛒 Shopping</h1>
-              <p className="text-sm text-warm-gray">{topTab === 'groceries' ? 'In Progress dishes only' : 'Non-food items'}</p>
+              <p className="text-sm text-warm-gray">{topTab === 'general' ? 'Non-food items' : 'In Progress dishes only'}</p>
             </div>
           </div>
           {/* Top-level Groceries | General toggle */}
@@ -228,6 +231,7 @@ export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, 
               }`}
               aria-pressed={topTab === 'groceries'}
             >🥕 Groceries</button>
+            <button onClick={() => setTopTab('equipment')} aria-pressed={topTab === 'equipment'} className={`flex-1 py-2 rounded-xl text-sm font-semibold ${topTab === 'equipment' ? 'bg-terracotta text-white shadow-md' : 'bg-white text-warm-gray border'}`}>🫙 Equipment</button>
             <button
               onClick={() => setTopTab('general')}
               className={`flex-1 py-2 rounded-xl text-sm font-semibold transition-all ${
@@ -375,6 +379,7 @@ export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, 
                                 <span>Have: <b className={item.stock > 0 ? 'text-sage' : 'text-tomato'}>{item.stock == null ? 'Check stock' : item.stock}</b> {item.stock == null ? '' : item.unit}</span>
                                 <span className="text-tomato font-semibold">{item.requiresCheck ? `Check stock / conversion: ${item.checkReason || ''}` : `Buy: ${item.deficit} ${item.unit}`}</span>
                               </div>
+                              {ingredientPurchaseNotes(dishes, item.id, dishIngs).map(n => <div key={`${n.dishId}:${n.id}`} className="mt-2 border-t pt-2"><p className="text-xs font-medium">Recorded for {n.dishName}</p><PurchaseNote purchase={n.purchase} note={n.note}/>{onOpenRecipe && <button type="button" className="text-xs underline" onClick={()=>onOpenRecipe(dishes.find(d=>d.id===n.dishId))}>Edit shopping note</button>}</div>)}
                               {item.usedIn?.length > 0 && (
                                 <p className="text-[10px] text-warm-gray mt-0.5 truncate">📍 {item.usedIn.join(', ')}</p>
                               )}
@@ -556,6 +561,8 @@ export default function ShopPage({ shoppingList, ingredients, dishes, dishIngs, 
         )}
 
         </>}
+
+        {topTab === 'equipment' && <EquipmentShopping dishes={dishes} onOpenRecipe={onOpenRecipe} />}
 
         {/* ═══════════ GENERAL LIST (non-food, shown when topTab=general) ═══════════ */}
         {topTab === 'general' && (

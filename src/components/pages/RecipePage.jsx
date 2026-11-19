@@ -1,3 +1,5 @@
+import RecipeSuppliesControl from '../supplies/RecipeSuppliesControl.jsx';
+import { validateSupplies } from '../../engines/supplies.js';
 import { matchIngredientName, ingredientMatchesSearch } from '../../engines/ingredientIdentity.js';
 import RecipeSubstitutionControl from '../forms/RecipeSubstitutionControl.jsx';
 import { recipeScale, scaleQuantity, formatQuantity } from '../../engines/scaling.js';
@@ -1231,8 +1233,13 @@ export default function RecipePage({ dish, ingredients: stockIngredients = [], d
     const dishLinks = parsed._dishLinks || [];
     delete parsed._dishLinks;
 
-    // Auto-match recipe ingredients to stock (fuzzy match for display)
-    const matched = { ...empty, ...parsed, ingredientGroups: autoMatchIngredients(parsed.ingredientGroups || [], stockIngredients) };
+    // Keep purchasing records when instructions are re-imported. Container
+    // requirements belong to the old recipe and must be reviewed again.
+    const retainedSupplies = recipe.supplies && {
+      ...recipe.supplies,
+      equipment: Array.isArray(recipe.supplies.equipment) ? recipe.supplies.equipment.map(e => e?.type === 'container' ? { ...e, status: 'check', fitConfirmedScale: null } : e) : recipe.supplies.equipment,
+    };
+    const matched = { ...empty, ...parsed, ...(parsed.supplies == null && retainedSupplies ? { supplies: retainedSupplies } : {}), ingredientGroups: autoMatchIngredients(parsed.ingredientGroups || [], stockIngredients) };
     const linkedCount = matched.ingredientGroups.reduce((a, g) => a + g.items.filter(i => i.ingredientId).length, 0);
     const totalCount = matched.ingredientGroups.reduce((a, g) => a + g.items.length, 0);
     setRecipe(matched);
@@ -1271,6 +1278,17 @@ export default function RecipePage({ dish, ingredients: stockIngredients = [], d
       if (!saved) throw new Error('Batch size was not saved. Retry Apply batch before using shopping totals.');
       setBatchUnsaved(false);
     } finally { setBatchSaving(false); }
+  };
+
+  const [suppliesSaving, setSuppliesSaving] = useState(false);
+  const saveSupplies = async supplies => {
+    const next = { ...recipe, supplies: validateSupplies(supplies) };
+    setSuppliesSaving(true);
+    try {
+      if (!await quickSave(next)) throw new Error('Supplies were not saved. Your draft is kept for retry.');
+      setRecipe(next);
+      setBatchUnsaved(false);
+    } finally { setSuppliesSaving(false); }
   };
 
   const [substituting, setSubstituting] = useState(false);
@@ -1329,7 +1347,7 @@ export default function RecipePage({ dish, ingredients: stockIngredients = [], d
   const hasRecipe = r.ingredientGroups.length > 0 || r.preparation.length > 0 || r.cookingSteps.length > 0 || r.serve || r.overview || (r.nutrition || []).length > 0;
 
   return (
-    <div className="min-h-screen bg-cream pb-24" inert={substituting ? '' : undefined} aria-busy={substituting}>
+    <div className="min-h-screen bg-cream pb-24" inert={substituting || suppliesSaving ? '' : undefined} aria-busy={substituting || suppliesSaving}>
       <header className="bg-white border-b sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-4 py-3 flex items-center gap-3">
           <button disabled={batchSaving} onClick={onBack} className="p-2 rounded-lg text-warm-gray hover:bg-light-gray/20"><BackIcon /></button>
@@ -1366,6 +1384,7 @@ export default function RecipePage({ dish, ingredients: stockIngredients = [], d
       <main className="max-w-3xl mx-auto px-4 py-4 space-y-2">
         {!editing && <RecipeScaleControl dish={{ ...dish, recipe_data: recipe }} links={dishIngs} ingredients={stockIngredients} onApply={applyBatchScale} />}
         {!editing && onSubstitute && <RecipeSubstitutionControl dish={{ ...dish, recipe_data: recipe }} links={dishIngs} ingredients={stockIngredients} onApply={applySubstitution} disabled={batchSaving || batchUnsaved || ['Cooked', 'In Fridge'].includes(dish.status)} />}
+        {!editing && <RecipeSuppliesControl dish={{ ...dish, recipe_data: recipe }} links={dishIngs} ingredients={stockIngredients} onSave={saveSupplies} disabled={batchSaving || batchUnsaved} />}
         {batchUnsaved && <p role="alert" className="text-sm text-tomato">Batch preview is not saved yet. Shopping and dish availability use the last saved batch.</p>}
         {editing && recipeScale({ recipe_data: recipe }) !== 1 && <p className="text-sm text-warm-gray">Editing original recipe quantities. Your selected batch multiplier applies when you leave editing.</p>}
         {editing && !hasRecipe && (

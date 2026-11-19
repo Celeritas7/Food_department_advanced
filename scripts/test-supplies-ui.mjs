@@ -1,0 +1,72 @@
+import React,{useState} from 'react';
+import TestRenderer,{act} from 'react-test-renderer';
+import {createServer} from 'vite';
+import assert from 'node:assert/strict';
+const server=await createServer({server:{middlewareMode:true},appType:'custom'});
+const load=async path=>(await server.ssrLoadModule(path)).default;
+const Supplies=await load('/src/components/supplies/RecipeSuppliesControl.jsx');
+const EquipmentShopping=await load('/src/components/supplies/EquipmentShopping.jsx');
+const ShopPage=await load('/src/components/pages/ShopPage.jsx');
+const CookDialog=await load('/src/components/forms/CookDialog.jsx');
+const RecipePage=await load('/src/components/pages/RecipePage.jsx');
+const ingredients=[{id:'c',name:'Cabbage',unit:'g',stock_qty:100}];
+const links=[{dish_id:'d',ingredient_id:'c',qty:10,recipe_unit:'g'}];
+const dish={id:'d',name:'Kimchi',status:'In Progress',priority:3,recipe_data:{batchScale:1,overview:'Keep this recipe',ingredientGroups:[],preparation:[],cookingSteps:[]}};
+let tree,fail=false;const saves=[];
+const find=label=>tree.root.findByProps({'aria-label':label});
+const change=(label,value)=>act(()=>find(label).props.onChange({target:{value}}));
+const button=name=>tree.root.findAllByType('button').find(n=>n.children.join('').trim()===name);
+const click=async name=>{const b=button(name);assert.ok(b,'Missing '+name);await act(async()=>{await b.props.onClick();});};
+const text=()=>JSON.stringify(tree.toJSON());
+function Harness(){const [d,setD]=useState(dish);return React.createElement(React.Fragment,null,
+ React.createElement('button',{onClick:()=>setD(prev=>({...prev,recipe_data:{...prev.recipe_data,batchScale:0.5}}))},'Half test batch'),
+ React.createElement('button',{onClick:()=>setD(prev=>({...prev,recipe_data:{...prev.recipe_data,batchScale:1}}))},'Original test batch'),
+ React.createElement(Supplies,{dish:d,links,ingredients,onSave:async supplies=>{if(fail)throw Error('offline');saves.push(supplies);setD(prev=>({...prev,recipe_data:{...prev.recipe_data,supplies}}));}}));}
+try{
+ act(()=>{tree=TestRenderer.create(React.createElement(Harness));});
+ await click('+ Equipment');change('Equipment name','Glass jar');change('Equipment type','container');change('Equipment availability','have');
+ change('Capacity per item (ml)','1000');change('Original batch fill (ml)','900');change('Space to leave empty (%)','20');
+ await click('Save equipment');assert.match(text(),/exceeds container capacity/);
+ assert.equal(saves.at(-1).equipment[0].capacityMl,1000);
+ await click('Half test batch');assert.match(text(),/Recorded volume fits/);assert.match(text(),/450/);
+ await click('Edit equipment Glass jar');change('Original batch fill (ml)','');
+ act(()=>find('Confirm container fit').props.onChange({target:{checked:true}}));await click('Save equipment');
+ assert.equal(saves.at(-1).equipment[0].fitConfirmedScale,0.5);
+ await click('Original test batch');assert.match(text(),/Confirm fit for the selected batch/);
+ await click('+ Ingredient shopping note');change('Shopping note ingredient','c');change('Shop name','Yaoko');change('Recorded price (yen)','198');change('Pack size / price basis','250 g');change('Price checked on','2026-11-19');change('Shop / product URL','https://example.test/cabbage');change('Shopping note','Observed on shelf');
+ await click('Save shopping note');assert.equal(saves.at(-1).shoppingNotes[0].purchase.priceYen,198);assert.match(text(),/Not a live price/);
+ await click('Edit shopping note Cabbage');change('Shop / product URL','javascript:alert(1)');const count=saves.length;
+ await click('Save shopping note');assert.equal(saves.length,count);assert.match(text(),/http or https/);
+ change('Shop / product URL','https://example.test/cabbage');fail=true;await click('Save shopping note');assert.match(text(),/offline/);assert.equal(find('Shop name').props.value,'Yaoko');
+ fail=false;await click('Save shopping note');assert.equal(tree.root.findAllByProps({role:'alert'}).length,0);
+ const supplies=saves.at(-1);act(()=>tree.unmount());
+ const gear={id:'j',name:'Test jar',type:'container',status:'need',quantity:1,purchase:{shop:'Daiso',priceYen:220}};
+ const active={...dish,recipe_data:{...dish.recipe_data,supplies:{equipment:[gear],shoppingNotes:supplies.shoppingNotes}}};
+ const second={...active,id:'d2',name:'Quince'};const old={...active,id:'old',name:'Finished recipe',status:'Cooked'};const opened=[];
+ act(()=>{tree=TestRenderer.create(React.createElement(EquipmentShopping,{dishes:[active,second,old],onOpenRecipe:d=>opened.push(d.id)}));});
+ assert.equal(tree.root.findAllByType('article').length,2);assert.doesNotMatch(text(),/Finished recipe/);
+ await click('Review equipment for Kimchi');assert.deepEqual(opened,['d']);act(()=>tree.unmount());
+ act(()=>{tree=TestRenderer.create(React.createElement(ShopPage,{shoppingList:{list:[{id:'c',name:'Cabbage',unit:'g',stock:100,needed:400,deficit:300,toBuy:true,priority:3}]},ingredients,dishes:[active],dishIngs:links,dishInts:[],intermediates:[],onOpenRecipe:d=>opened.push(d.id)}));});
+ assert.match(text(),/Yaoko/);assert.match(text(),/Recorded/);await click('Edit shopping note');assert.equal(opened.at(-1),'d');
+ await click('🫙 Equipment');assert.match(text(),/Test jar/);act(()=>tree.unmount());
+ const deducted=[];
+ act(()=>{tree=TestRenderer.create(React.createElement(CookDialog,{dish:active,recipeIngs:links,recipeInts:[],ingredients,intermediates:[],onCancel:()=>{},onConfirm:async rows=>deducted.push(rows)}));});
+ assert.match(text(),/Review equipment before cooking/);assert.equal(button('Confirm cook').props.disabled,false);await click('Confirm cook');
+ assert.deepEqual(deducted[0],[{ingredient_id:'c',qty:10,unit:'g'}]);act(()=>tree.unmount());
+ const savedRecipes=[];fail=true;
+ act(()=>{tree=TestRenderer.create(React.createElement(RecipePage,{dish,ingredients,dishIngs:links,onSave:async(id,data)=>{if(fail)throw Error('offline');savedRecipes.push(data);},notify:()=>{},onBack:()=>{}}));});
+ await click('+ Equipment');change('Equipment name','Frying pan');change('Equipment type','pan');change('Equipment availability','have');change('Material','Stainless steel');change('Heat source / compatibility','IH');change('Care instructions','Hand wash');
+ await click('Save equipment');assert.equal(find('Equipment name').props.value,'Frying pan');assert.equal(savedRecipes.length,0);
+ fail=false;await click('Save equipment');assert.equal(savedRecipes[0].overview,'Keep this recipe');assert.equal(savedRecipes[0].batchScale,1);assert.equal(savedRecipes[0].supplies.equipment[0].compatibility,'IH');
+ act(()=>tree.unmount());
+ const withContainer={...dish,recipe_data:{...dish.recipe_data,supplies:{equipment:[{...gear,status:'have',fitConfirmedScale:1}],shoppingNotes:supplies.shoppingNotes}}};
+ act(()=>{tree=TestRenderer.create(React.createElement(RecipePage,{dish:withContainer,ingredients,dishIngs:links,onSave:async(id,data)=>savedRecipes.push(data),notify:()=>{},onBack:()=>{}}));});
+ await click('✏️ Edit');await click('📥');
+ const importer=tree.root.find(n=>typeof n.type==='function'&&n.props.onImport&&n.props.onClose);
+ act(()=>importer.props.onImport({overview:'Updated instructions',ingredientGroups:[],preparation:[],cookingSteps:[],serve:''}));
+ await click('💾 Save');
+ assert.equal(savedRecipes.at(-1).supplies.shoppingNotes[0].purchase.shop,'Yaoko');
+ assert.equal(savedRecipes.at(-1).supplies.equipment[0].status,'check');
+ assert.equal(savedRecipes.at(-1).supplies.equipment[0].fitConfirmedScale,null);
+ console.log('Supplies component checks passed: capacity/batch scaling, fit confirmation, shopping notes and links, failed-save retention, per-recipe equipment shopping, recipe navigation, food-only cook deductions and preserved recipe metadata.');
+}catch(error){console.error(error);process.exitCode=1;}finally{if(tree)act(()=>tree.unmount());await server.close();}
