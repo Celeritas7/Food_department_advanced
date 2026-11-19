@@ -13,6 +13,8 @@ try {
  await db.exec("INSERT INTO food_department_ingredients(name,stock_qty,in_stock) VALUES ('Legacy unknown',0,true),('Legacy measured',100,false);");
  const migration = readdirSync(new URL('../supabase/migrations', import.meta.url)).find(f => f.endsWith('_accurate_pantry_calculations.sql'));
  await db.exec(read('supabase/migrations/' + migration));
+ const scalingMigration = readdirSync(new URL('../supabase/migrations', import.meta.url)).find(f => f.endsWith('_recipe_batch_scaling.sql'));
+ await db.exec(read('supabase/migrations/' + scalingMigration));
  assert.equal(await scalar("SELECT stock_status FROM food_department_ingredients WHERE name='Legacy unknown'"), 'have_unknown');
  assert.equal(await scalar("SELECT stock_status FROM food_department_ingredients WHERE name='Legacy measured'"), 'known');
  const ingredient = (await query("INSERT INTO food_department_ingredients(name,stock_qty,unit,unit_conversions) VALUES ('Sugar',100,'g','[{\"unit\":\"tbsp\",\"stock_qty\":12,\"confirmed\":true}]') RETURNING *"))[0];
@@ -48,11 +50,30 @@ try {
  await db.query(`SELECT fd_cook_dish('${dish}')`);
  assert.equal(Number(await scalar(`SELECT stock_qty FROM food_department_ingredients WHERE id='${id}'`)),76);
  await db.query(`SELECT fd_revert_dish('${dish}',true)`);
+ // Scaling applies only to original recipe links, never to actual overrides.
+ await db.exec(`UPDATE food_department_dishes SET recipe_data='{"batchScale":0.5}' WHERE id='${dish}'`);
+ await db.query(`SELECT fd_cook_dish('${dish}')`);
+ assert.equal(Number(await scalar(`SELECT stock_qty FROM food_department_ingredients WHERE id='${id}'`)),88);
+ await db.query(`SELECT fd_revert_dish('${dish}',true)`);
+ await db.exec(`UPDATE food_department_dishes SET recipe_data='{"batchScale":2}' WHERE id='${dish}'`);
+ await db.query(cook([{ingredient_id:id,qty:24,unit:'g'}]));
+ assert.equal(Number(await scalar(`SELECT stock_qty FROM food_department_ingredients WHERE id='${id}'`)),76);
+ await db.query(`SELECT fd_revert_dish('${dish}',true)`);
+ await db.exec(`UPDATE food_department_dishes SET recipe_data='{"batchScale":0}' WHERE id='${dish}'`);
+ await reject(`SELECT fd_cook_dish('${dish}')`,/Batch multiplier/);
+ assert.equal(Number(await scalar(`SELECT stock_qty FROM food_department_ingredients WHERE id='${id}'`)),100);
+ await db.exec(`UPDATE food_department_dishes SET recipe_data='{"batchScale":1}' WHERE id='${dish}'`);
  const prep = await scalar("INSERT INTO food_department_intermediates(name,stock_qty) VALUES ('Syrup',0) RETURNING id");
  await db.exec(`INSERT INTO food_department_intermediate_ingredients(intermediate_id,ingredient_id,qty_per_unit,recipe_unit) VALUES ('${prep}','${id}',0.05,'kg')`);
  await db.query(`SELECT fd_prepare_intermediate('${prep}',1)`);
  assert.equal(Number(await scalar(`SELECT stock_qty FROM food_department_ingredients WHERE id='${id}'`)),50);
  await reject(`SELECT fd_prepare_intermediate('${prep}',2)`,/Insufficient/);
+ assert.equal(Number(await scalar(`SELECT stock_qty FROM food_department_intermediates WHERE id='${prep}'`)),1);
+ const scaledPrepDish = await scalar("INSERT INTO food_department_dishes(name,status,recipe_data) VALUES ('Half paste batch','Planned','{\"batchScale\":0.5}') RETURNING id");
+ await db.exec(`INSERT INTO food_department_dish_intermediates(dish_id,intermediate_id,qty) VALUES ('${scaledPrepDish}','${prep}',2)`);
+ await db.query(`SELECT fd_cook_dish('${scaledPrepDish}')`);
+ assert.equal(Number(await scalar(`SELECT stock_qty FROM food_department_intermediates WHERE id='${prep}'`)),0);
+ await db.query(`SELECT fd_revert_dish('${scaledPrepDish}',true)`);
  assert.equal(Number(await scalar(`SELECT stock_qty FROM food_department_intermediates WHERE id='${prep}'`)),1);
  await db.exec(`UPDATE food_department_ingredients SET stock_status='have_unknown' WHERE id='${id}'`);
  await reject(`SELECT fd_prepare_intermediate('${prep}',1)`,/Check stock/);
@@ -91,5 +112,5 @@ try {
  await db.exec('RESET ROLE; SET ROLE anon;');
  await reject(`SELECT fd_cook_dish('${dish}')`,/permission denied/);
  await db.exec('RESET ROLE');
- console.log('Pantry database checks passed: conversions, rollback, legacy and override cook, revert, preparation, purchase, stock certainty, owner RLS, cross-user and anonymous rejection.');
+ console.log('Pantry database checks passed: conversions, rollback, legacy and override cook, revert, preparation, purchase, stock certainty, owner RLS, cross-user and anonymous rejection, batch scaling without double deductions.');
 } catch (error) { console.error(error.message, error.where || '', error.query || ''); process.exitCode = 1; } finally { await db.close(); }

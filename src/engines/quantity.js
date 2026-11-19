@@ -1,3 +1,4 @@
+import { scaleQuantity } from './scaling.js';
 import { convertToStock, evaluateNeed, stockStatus } from './pantry.js';
 /**
  * Quantity Aggregation Engine
@@ -21,7 +22,7 @@ export function aggregateRequirements(dishes, dishIngs, dishInts, intIngs, ingre
 
     for (const e of myIngs) {
       const cur = ingReq.get(e.ingredient_id) || { total: 0, priority: 99, dishes: [], issues: [] };
-      const converted = convertToStock(e.qty, e.recipe_unit, ingMap.get(e.ingredient_id));
+      const converted = convertToStock(scaleQuantity(e.qty, dish), e.recipe_unit, ingMap.get(e.ingredient_id));
       if (converted == null) cur.issues.push(`Confirm conversion: ${e.qty} ${e.recipe_unit || '?'} (${dish.name})`);
       else cur.total += converted;
       cur.priority = Math.min(cur.priority, dish.priority);
@@ -31,7 +32,8 @@ export function aggregateRequirements(dishes, dishIngs, dishInts, intIngs, ingre
 
     for (const e of myInts) {
       const cur = intReq.get(e.intermediate_id) || { total: 0, priority: 99, dishes: [] };
-      cur.total += Number(e.qty);
+      const qty = scaleQuantity(e.qty, dish);
+      cur.total = qty == null || cur.total == null ? null : cur.total + qty;
       cur.dishes.push(dish.name);
       cur.priority = Math.min(cur.priority, dish.priority);
       intReq.set(e.intermediate_id, cur);
@@ -43,12 +45,12 @@ export function aggregateRequirements(dishes, dishIngs, dishInts, intIngs, ingre
   for (const [intId, req] of intReq) {
     const inter = intMap.get(intId);
     if (!inter) continue;
-    const deficit = Math.max(0, req.total - inter.stock_qty);
-    if (deficit > 0) {
+    const deficit = req.total == null ? null : Math.max(0, req.total - inter.stock_qty);
+    if (deficit == null || deficit > 0) {
       const inputs = intIngs.filter(ii => ii.intermediate_id === intId);
       for (const inp of inputs) {
         const cur = ingReq.get(inp.ingredient_id) || { total: 0, priority: 99, dishes: [], issues: [] };
-        const converted = convertToStock(inp.qty_per_unit * deficit, inp.recipe_unit, ingMap.get(inp.ingredient_id));
+        const converted = convertToStock(deficit == null ? null : inp.qty_per_unit * deficit, inp.recipe_unit, ingMap.get(inp.ingredient_id));
         if (converted == null) cur.issues.push(`Confirm conversion for ${inter.name}`);
         else cur.total += converted;
         cur.dishes.push(...req.dishes);

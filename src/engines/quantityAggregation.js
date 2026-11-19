@@ -1,3 +1,4 @@
+import { scaleQuantity } from './scaling.js';
 import { convertToStock, stockStatus } from './pantry.js';
 /**
  * Quantity Aggregation Engine (Phase 4)
@@ -41,12 +42,13 @@ export function computeQuantityAggregation(
   for (const dish of activeDishes) {
     for (const e of dishIngredients.filter(di => di.dish_id === dish.id)) {
       const cur = ingredientRequirements.get(e.ingredient_id) ?? 0;
-      const qty = convertToStock(e.qty, e.recipe_unit, ingMap.get(e.ingredient_id));
+      const qty = convertToStock(scaleQuantity(e.qty, dish), e.recipe_unit, ingMap.get(e.ingredient_id));
       ingredientRequirements.set(e.ingredient_id, ingredientRequirements.get(e.ingredient_id) === null || qty === null ? null : cur + qty);
     }
     for (const e of dishIntermediates.filter(di => di.dish_id === dish.id)) {
       const cur = intermediateRequirements.get(e.intermediate_id) || 0;
-      intermediateRequirements.set(e.intermediate_id, cur + e.qty);
+      const qty = scaleQuantity(e.qty, dish);
+      intermediateRequirements.set(e.intermediate_id, qty == null || intermediateRequirements.get(e.intermediate_id) === null ? null : cur + qty);
     }
   }
 
@@ -55,17 +57,17 @@ export function computeQuantityAggregation(
   for (const [intId, required] of intermediateRequirements) {
     const inter = interMap.get(intId);
     const stock = inter?.stock_qty ?? 0;
-    const deficit = Math.max(0, required - stock);
+    const deficit = required == null ? null : Math.max(0, required - stock);
     intermediateDeficits.set(intId, deficit);
 
-    if (deficit > 0 && inter) {
+    if ((deficit == null || deficit > 0) && inter) {
       const inputs = inter.input_ingredients || [];
       for (const inp of inputs) {
         const ingId = inp.ingredientId ?? inp.ingredient_id;
         const qtyPerUnit = inp.qtyPerUnit ?? inp.qty_per_unit ?? 0;
         if (ingId == null) continue;
         const cur = ingredientRequirements.get(ingId) ?? 0;
-        const qty = convertToStock(qtyPerUnit * deficit, inp.recipe_unit, ingMap.get(ingId));
+        const qty = convertToStock(deficit == null ? null : qtyPerUnit * deficit, inp.recipe_unit, ingMap.get(ingId));
         ingredientRequirements.set(ingId, ingredientRequirements.get(ingId) === null || qty === null ? null : cur + qty);
       }
     }

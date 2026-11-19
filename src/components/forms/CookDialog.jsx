@@ -1,3 +1,4 @@
+import { scaleQuantity, recipeScale, formatQuantity } from '../../engines/scaling.js';
 /**
  * CookDialog — Phase E1 cook-with-overrides confirmation dialog.
  *
@@ -16,7 +17,7 @@ import { useState, useMemo } from 'react';
 import { getIngredientEmoji } from '../../config/emoji.js';
 
 // Build a stable initial row list so "Reset to recipe" can put it back.
-function buildInitialRows(recipeIngs, recipeInts, ingredients, intermediates) {
+function buildInitialRows(recipeIngs, recipeInts, ingredients, intermediates, dish) {
   const ingMap = new Map(ingredients.map(i => [i.id, i]));
   const intMap = new Map(intermediates.map(i => [i.id, i]));
 
@@ -27,8 +28,8 @@ function buildInitialRows(recipeIngs, recipeInts, ingredients, intermediates) {
       id: di.ingredient_id,
       name: ig?.name || 'Unknown ingredient',
       emoji: ig ? getIngredientEmoji(ig) : '🥕',
-      recipeQty: convertToStock(di.qty, di.recipe_unit, ig),
-      recipeLabel: `${di.qty} ${di.recipe_unit || ig?.unit || ''}`,
+      recipeQty: convertToStock(scaleQuantity(di.qty, dish), di.recipe_unit, ig),
+      recipeLabel: `${formatQuantity(scaleQuantity(di.qty, dish))} ${di.recipe_unit || ig?.unit || ''}`,
       unknown: stockStatus(ig) !== 'known',
       unit: ig?.unit || '',
       stock: Number(ig?.stock_qty) || 0,
@@ -42,7 +43,7 @@ function buildInitialRows(recipeIngs, recipeInts, ingredients, intermediates) {
       id: di.intermediate_id,
       name: it?.name || 'Unknown preparation',
       emoji: '🍲',
-      recipeQty: Number(di.qty) || 0,
+      recipeQty: scaleQuantity(di.qty, dish),
       unit: it?.unit || 'portions',
       stock: Number(it?.stock_qty) || 0,
     };
@@ -60,8 +61,8 @@ function parseQty(raw) {
 
 export default function CookDialog({ dish, recipeIngs, recipeInts, ingredients, intermediates, onConfirm, onCancel }) {
   const rows = useMemo(
-    () => buildInitialRows(recipeIngs, recipeInts, ingredients, intermediates),
-    [recipeIngs, recipeInts, ingredients, intermediates]
+    () => buildInitialRows(recipeIngs, recipeInts, ingredients, intermediates, dish),
+    [recipeIngs, recipeInts, ingredients, intermediates, dish]
   );
 
   // qtys is keyed by `${kind}:${id}` so an ingredient and an intermediate
@@ -85,7 +86,8 @@ export default function CookDialog({ dish, recipeIngs, recipeInts, ingredients, 
       const raw = qtys[`${r.kind}:${r.id}`];
       const q = parseQty(raw);
       let error = null;
-      if (r.unknown) error = 'Check and enter measured pantry stock first';
+      if (recipeScale(dish) == null) error = 'Set a valid recipe batch size first';
+      else if (r.unknown) error = 'Check and enter measured pantry stock first';
       else if (Number.isNaN(q)) error = 'Enter a number';
       else if (q <= 0) error = 'Must be > 0';
       else if (q > r.stock) error = 'Exceeds available stock';
@@ -93,7 +95,7 @@ export default function CookDialog({ dish, recipeIngs, recipeInts, ingredients, 
       if (error) anyError = true;
     }
     return { map, anyError };
-  }, [rows, qtys]);
+  }, [rows, qtys, dish]);
 
   const confirm = async () => {
     if (validation.anyError || submitting) return;
@@ -128,6 +130,7 @@ export default function CookDialog({ dish, recipeIngs, recipeInts, ingredients, 
         </div>
 
         <div className="px-5 py-3 overflow-y-auto flex-1">
+          <p className="text-xs text-warm-gray mb-3">Batch: {formatQuantity(recipeScale(dish))}× original recipe. Amounts below are the actual quantities to deduct.</p>
           {rows.length === 0 ? (
             <p className="text-sm text-warm-gray text-center py-6">
               This dish has no linked ingredients or preparations.

@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "deploy": "npm run build && gh-pages -d dist",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js",
-    "test:pantry-db": "node scripts/test-pantry-db.mjs"
+    "test:pantry-db": "node scripts/test-pantry-db.mjs",
+    "test:scaling-ui": "node scripts/test-scaling-ui.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
@@ -24,6 +25,7 @@
     "gh-pages": "^6.1.1",
     "jest": "^30.3.0",
     "postcss": "^8.4.38",
+    "react-test-renderer": "18.3.1",
     "tailwindcss": "^3.4.4",
     "vite": "^8.0.10"
   },

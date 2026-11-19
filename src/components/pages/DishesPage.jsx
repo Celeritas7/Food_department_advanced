@@ -1,3 +1,4 @@
+import { scaleQuantity, formatQuantity } from '../../engines/scaling.js';
 import { stockStatus, stockLabel } from '../../engines/pantry.js';
 /**
  * DishesPage.jsx — 4-tab layout:
@@ -333,6 +334,7 @@ export default function DishesPage({ dishes, dishIngs = [], dishInts = [], ingre
   // Missing/enough comes from the availability engine so it matches the ring.
   const stockByDish = useMemo(() => {
     if (!showStock) return null;
+    const dishById = new Map(dishes.map(d => [d.id, d]));
     const ingById = new Map(ingredients.map(i => [i.id, i]));
     const intById = new Map(intermediates.map(i => [i.id, i]));
     const byDish = new Map();
@@ -344,7 +346,7 @@ export default function DishesPage({ dishes, dishIngs = [], dishInts = [], ingre
       add(di.dish_id, {
         key: 'i' + di.ingredient_id, emoji: ig ? getIngredientEmoji(ig) : '❓', name: ig?.name || 'Unknown ingredient',
         haveLabel: ig && stockStatus(ig) !== 'known' ? stockLabel(ig) : null,
-        have: ig?.stock_qty ?? 0, haveUnit: ig?.unit || '', need: di.qty, needUnit: di.recipe_unit || ig?.unit || '',
+        have: ig?.stock_qty ?? 0, haveUnit: ig?.unit || '', need: formatQuantity(scaleQuantity(di.qty, dishById.get(di.dish_id))), needUnit: di.recipe_unit || ig?.unit || '',
         missing: !ig || !!missingIng.get(di.dish_id)?.has(di.ingredient_id),
       });
     }
@@ -352,7 +354,7 @@ export default function DishesPage({ dishes, dishIngs = [], dishInts = [], ingre
       const it = intById.get(di.intermediate_id);
       add(di.dish_id, {
         key: 'p' + di.intermediate_id, emoji: '🧑‍🍳', name: it?.name || 'Unknown prep', isPrep: true,
-        have: it?.stock_qty ?? 0, haveUnit: it?.unit || 'portions', need: di.qty, needUnit: it?.unit || 'portions',
+        have: it?.stock_qty ?? 0, haveUnit: it?.unit || 'portions', need: formatQuantity(scaleQuantity(di.qty, dishById.get(di.dish_id))), needUnit: it?.unit || 'portions',
         missing: !it || !!missingInt.get(di.dish_id)?.has(di.intermediate_id),
       });
     }

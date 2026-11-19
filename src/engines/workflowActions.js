@@ -1,3 +1,4 @@
+import { scaleQuantity } from './scaling.js';
 /**
  * Workflow Actions Engine (Phase 6)
  *
@@ -41,7 +42,7 @@ export function cookDish(dishId, dishes, dishIngs, dishInts, ingredients, interm
   for (const e of dishIngs.filter(di => di.dish_id === dishId)) {
     const ig = ingMap.get(e.ingredient_id);
     if (!ig) throw new Error(`Ingredient ${e.ingredient_id} not found`);
-    const newStock = ig.stock_qty - convertToStock(e.qty, e.recipe_unit, ig);
+    const newStock = ig.stock_qty - convertToStock(scaleQuantity(e.qty, dish), e.recipe_unit, ig);
     if (newStock < 0) throw new Error(`Insufficient ${ig.name}: need ${e.qty}, have ${ig.stock_qty}`);
     updatedIngredients.push({ ...ig, stock_qty: newStock, stock_status: 'known', in_stock: newStock > 0 });
   }
@@ -51,7 +52,7 @@ export function cookDish(dishId, dishes, dishIngs, dishInts, ingredients, interm
   for (const e of dishInts.filter(di => di.dish_id === dishId)) {
     const it = intMap.get(e.intermediate_id);
     if (!it) throw new Error(`Intermediate ${e.intermediate_id} not found`);
-    const newStock = it.stock_qty - e.qty;
+    const newStock = it.stock_qty - scaleQuantity(e.qty, dish);
     if (newStock < 0) throw new Error(`Insufficient ${it.name}: need ${e.qty}, have ${it.stock_qty}`);
     updatedIntermediates.push({ ...it, stock_qty: newStock });
   }
